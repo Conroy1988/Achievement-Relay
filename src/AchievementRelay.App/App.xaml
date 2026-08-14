@@ -12,6 +12,7 @@
     <Color x:Key="AccentColor">#56E39F</Color>
     <Color x:Key="AccentDarkColor">#187B50</Color>
     <Color x:Key="DiscordColor">#5865F2</Color>
+    <Color x:Key="KoFiColor">#FF5E5B</Color>
     <Color x:Key="WarningColor">#F6C85F</Color>
     <Color x:Key="ErrorColor">#FF6B6B</Color>
 
@@ -24,6 +25,7 @@
     <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
     <SolidColorBrush x:Key="AccentDarkBrush" Color="{StaticResource AccentDarkColor}" />
     <SolidColorBrush x:Key="DiscordBrush" Color="{StaticResource DiscordColor}" />
+    <SolidColorBrush x:Key="KoFiBrush" Color="{StaticResource KoFiColor}" />
     <SolidColorBrush x:Key="WarningBrush" Color="{StaticResource WarningColor}" />
     <SolidColorBrush x:Key="ErrorBrush" Color="{StaticResource ErrorColor}" />
 
@@ -103,6 +105,12 @@
     <Style x:Key="DiscordButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
       <Setter Property="Background" Value="{StaticResource DiscordBrush}" />
       <Setter Property="BorderBrush" Value="{StaticResource DiscordBrush}" />
+    </Style>
+
+    <Style x:Key="KoFiButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+      <Setter Property="Background" Value="{StaticResource KoFiBrush}" />
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="BorderBrush" Value="{StaticResource KoFiBrush}" />
     </Style>
 
     <Style x:Key="NavButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">

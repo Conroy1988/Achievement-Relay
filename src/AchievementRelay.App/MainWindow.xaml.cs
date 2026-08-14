@@ -18,6 +18,7 @@ namespace AchievementRelay.App;
 public partial class MainWindow : Window
 {
     private const string GitHubUrl = "https://github.com/Conroy1988/Achievement-Relay";
+    private const string KoFiUrl = "https://ko-fi.com/D4P124RWI9";
     private const string DiscordWebhookGuideUrl = "https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks";
 
     private readonly AppServices _services;
@@ -549,6 +550,8 @@ public partial class MainWindow : Window
     }
 
     private void OpenGitHub_Click(object sender, RoutedEventArgs e) => OpenExternal(GitHubUrl);
+
+    private void OpenKoFi_Click(object sender, RoutedEventArgs e) => OpenExternal(KoFiUrl);
 
     private void OnActivityEntryAdded(object? sender, ActivityEntry entry)
     {

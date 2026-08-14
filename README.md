@@ -7,6 +7,7 @@
 [![CI](https://github.com/Conroy1988/Achievement-Relay/actions/workflows/ci.yml/badge.svg)](https://github.com/Conroy1988/Achievement-Relay/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-56e39f.svg)](LICENSE)
 [![Windows 10/11](https://img.shields.io/badge/Windows-10%202004%2B-5865f2.svg)](docs/INSTALL.md)
+[![Support on Ko-fi](https://img.shields.io/badge/Support_on_Ko--fi-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/D4P124RWI9)
 
 > [!IMPORTANT]
 > Achievement Relay is an early alpha. The notification formats used by Xbox can vary by game, Windows language, and Xbox app version. Use the **Activity** and **Diagnostics** screens when testing and report missed formats with a redacted support summary.
@@ -98,6 +99,10 @@ The notification listener requires package identity and the manifest capability,
 Issues and pull requests are welcome. Read [Contributing](CONTRIBUTING.md) before sharing diagnostics, and never post a Discord webhook URL in an issue.
 
 Release history is recorded in the [Changelog](CHANGELOG.md).
+
+## Support Achievement Relay
+
+Achievement Relay is free and open source. If it makes sharing your unlocks easier, [support future development on Ko-fi](https://ko-fi.com/D4P124RWI9). Contributions are appreciated, never required.
 
 ## Official references
 

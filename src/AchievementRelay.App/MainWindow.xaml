@@ -367,6 +367,20 @@
               </StackPanel>
             </Border>
 
+            <Border Style="{StaticResource Card}" BorderBrush="{StaticResource KoFiBrush}" Margin="0,0,0,14">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Margin="0,0,22,0" VerticalAlignment="Center">
+                  <TextBlock Text="Help Achievement Relay grow" FontSize="18" FontWeight="SemiBold" />
+                  <TextBlock Text="If the app makes sharing your unlocks easier, you can support future development on Ko-fi." Foreground="{StaticResource MutedTextBrush}" Margin="0,6,0,0" />
+                </StackPanel>
+                <Button Grid.Column="1" Content="☕  Support on Ko-fi" Style="{StaticResource KoFiButton}" Click="OpenKoFi_Click" VerticalAlignment="Center" />
+              </Grid>
+            </Border>
+
             <Border Style="{StaticResource Card}">
               <StackPanel>
                 <TextBlock Text="Privacy by design" FontSize="18" FontWeight="SemiBold" />

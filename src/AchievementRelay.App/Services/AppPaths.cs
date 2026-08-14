@@ -1,3 +1,5 @@
+using System.IO;
+
 namespace AchievementRelay.App.Services;
 
 public sealed class AppPaths

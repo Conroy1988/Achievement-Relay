@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.IO;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
@@ -8,7 +9,9 @@ using System.Windows.Media;
 using AchievementRelay.App.Services;
 using AchievementRelay.Core.Models;
 using AchievementRelay.Core.Services;
+using Button = System.Windows.Controls.Button;
 using Forms = System.Windows.Forms;
+using MessageBox = System.Windows.MessageBox;
 
 namespace AchievementRelay.App;
 
@@ -155,9 +158,13 @@ public partial class MainWindow : Window
             (System.Windows.Application.Current as App)?.ExitApplication()));
 
         var executablePath = Environment.ProcessPath;
-        var icon = !string.IsNullOrWhiteSpace(executablePath) && File.Exists(executablePath)
-            ? System.Drawing.Icon.ExtractAssociatedIcon(executablePath) ?? System.Drawing.SystemIcons.Application
-            : System.Drawing.SystemIcons.Application;
+        System.Drawing.Icon? extractedIcon = null;
+        if (executablePath is { Length: > 0 } && File.Exists(executablePath))
+        {
+            extractedIcon = System.Drawing.Icon.ExtractAssociatedIcon(executablePath);
+        }
+
+        var icon = extractedIcon ?? System.Drawing.SystemIcons.Application;
 
         _trayIcon = new Forms.NotifyIcon
         {

@@ -1,3 +1,4 @@
+using System.IO;
 using System.Text.Json;
 
 namespace AchievementRelay.App.Services;
@@ -81,24 +82,25 @@ public sealed class EventLedger(AppPaths paths)
 
     private void Prune()
     {
+        var entries = _entries ?? throw new InvalidOperationException("The event ledger has not been loaded.");
         var cutoff = DateTimeOffset.UtcNow - MaximumAge;
-        foreach (var oldEntry in _entries!.Where(entry => entry.Value < cutoff).Select(entry => entry.Key).ToArray())
+        foreach (var oldEntry in entries.Where(entry => entry.Value < cutoff).Select(entry => entry.Key).ToArray())
         {
-            _entries.Remove(oldEntry);
+            entries.Remove(oldEntry);
         }
 
-        if (_entries.Count <= MaximumEntries)
+        if (entries.Count <= MaximumEntries)
         {
             return;
         }
 
-        foreach (var overflow in _entries
+        foreach (var overflow in entries
             .OrderBy(entry => entry.Value)
-            .Take(_entries.Count - MaximumEntries)
+            .Take(entries.Count - MaximumEntries)
             .Select(entry => entry.Key)
             .ToArray())
         {
-            _entries.Remove(overflow);
+            entries.Remove(overflow);
         }
     }
 

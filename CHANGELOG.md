@@ -10,6 +10,18 @@ All notable changes to Achievement Relay are documented here. The project follow
 - Stable code signing and update channel
 - Steam achievement provider research
 
+## [0.1.1] - 2026-08-14
+
+### Added
+
+- Single-file `AchievementRelay_Setup.exe` with bundled x64 and Arm64 packages
+- Clear installer errors and an automatic launch into Guided setup
+
+### Fixed
+
+- Native Arm64 detection when setup runs through an emulated process
+- Installation guidance that previously required extracting a ZIP and manually running PowerShell
+
 ## [0.1.0] - 2026-08-14
 
 ### Added
@@ -25,5 +37,6 @@ All notable changes to Achievement Relay are documented here. The project follow
 - x64/Arm64 MSIX packaging, installer scripts, development signing, CI, and tagged release workflow
 - User, privacy, security, troubleshooting, architecture, contributor, and release documentation
 
-[Unreleased]: https://github.com/Conroy1988/Achievement-Relay/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Conroy1988/Achievement-Relay/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.1.1
 [0.1.0]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.1.0

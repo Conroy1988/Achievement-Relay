@@ -1,53 +1,82 @@
 [CmdletBinding()]
-param()
+param(
+    [string] $ErrorFile
+)
 
 $ErrorActionPreference = 'Stop'
 $scriptDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
-$architecture = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'arm64' } else { 'x64' }
-$package = Get-ChildItem -LiteralPath $scriptDirectory -Filter "AchievementRelay_*_${architecture}.msix" |
-    Sort-Object Name -Descending |
-    Select-Object -First 1
 
-if (-not $package -and $architecture -eq 'arm64') {
-    $package = Get-ChildItem -LiteralPath $scriptDirectory -Filter 'AchievementRelay_*_x64.msix' |
-        Sort-Object Name -Descending |
-        Select-Object -First 1
-}
-
-if (-not $package) {
-    throw "No compatible Achievement Relay MSIX was found in $scriptDirectory."
-}
-
-$developmentCertificate = Get-ChildItem -LiteralPath $scriptDirectory -Filter 'AchievementRelay.Development.cer' |
-    Select-Object -First 1
-if ($developmentCertificate) {
-    Write-Host 'This alpha build uses a project development certificate.' -ForegroundColor Yellow
-    $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($developmentCertificate.FullName)
-    $trustedCertificatePath = "Cert:\LocalMachine\TrustedPeople\$($certificate.Thumbprint)"
-    if (-not (Test-Path -LiteralPath $trustedCertificatePath)) {
-        Write-Host 'Windows will request administrator approval once to trust the package certificate for this PC.'
-        $importCommand = "Import-Certificate -FilePath `"$($developmentCertificate.FullName)`" -CertStoreLocation 'Cert:\LocalMachine\TrustedPeople' | Out-Null"
-        $encodedCommand = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($importCommand))
-        $importProcess = Start-Process `
-            -FilePath 'powershell.exe' `
-            -Verb RunAs `
-            -ArgumentList "-NoProfile -EncodedCommand $encodedCommand" `
-            -Wait `
-            -PassThru
-        if ($importProcess.ExitCode -ne 0) {
-            throw 'The development certificate was not trusted. Installation was cancelled.'
+try {
+    try {
+        $nativeArchitecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
+    }
+    catch {
+        $nativeArchitecture = $env:PROCESSOR_ARCHITEW6432
+        if (-not $nativeArchitecture) {
+            $nativeArchitecture = $env:PROCESSOR_ARCHITECTURE
         }
     }
+
+    $architecture = switch -Regex ($nativeArchitecture) {
+        '^Arm64$' { 'arm64'; break }
+        '^(X64|AMD64)$' { 'x64'; break }
+        default { throw "Unsupported Windows architecture: $nativeArchitecture" }
+    }
+
+    $package = Get-ChildItem -LiteralPath $scriptDirectory -Filter "AchievementRelay_*_${architecture}.msix" |
+        Sort-Object Name -Descending |
+        Select-Object -First 1
+
+    if (-not $package -and $architecture -eq 'arm64') {
+        $package = Get-ChildItem -LiteralPath $scriptDirectory -Filter 'AchievementRelay_*_x64.msix' |
+            Sort-Object Name -Descending |
+            Select-Object -First 1
+    }
+
+    if (-not $package) {
+        throw "No compatible Achievement Relay MSIX was found in $scriptDirectory."
+    }
+
+    $developmentCertificate = Get-ChildItem -LiteralPath $scriptDirectory -Filter 'AchievementRelay.Development.cer' |
+        Select-Object -First 1
+    if ($developmentCertificate) {
+        Write-Host 'This alpha build uses a project development certificate.' -ForegroundColor Yellow
+        $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($developmentCertificate.FullName)
+        $trustedCertificatePath = "Cert:\LocalMachine\TrustedPeople\$($certificate.Thumbprint)"
+        if (-not (Test-Path -LiteralPath $trustedCertificatePath)) {
+            Write-Host 'Windows will request administrator approval once to trust the package certificate for this PC.'
+            $importCommand = "Import-Certificate -FilePath `"$($developmentCertificate.FullName)`" -CertStoreLocation 'Cert:\LocalMachine\TrustedPeople' | Out-Null"
+            $encodedCommand = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($importCommand))
+            $importProcess = Start-Process `
+                -FilePath 'powershell.exe' `
+                -Verb RunAs `
+                -ArgumentList "-NoProfile -EncodedCommand $encodedCommand" `
+                -Wait `
+                -PassThru
+            if ($importProcess.ExitCode -ne 0) {
+                throw 'The development certificate was not trusted. Installation was cancelled.'
+            }
+        }
+    }
+
+    Write-Host "Installing $($package.Name)..."
+    Add-AppxPackage -Path $package.FullName -ForceApplicationShutdown
+
+    $installedPackage = Get-AppxPackage -Name 'Conroy.AchievementRelay' | Select-Object -First 1
+    if (-not $installedPackage) {
+        throw 'Windows reported success, but the Achievement Relay package could not be located.'
+    }
+
+    Write-Host 'Installation complete. Launching Achievement Relay...'
+    Start-Process explorer.exe "shell:AppsFolder\$($installedPackage.PackageFamilyName)!AchievementRelay"
+    Write-Host 'Follow the four steps shown in Guided setup.' -ForegroundColor Green
 }
-
-Write-Host "Installing $($package.Name)..."
-Add-AppxPackage -Path $package.FullName -ForceApplicationShutdown
-
-$installedPackage = Get-AppxPackage -Name 'Conroy.AchievementRelay' | Select-Object -First 1
-if (-not $installedPackage) {
-    throw 'Windows reported success, but the Achievement Relay package could not be located.'
+catch {
+    if ($ErrorFile) {
+        [System.IO.File]::WriteAllText(
+            [System.IO.Path]::GetFullPath($ErrorFile),
+            $_.Exception.Message,
+            [System.Text.UTF8Encoding]::new($false))
+    }
+    throw
 }
-
-Write-Host 'Installation complete. Launching Achievement Relay...'
-Start-Process explorer.exe "shell:AppsFolder\$($installedPackage.PackageFamilyName)!AchievementRelay"
-Write-Host 'Follow the four steps shown in Guided setup. No administrator account is required.' -ForegroundColor Green

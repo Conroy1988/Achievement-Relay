@@ -5,13 +5,13 @@ Achievement Relay takes about two minutes to configure. It performs every step W
 ## 1. Install the app
 
 1. Open the latest GitHub Release.
-2. Download `AchievementRelay_<version>_installer.zip`.
-3. Right-click the downloaded ZIP, select **Properties**, select **Unblock** if Windows shows that option, and then select **OK**.
-4. Extract the ZIP to a normal folder.
-5. Right-click `Install.ps1` and select **Run with PowerShell**. For a development-signed alpha, approve the one administrator prompt used to trust its public package certificate.
-6. Achievement Relay opens to **Guided setup**.
+2. Download `AchievementRelay_Setup.exe`.
+3. Double-click the downloaded setup file and select **Install**.
+4. If Microsoft Defender SmartScreen appears for this early alpha, check that the file came from the official Achievement Relay release, select **More info**, and then **Run anyway**.
+5. For a development-signed alpha, approve the one administrator prompt used to trust its public package certificate.
+6. Setup selects the correct x64 or Arm64 package, installs it for your Windows account, and opens Achievement Relay at **Guided setup**.
 
-The alpha installer uses a project development certificate unless the release is production-signed. [Installation details](docs/INSTALL.md) explain exactly what the script changes.
+The alpha installer uses a project development certificate unless the release is production-signed. [Installation details](docs/INSTALL.md) explain exactly what setup changes and include a manual fallback.
 
 ## 2. Grant notification access
 

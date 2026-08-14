@@ -179,7 +179,7 @@ public partial class MainWindow : Window
 
     private void PopulateControls()
     {
-        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.1.0";
+        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.1.1";
         AboutVersionText.Text = $"Version {version} alpha";
 
         SetupDisplayNameTextBox.Text = _settings.DisplayName;

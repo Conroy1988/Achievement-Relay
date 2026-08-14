@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build-and-check:
-    runs-on: windows-latest
+    runs-on: windows-2022
     timeout-minutes: 20
 
     steps:
@@ -35,6 +35,9 @@ jobs:
         shell: pwsh
         run: .\scripts\Test-Repository.ps1
 
-      - name: Create unsigned MSIX smoke package
+      - name: Create unsigned installer smoke artifacts
         shell: pwsh
-        run: .\scripts\Build-Msix.ps1 -Architecture x64 -Version 0.1.0.0 -OutputDirectory .\artifacts\ci
+        run: |
+          .\scripts\Build-Msix.ps1 -Architecture x64 -Version 0.1.1.0 -OutputDirectory .\artifacts\ci
+          .\scripts\Build-Msix.ps1 -Architecture arm64 -Version 0.1.1.0 -OutputDirectory .\artifacts\ci
+          .\scripts\Build-Installer.ps1 -Version 0.1.1 -MsixVersion 0.1.1.0 -PackageDirectory .\artifacts\ci -OutputDirectory .\artifacts\ci

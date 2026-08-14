@@ -9,7 +9,7 @@ on:
       version:
         description: Release tag in vX.Y.Z format
         required: true
-        default: v0.1.0
+        default: v0.1.1
         type: string
 
 permissions:
@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   package-and-release:
-    runs-on: windows-latest
+    runs-on: windows-2022
     timeout-minutes: 35
     env:
       RELEASE_TAG: ${{ inputs.version || github.ref_name }}
@@ -73,6 +73,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $files = Get-ChildItem .\artifacts -File |
-            Where-Object { $_.Extension -in '.msix', '.zip', '.cer' } |
+            Where-Object { $_.Extension -in '.exe', '.msix', '.zip', '.cer' } |
             ForEach-Object FullName
           gh release create $env:RELEASE_TAG $files --generate-notes --title "Achievement Relay $env:RELEASE_TAG" --target '${{ github.sha }}'

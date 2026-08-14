@@ -11,9 +11,9 @@
     <ApplicationIcon>Assets\AchievementRelay.ico</ApplicationIcon>
     <AssemblyName>AchievementRelay.App</AssemblyName>
     <RootNamespace>AchievementRelay.App</RootNamespace>
-    <Version>0.1.0</Version>
-    <FileVersion>0.1.0.0</FileVersion>
-    <AssemblyVersion>0.1.0.0</AssemblyVersion>
+    <Version>0.1.1</Version>
+    <FileVersion>0.1.1.0</FileVersion>
+    <AssemblyVersion>0.1.1.0</AssemblyVersion>
     <Description>Automatically relay Xbox achievement notifications from Windows to Discord.</Description>
   </PropertyGroup>
 

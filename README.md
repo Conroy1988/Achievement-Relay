@@ -35,14 +35,14 @@ No Xbox password, Microsoft account token, Discord bot, public server, or cloud 
 
 ## Quick start
 
-1. Download the latest `AchievementRelay_*_installer.zip` from **Releases**.
-2. Extract the ZIP and run `Install.ps1` with PowerShell.
+1. Download `AchievementRelay_Setup.exe` from the latest **Release**.
+2. Open it and follow the setup wizard. For an alpha build, approve the one administrator prompt that lets Windows trust its package certificate.
 3. In Achievement Relay, grant Windows notification access.
 4. Confirm Xbox/Game Bar achievement notifications are enabled.
 5. Create a Discord channel webhook, paste its URL, and select **Save and test**.
 6. Choose startup behaviour and select **Finish setup**.
 
-The installer and every first-run screen are documented in [Getting Started](GETTING_STARTED.md). Alpha certificate details are in [Installation](docs/INSTALL.md).
+The installer and every first-run screen are documented in [Getting Started](GETTING_STARTED.md). Alpha certificate and manual-install details are in [Installation](docs/INSTALL.md).
 
 ## Compatibility
 
@@ -69,6 +69,7 @@ Requirements:
 - Windows 10 version 2004 (build 19041) or newer
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
 - Windows 10/11 SDK with `MakeAppx.exe` and `SignTool.exe` for packaging
+- [Inno Setup 6](https://jrsoftware.org/isinfo.php) for the single-file setup executable
 
 ```powershell
 dotnet restore .\AchievementRelay.sln
@@ -80,7 +81,7 @@ dotnet run --project .\tests\AchievementRelay.Core.Tests --configuration Release
 To create installable x64 and Arm64 development packages:
 
 ```powershell
-.\scripts\Build-Release.ps1 -Version 0.1.0.0
+.\scripts\Build-Release.ps1 -Version 0.1.1.0
 ```
 
 The notification listener requires package identity and the manifest capability, so test real capture from an installed MSIX rather than an unpackaged `dotnet run` process. Maintainer signing and release instructions are in [Release Process](docs/RELEASING.md).
@@ -92,7 +93,8 @@ The notification listener requires package identity and the manifest capability,
 - [x] Permission-first setup and tray operation
 - [x] Local encryption, source filtering, deduplication, and diagnostics
 - [ ] Expand parser fixtures from real-world, redacted notification formats
-- [ ] Signed stable installer and automated update channel
+- [x] Single-file Windows setup executable
+- [ ] Trusted production signing and automated update channel
 - [ ] Optional Steam achievement provider
 - [ ] Additional outbound destinations
 

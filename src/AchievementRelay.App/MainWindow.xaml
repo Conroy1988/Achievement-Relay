@@ -362,7 +362,7 @@
               <StackPanel>
                 <Image Source="Assets/AchievementRelay.png" Width="96" Height="96" HorizontalAlignment="Left" />
                 <TextBlock Text="Achievement Relay" FontSize="25" FontWeight="Bold" Margin="0,14,0,3" />
-                <TextBlock x:Name="AboutVersionText" Text="Version 0.1.0 alpha" Foreground="{StaticResource AccentBrush}" FontWeight="SemiBold" />
+                <TextBlock x:Name="AboutVersionText" Text="Version 0.1.1 alpha" Foreground="{StaticResource AccentBrush}" FontWeight="SemiBold" />
                 <TextBlock Text="A privacy-first Windows companion that detects Xbox achievement notifications and sends them to a Discord channel chosen by the user." Foreground="{StaticResource MutedTextBrush}" Margin="0,14,0,0" MaxWidth="680" HorizontalAlignment="Left" />
               </StackPanel>
             </Border>

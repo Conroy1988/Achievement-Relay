@@ -40,7 +40,7 @@ If either is absent, the workflow makes a development-signed alpha release and i
 3. Build and install both target packages on representative Windows devices where available.
 4. Verify first-run consent, Discord test, real Xbox capture, tray close/reopen, startup, upgrade, and uninstall.
 5. Confirm the package certificate subject exactly matches the manifest publisher.
-6. Tag the verified commit with `v<major>.<minor>.<patch>` and push the tag.
+6. Tag the verified commit with `v<major>.<minor>.<patch>` and push the tag, or run the **Release** workflow from GitHub Actions and enter that version. The manual workflow creates the tag at the selected commit when it publishes the release.
 7. Download the published release assets and verify signatures with `Get-AuthenticodeSignature` or `SignTool verify /pa`.
 
 Store onboarding may replace the local package identity and publisher. Treat those values as permanent after the first stable public distribution.

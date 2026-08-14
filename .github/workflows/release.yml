@@ -4,6 +4,13 @@ on:
   push:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release tag in vX.Y.Z format
+        required: true
+        default: v0.1.0
+        type: string
 
 permissions:
   contents: write
@@ -12,6 +19,8 @@ jobs:
   package-and-release:
     runs-on: windows-latest
     timeout-minutes: 35
+    env:
+      RELEASE_TAG: ${{ inputs.version || github.ref_name }}
 
     steps:
       - name: Check out source
@@ -36,7 +45,11 @@ jobs:
           SIGNING_PFX_PASSWORD: ${{ secrets.SIGNING_PFX_PASSWORD }}
           SIGNING_TIMESTAMP_URL: ${{ secrets.SIGNING_TIMESTAMP_URL }}
         run: |
-          $threePartVersion = '${{ github.ref_name }}'.TrimStart('v')
+          if ($env:RELEASE_TAG -notmatch '^v\d+\.\d+\.\d+$') {
+            throw "Release version must use vX.Y.Z format; received '$env:RELEASE_TAG'."
+          }
+
+          $threePartVersion = $env:RELEASE_TAG.Substring(1)
           $msixVersion = "$threePartVersion.0"
           $arguments = @{
             Version = $msixVersion
@@ -62,4 +75,4 @@ jobs:
           $files = Get-ChildItem .\artifacts -File |
             Where-Object { $_.Extension -in '.msix', '.zip', '.cer' } |
             ForEach-Object FullName
-          gh release create '${{ github.ref_name }}' $files --generate-notes --title "Achievement Relay ${{ github.ref_name }}"
+          gh release create $env:RELEASE_TAG $files --generate-notes --title "Achievement Relay $env:RELEASE_TAG" --target '${{ github.sha }}'

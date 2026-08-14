@@ -106,8 +106,7 @@ var
 begin
   WizardForm.WelcomeLabel1.Caption := 'ENTER THE ACHIEVEMENT RELAY';
   WizardForm.WelcomeLabel2.Caption :=
-    'Sync Xbox achievements to Discord from a focused Windows gaming companion.' +
-    #13#10 + #13#10 +
+    'Sync Xbox achievements to Discord from a focused Windows gaming companion.' + #13#10 + #13#10 +
     'Setup selects the correct x64 or Arm64 package. You can connect OpenXBL and Discord now, or skip that step and use Guided setup later.';
 
   SetupChoicePage := CreateInputOptionPage(wpWelcome,

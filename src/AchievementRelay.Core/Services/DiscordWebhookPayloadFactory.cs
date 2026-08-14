@@ -53,12 +53,20 @@ public static class DiscordWebhookPayloadFactory
         var embed = new Dictionary<string, object?>
         {
             ["title"] = Truncate($"🏆 {achievement.Name}", 256),
-            ["description"] = string.IsNullOrWhiteSpace(description) ? null : Truncate(description, 4096),
             ["color"] = achievement.IsRare ? RareGold : XboxGreen,
-            ["fields"] = fields.Count == 0 ? null : fields,
             ["timestamp"] = achievement.UnlockedAt.ToUniversalTime().ToString("O"),
             ["footer"] = new { text = "Relayed by Achievement Relay" }
         };
+
+        if (!string.IsNullOrWhiteSpace(description))
+        {
+            embed["description"] = Truncate(description, 4096);
+        }
+
+        if (fields.Count > 0)
+        {
+            embed["fields"] = fields;
+        }
 
         if (Uri.TryCreate(achievement.ImageUrl, UriKind.Absolute, out var imageUri) &&
             (imageUri.Scheme == Uri.UriSchemeHttps || imageUri.Scheme == Uri.UriSchemeHttp))

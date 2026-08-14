@@ -1,0 +1,42 @@
+## Build output
+bin/
+obj/
+build/
+artifacts/
+AppPackages/
+BundleArtifacts/
+*.appx
+*.appxbundle
+*.msix
+*.msixbundle
+*.cer
+*.pfx
+*.p12
+
+## Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## JetBrains
+.idea/
+*.sln.iml
+
+## Test output
+TestResults/
+coverage/
+*.trx
+
+## Local configuration and secrets
+settings.json
+processed-events.json
+*.secrets.json
+.env
+.env.*
+
+## OS files
+.DS_Store
+Thumbs.db
+Desktop.ini

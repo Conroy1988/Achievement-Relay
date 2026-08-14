@@ -1,0 +1,11 @@
+* text=auto eol=lf
+
+*.ico binary
+*.png binary
+*.pfx binary
+*.cer binary
+*.msix binary
+*.zip binary
+
+*.sln text eol=crlf
+*.ps1 text eol=crlf

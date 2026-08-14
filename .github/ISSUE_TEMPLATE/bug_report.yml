@@ -1,0 +1,63 @@
+name: Bug report
+description: Report a reproducible capture, parsing, delivery, setup, or UI problem.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Never paste a Discord webhook URL or token. Revoke it immediately if it was exposed.
+
+  - type: input
+    id: version
+    attributes:
+      label: Achievement Relay version
+      placeholder: 0.1.0
+    validations:
+      required: true
+
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version and display language
+      placeholder: Windows 11 24H2, English (United Kingdom)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Problem area
+      options:
+        - Setup or permissions
+        - Xbox notification capture
+        - Achievement parsing
+        - Discord delivery
+        - Startup or tray behaviour
+        - Installer or upgrade
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Include expected and actual behaviour plus exact reproduction steps.
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnostic
+    attributes:
+      label: Redacted support summary
+      description: Paste Diagnostics → Copy support summary. Check again that it contains no secrets.
+      render: text
+
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I have removed webhook URLs, tokens, gamertags, private messages, and unrelated notifications.
+          required: true

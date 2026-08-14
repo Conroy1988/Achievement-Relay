@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-check:
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore .\AchievementRelay.sln
+
+      - name: Build
+        run: dotnet build .\AchievementRelay.sln --configuration Release --no-restore
+
+      - name: Run core contract checks
+        run: dotnet run --project .\tests\AchievementRelay.Core.Tests --configuration Release --no-build
+
+      - name: Validate repository and MSIX manifest
+        shell: pwsh
+        run: .\scripts\Test-Repository.ps1
+
+      - name: Create unsigned MSIX smoke package
+        shell: pwsh
+        run: .\scripts\Build-Msix.ps1 -Architecture x64 -Version 0.1.0.0 -OutputDirectory .\artifacts\ci

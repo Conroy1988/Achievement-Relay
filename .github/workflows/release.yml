@@ -1,0 +1,65 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: write
+
+jobs:
+  package-and-release:
+    runs-on: windows-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build and run contract checks
+        shell: pwsh
+        run: |
+          dotnet build .\AchievementRelay.sln --configuration Release
+          dotnet run --project .\tests\AchievementRelay.Core.Tests --configuration Release --no-build
+          .\scripts\Test-Repository.ps1
+
+      - name: Build signed packages
+        shell: pwsh
+        env:
+          SIGNING_PFX_BASE64: ${{ secrets.SIGNING_PFX_BASE64 }}
+          SIGNING_PFX_PASSWORD: ${{ secrets.SIGNING_PFX_PASSWORD }}
+          SIGNING_TIMESTAMP_URL: ${{ secrets.SIGNING_TIMESTAMP_URL }}
+        run: |
+          $threePartVersion = '${{ github.ref_name }}'.TrimStart('v')
+          $msixVersion = "$threePartVersion.0"
+          $arguments = @{
+            Version = $msixVersion
+          }
+
+          if ($env:SIGNING_PFX_BASE64 -and $env:SIGNING_PFX_PASSWORD) {
+            $pfxPath = Join-Path $env:RUNNER_TEMP 'AchievementRelay.Signing.pfx'
+            [System.IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:SIGNING_PFX_BASE64))
+            $arguments.PfxPath = $pfxPath
+            $arguments.PfxPassword = $env:SIGNING_PFX_PASSWORD
+            if ($env:SIGNING_TIMESTAMP_URL) {
+              $arguments.TimestampUrl = $env:SIGNING_TIMESTAMP_URL
+            }
+          }
+
+          .\scripts\Build-Release.ps1 @arguments
+
+      - name: Publish GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $files = Get-ChildItem .\artifacts -File |
+            Where-Object { $_.Extension -in '.msix', '.zip', '.cer' } |
+            ForEach-Object FullName
+          gh release create '${{ github.ref_name }}' $files --generate-notes --title "Achievement Relay ${{ github.ref_name }}"

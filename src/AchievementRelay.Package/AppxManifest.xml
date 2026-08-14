@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+  xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
+  xmlns:uap11="http://schemas.microsoft.com/appx/manifest/uap/windows10/11"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap uap3 uap5 uap11 rescap">
+
+  <Identity
+    Name="Conroy.AchievementRelay"
+    Publisher="CN=Achievement Relay Open Source"
+    Version="__VERSION__"
+    ProcessorArchitecture="__ARCHITECTURE__" />
+
+  <Properties>
+    <DisplayName>Achievement Relay</DisplayName>
+    <PublisherDisplayName>Achievement Relay Open Source</PublisherDisplayName>
+    <Description>Automatically relay Xbox achievement notifications from Windows to Discord.</Description>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily
+      Name="Windows.Desktop"
+      MinVersion="10.0.19041.0"
+      MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+
+  <Applications>
+    <Application
+      Id="AchievementRelay"
+      Executable="AchievementRelay.App.exe"
+      EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        AppListEntry="default"
+        DisplayName="Achievement Relay"
+        Description="Xbox achievement notifications for Discord"
+        BackgroundColor="#090D14"
+        Square44x44Logo="Assets\Square44x44Logo.png"
+        Square150x150Logo="Assets\Square150x150Logo.png">
+        <uap:DefaultTile
+          ShortName="Achievement Relay"
+          Wide310x150Logo="Assets\Wide310x150Logo.png" />
+        <uap:SplashScreen
+          Image="Assets\SplashScreen.png"
+          BackgroundColor="#090D14" />
+      </uap:VisualElements>
+
+      <Extensions>
+        <uap5:Extension
+          Category="windows.startupTask"
+          Executable="AchievementRelay.App.exe"
+          EntryPoint="Windows.FullTrustApplication"
+          uap11:Parameters="--minimized">
+          <uap5:StartupTask
+            TaskId="AchievementRelayStartup"
+            Enabled="false"
+            DisplayName="Achievement Relay" />
+        </uap5:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <Capability Name="internetClient" />
+    <uap3:Capability Name="userNotificationListener" />
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

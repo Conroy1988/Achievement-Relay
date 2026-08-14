@@ -24,8 +24,16 @@ public sealed class SettingsStore(AppPaths paths)
             }
 
             await using var stream = File.OpenRead(paths.SettingsFile);
-            return await JsonSerializer.DeserializeAsync<AppSettings>(stream, JsonOptions, cancellationToken)
+            var settings = await JsonSerializer.DeserializeAsync<AppSettings>(stream, JsonOptions, cancellationToken)
                 ?? new AppSettings();
+
+            return settings.SchemaVersion < AppSettings.CurrentSchemaVersion
+                ? settings with
+                {
+                    SchemaVersion = AppSettings.CurrentSchemaVersion,
+                    SetupCompleted = false
+                }
+                : settings;
         }
         catch (JsonException)
         {

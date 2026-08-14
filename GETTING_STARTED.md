@@ -1,79 +1,92 @@
 # Getting started
 
-Achievement Relay takes about two minutes to configure. It performs every step Windows and Discord allow an app to automate; Windows notification consent and Discord webhook creation remain deliberate user actions.
+Achievement Relay needs two private values: an OpenXBL API key for reading the connected Xbox achievement feed and a Discord webhook URL for posting to one channel. Setup can collect both during installation, or you can skip that page and add them later in the app.
 
-## 1. Install the app
+## 1. Prepare the connections
 
-1. Open the latest GitHub Release.
-2. Download `AchievementRelay_Setup.exe`.
-3. Double-click the downloaded setup file and select **Install**.
-4. If Microsoft Defender SmartScreen appears for this early alpha, check that the file came from the official Achievement Relay release, select **More info**, and then **Run anyway**.
-5. For a development-signed alpha, approve the one administrator prompt used to trust its public package certificate.
-6. Setup selects the correct x64 or Arm64 package, installs it for your Windows account, and opens Achievement Relay at **Guided setup**.
+### OpenXBL API key
 
-The alpha installer uses a project development certificate unless the release is production-signed. [Installation details](docs/INSTALL.md) explain exactly what setup changes and include a manual fallback.
+1. Open [OpenXBL Profile](https://xbl.io/profile).
+2. Create/sign in to your OpenXBL account and follow OpenXBL's prompts to connect the Xbox profile.
+3. Create or copy your personal API key.
+4. Treat the key like a password. Do not paste it into GitHub issues, screenshots, chat, or logs.
 
-## 2. Grant notification access
+OpenXBL is an independent, unofficial Xbox API provider. Review its terms, privacy policy, and current [request allowance](https://xbl.io/pricing) before connecting an account.
 
-1. Read step 1 in **Guided setup**.
-2. Select **Grant access**.
-3. Accept the Windows permission prompt.
+### Discord webhook
 
-Windows requires this consent because the notification-listener API can technically access Notification Center. Achievement Relay checks the sender first and only reads content from known Xbox components.
+You need **Manage Webhooks** permission in the destination Discord server.
 
-If the prompt does not appear, confirm you installed the MSIX build. The notification listener is unavailable to the unpackaged development executable.
+1. In Discord, open **Server Settings → Integrations → Webhooks**.
+2. Select **New Webhook**, choose a channel, and select **Copy Webhook URL**.
+3. Treat the URL like a password: anyone who has it can post through that webhook.
 
-## 3. Enable achievement notifications
+Discord's [official webhook guide](https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks) has screenshots for each Discord client.
 
-1. In step 2, select **Open Windows settings**.
-2. Make sure notifications are enabled globally and for **Xbox**, **Xbox Game Bar**, and/or **Game Bar** where listed.
-3. Press <kbd>Windows</kbd> + <kbd>G</kbd> to open Game Bar.
-4. Open **Settings**, find **Notifications**, and enable achievement unlock notifications.
+## 2. Run the installer
 
-The notification can be quiet, but it must be created and reach Notification Center. Xbox may delay an unlock while its service validates the achievement.
+1. Download `AchievementRelay_Setup.exe` from the [latest GitHub Release](https://github.com/Conroy1988/Achievement-Relay/releases/latest).
+2. If Microsoft Defender SmartScreen appears for this beta, confirm the file came from the official repository, choose **More info**, then **Run anyway**.
+3. On **Connect your relay**, choose one option:
+   - **Connect OpenXBL and Discord now (recommended)**; or
+   - **Skip — I will do this later in Guided setup**.
+4. If connecting now, paste the API key and webhook into the masked fields. Setup validates their shape; the app performs the live checks on first launch.
+5. On **Player options**, toggle **Create a desktop shortcut** as preferred.
+6. Select **Install**. A development-signed beta may request administrator approval once to trust its public package certificate.
 
-## 4. Create the Discord webhook
+The installer never places either secret on a command line or in its log. It uses a one-time DPAPI-encrypted file for the signed-in Windows user, clears the installer fields, launches the app, and the app immediately truncates and deletes the handoff after reading it.
 
-You need **Manage Webhooks** permission in the Discord server.
+## 3. First launch
 
-1. Open Discord and choose the destination server.
-2. Open **Server Settings → Integrations → Webhooks**.
-3. Select **New Webhook** or **Create Webhook**.
-4. Choose the channel and a recognizable webhook name.
-5. Select **Copy Webhook URL**.
-6. Return to Achievement Relay and paste the URL into step 3.
-7. Select **Save and test**.
-8. Check the selected Discord channel for the green connection message.
+If credentials were supplied in Setup, Achievement Relay automatically:
 
-Treat the webhook URL like a password: anyone who has it can post through that webhook. Achievement Relay encrypts it for your current Windows user and never writes it to the activity log.
+1. decrypts the one-time installer handoff;
+2. verifies the Xbox account and achievement feed through OpenXBL;
+3. sends one green connection-test embed to Discord;
+4. protects the API key and webhook in normal settings with current-user DPAPI;
+5. creates a baseline so old achievements are not reposted; and
+6. starts one-minute monitoring if both checks succeed.
 
-## 5. Finish setup
+If either check fails, the values that passed local validation are stored encrypted and the app opens **Guided setup** with a useful status. Nothing is silently posted except the clearly disclosed Discord connection test.
 
-1. Optionally enter your gamertag or another display name. It is shown only in achievement posts.
-2. Choose whether Achievement Relay should start with Windows.
-3. Choose whether startup should remain quiet in the notification area.
-4. Select **Finish setup**.
-5. Optionally select **Send sample achievement** to preview the Discord embed.
+## 4. Guided setup when skipped
 
-You can close the window after setup. The tray icon remains active; right-click it to reopen or exit.
+1. In step 1, paste the OpenXBL API key and choose **Save and connect**.
+2. Confirm the connected gamertag. Earlier achievements are baselined and are not sent to Discord.
+3. In step 2, paste the Discord webhook and choose **Save and test**.
+4. Check the selected Discord channel for the connection message.
+5. In step 3, choose the player display name, Windows startup, and tray-start preferences.
+6. Select **Finish setup**.
 
-## 6. Test a real unlock
+You can close the window after setup. Achievement Relay continues in the Windows notification area; right-click the tray icon to reopen or exit.
 
-1. Leave Achievement Relay running in the notification area.
-2. Launch an Xbox-enabled PC game.
-3. Unlock an achievement.
-4. Confirm the Xbox notification appears in Windows.
-5. Check the Discord channel.
+## 5. Test a real achievement
 
-If the notification appears but Discord receives nothing, open **Diagnostics**, select **Re-scan current notifications**, and review **Activity**. Continue with [Troubleshooting](docs/TROUBLESHOOTING.md).
+1. Leave Achievement Relay running.
+2. Unlock an Xbox network achievement in a PC game.
+3. Wait up to about one minute, plus any delay while Xbox syncs the unlock.
+4. Check the configured Discord channel.
 
-## What the app cannot automate
+A Windows Notification Center toast is not required. The Xbox Game Bar overlay may be the only local pop-up and the relay can still work because version 0.2 checks the account feed.
 
-| Step | Why user action is required |
+If nothing arrives:
+
+1. open **Diagnostics**;
+2. select **Sync Xbox now**;
+3. read **Last sync error** and **Activity**; and
+4. continue with [Troubleshooting](docs/TROUBLESHOOTING.md).
+
+## Upgrading from 0.1.x
+
+Version 0.1.x depended on Windows Notification Center and cannot detect a Game Bar-only overlay. Version 0.2 preserves the encrypted Discord webhook and preferences, but deliberately reopens Guided setup so the user can add an OpenXBL key. The first account check creates a fresh baseline; it does not dump historical achievements into Discord.
+
+## What cannot be automated
+
+| User action | Reason |
 |---|---|
-| Grant notification access | Windows deliberately requires explicit consent from the signed-in user. |
-| Enable Xbox/Game Bar notifications | Windows and Xbox own these settings. The app opens the relevant UI but does not override preferences. |
-| Create/copy a Discord webhook | Discord requires a server member with permission to choose the server and channel. |
-| Unlock the achievement | The game and Xbox service decide when an achievement is earned and validated. |
+| Create/connect an OpenXBL account | OpenXBL owns its account, Xbox authorization, terms, and API-key lifecycle. |
+| Create a Discord webhook | A Discord member with permission must choose the server and channel. |
+| Approve a development certificate | Windows requires administrator consent for an untrusted beta signing certificate. Production signing removes this step. |
+| Earn and sync an achievement | The game and Xbox service decide when the unlock is awarded and visible. |
 
-Everything after those choices—capture, classification, parsing, deduplication, formatting, retry, secure storage, startup, and posting—is automatic.
+After those choices, polling, baseline protection, filtering, deduplication, formatting, retry, secure storage, startup, and Discord posting are automatic.

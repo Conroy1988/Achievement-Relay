@@ -13,6 +13,13 @@ if (-not $packages) {
 $packages | Remove-AppxPackage
 Write-Host 'Achievement Relay was uninstalled.'
 
+$desktopDirectory = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::DesktopDirectory)
+$desktopShortcut = Join-Path $desktopDirectory 'Achievement Relay.lnk'
+if (Test-Path -LiteralPath $desktopShortcut) {
+    Remove-Item -LiteralPath $desktopShortcut -Force
+    Write-Host 'Achievement Relay desktop shortcut removed.'
+}
+
 if ($RemoveLocalData) {
     $dataDirectory = Join-Path $env:LOCALAPPDATA 'AchievementRelay'
     if (Test-Path -LiteralPath $dataDirectory) {

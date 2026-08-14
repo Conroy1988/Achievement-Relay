@@ -1,5 +1,4 @@
 using AchievementRelay.App.Services;
-using AchievementRelay.Core.Services;
 
 namespace AchievementRelay.App;
 
@@ -13,15 +12,21 @@ public sealed class AppServices : IDisposable
         SettingsStore = new SettingsStore(Paths);
         EventLedger = new EventLedger(Paths);
         WebhookClient = new DiscordWebhookClient();
-        Classifier = new XboxNotificationClassifier();
-        Parser = new AchievementNotificationParser(Classifier);
-        NotificationListener = new XboxNotificationListenerService(Classifier, ActivityLog);
+        OpenXblClient = new OpenXblClient();
+        SyncStateStore = new XboxSyncStateStore(Paths);
+        InstallerSetupImporter = new InstallerSetupImporter(
+            Paths,
+            WebhookProtector,
+            SettingsStore,
+            SyncStateStore,
+            OpenXblClient,
+            WebhookClient);
         StartupService = new StartupService(ActivityLog);
         RelayCoordinator = new RelayCoordinator(
-            NotificationListener,
-            Parser,
+            OpenXblClient,
             SettingsStore,
             WebhookProtector,
+            SyncStateStore,
             EventLedger,
             WebhookClient,
             ActivityLog);
@@ -39,11 +44,11 @@ public sealed class AppServices : IDisposable
 
     public DiscordWebhookClient WebhookClient { get; }
 
-    public XboxNotificationClassifier Classifier { get; }
+    public OpenXblClient OpenXblClient { get; }
 
-    public AchievementNotificationParser Parser { get; }
+    public XboxSyncStateStore SyncStateStore { get; }
 
-    public XboxNotificationListenerService NotificationListener { get; }
+    public InstallerSetupImporter InstallerSetupImporter { get; }
 
     public StartupService StartupService { get; }
 
@@ -52,7 +57,7 @@ public sealed class AppServices : IDisposable
     public void Dispose()
     {
         RelayCoordinator.Dispose();
-        NotificationListener.Dispose();
+        OpenXblClient.Dispose();
         WebhookClient.Dispose();
     }
 }

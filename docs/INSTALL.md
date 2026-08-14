@@ -5,50 +5,59 @@
 - Windows 10 version 2004 (build 19041) or newer
 - Windows 11
 - x64 and Arm64 processors
-- Internet access to `discord.com`
+- HTTPS access to `xbl.io` and Discord
 
-Release packages are self-contained, so users do not need to install .NET separately.
+Release packages are self-contained; .NET does not need to be installed separately.
 
-## Recommended install
+## Recommended `.exe` installer
 
 1. Download `AchievementRelay_Setup.exe` from the latest official GitHub Release.
-2. Double-click it and select **Install**.
-3. If Microsoft Defender SmartScreen appears for this early alpha, verify that the file came from the official Achievement Relay release, select **More info**, and then **Run anyway**.
-4. If setup asks for administrator approval, approve the one-time development-certificate import.
-5. Follow the app's four-step Guided setup when Achievement Relay opens.
+2. Double-click it.
+3. Choose **Connect OpenXBL and Discord now** or **Skip — I will do this later**.
+4. If connecting now, paste the API key and Discord webhook into the masked fields.
+5. Toggle **Create a desktop shortcut** and select **Install**.
+6. If SmartScreen appears for this beta, verify the download came from the official release, choose **More info**, then **Run anyway**.
+7. If prompted, approve the one-time development-certificate trust operation.
 
-The setup executable contains both supported packages, chooses the native x64 or Arm64 build, installs the MSIX for the signed-in user, and launches its Start-menu identity. The MSIX identity is required for Windows notification-listener permission; the setup executable does not replace or bypass that security model.
+Setup contains x64 and Arm64 MSIX packages, selects the native architecture, installs for the signed-in user, creates/removes the optional desktop shortcut, and launches Achievement Relay.
 
-If the release includes a self-signed development certificate, Windows requires that certificate in **Local Computer → Trusted People**. Setup requests administrator approval only for that import and then returns to a per-user installation. A production-signed release does not need this trust step.
+The optional credentials are never added to PowerShell arguments. Setup passes them to a short-lived protection process through inherited environment variables, writes only current-user DPAPI ciphertext, clears its fields/environment, and launches the app. The app deletes the one-time encrypted handoff on import. Choose **Skip** to create no handoff at all.
+
+## Signing notice
+
+When a production certificate is not configured, the release workflow creates a temporary development signing certificate and includes only its public `.cer`. `Install.ps1` imports that public certificate into **Local Computer → Trusted People** with administrator approval so Windows can validate the MSIX. Setup itself otherwise operates per user.
+
+Development signing is suitable for beta testers, not a final distribution channel. SmartScreen can warn until the project uses a trusted certificate and builds reputation. A build signed by a different development certificate may require uninstalling the older package first.
 
 ## Manual fallback bundle
 
-If the setup executable is blocked by local policy, download and extract `AchievementRelay_<version>_installer.zip`, then run `Install.ps1` with PowerShell from inside the extracted folder. If right-click **Run with PowerShell** closes immediately, open PowerShell in that folder and run:
+If the `.exe` installer is blocked by local policy:
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install.ps1
-```
+1. download and extract `AchievementRelay_<version>_installer.zip`;
+2. review `Install.ps1`;
+3. open PowerShell in the extracted folder; and
+4. run:
 
-Review `Install.ps1` before running it. The execution-policy flag applies only to that PowerShell process. The script performs the same package selection, certificate import, MSIX installation, and launch as the setup executable.
+   ```powershell
+   powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install.ps1
+   ```
 
-## Alpha signing notice
+Add `-CreateDesktopShortcut` if wanted. The manual path does not collect credentials; complete Guided setup when the app opens.
 
-When no production certificate is configured, the release workflow creates a short-lived development signing certificate and includes only its public `.cer` file. `Install.ps1` imports that public certificate into `Cert:\LocalMachine\TrustedPeople` with administrator approval so Windows can verify and install the package.
+The execution-policy flag applies only to that PowerShell process. The script selects the package, imports the included development certificate if necessary, installs the MSIX, optionally creates the shortcut, and launches the app.
 
-Development certificates are appropriate for testers, not a final distribution channel. Microsoft Defender SmartScreen may warn about the setup executable until the project builds publisher reputation or uses trusted production signing. A later build signed by a different certificate may require uninstalling the earlier alpha first. Stable releases should use a persistent trusted code-signing certificate or Microsoft Store identity.
+## Direct MSIX installation
 
-## Manual install
-
-To install without the helper script:
-
-1. Import `AchievementRelay.Development.cer` into **Local Computer → Trusted People** if it is included. This requires administrator rights.
-2. Double-click the MSIX matching your processor.
+1. Import `AchievementRelay.Development.cer` into **Local Computer → Trusted People** if included.
+2. Double-click the MSIX matching the processor.
 3. Select **Install**.
-4. Launch Achievement Relay from Start.
+4. Launch Achievement Relay from Start and complete Guided setup.
 
 ## Upgrade
 
-Install a newer package with the same identity and signing certificate. Windows preserves `%LOCALAPPDATA%\AchievementRelay`, including settings and the encrypted webhook.
+Run the newer `.exe` installer. The package identity preserves `%LOCALAPPDATA%\AchievementRelay`.
+
+Upgrading from 0.1.x retains the existing encrypted Discord webhook and preferences, then reopens Guided setup because 0.2 requires an OpenXBL key. The first verified account connection creates a baseline and does not post earlier unlocks.
 
 ## Uninstall
 
@@ -58,10 +67,10 @@ Use **Settings → Apps → Installed apps → Achievement Relay → Uninstall**
 .\Uninstall.ps1
 ```
 
-Local settings are intentionally preserved. To remove settings, logs, the processed-event ledger, and the encrypted webhook too:
+`Uninstall.ps1` also removes the optional desktop shortcut. Local settings remain by default. Remove settings, encrypted secrets, sync state, event ledger, and log with:
 
 ```powershell
 .\Uninstall.ps1 -RemoveLocalData
 ```
 
-You may remove an obsolete alpha certificate from **Manage computer certificates → Trusted People → Certificates** after uninstalling all packages that use it.
+If uninstalling directly through Windows Settings, manually remove a desktop shortcut if Windows leaves it behind. An obsolete beta certificate may be removed from **Manage computer certificates → Trusted People → Certificates** after all packages signed by it are gone.

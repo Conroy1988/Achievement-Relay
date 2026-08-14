@@ -1,8 +1,8 @@
-![Achievement Relay — Every achievement. Instantly shared.](docs/images/achievement-relay-banner.png)
+![Achievement Relay — Every achievement. Reliably shared.](docs/images/achievement-relay-banner.png)
 
-# Achievement Relay
+# Achievement Relay — Xbox achievements to Discord for Windows
 
-**Xbox achievement notifications for Discord on Windows.** Achievement Relay is an open-source Windows tray app that detects Xbox achievements unlocked in supported PC games and automatically posts a rich notification to a Discord channel webhook.
+Achievement Relay is an open-source Windows 10/11 app that checks your Xbox account for newly unlocked achievements and automatically posts them to a Discord channel webhook. It is designed for Xbox-enabled PC games, PC Game Pass titles, and other unlocks that appear on the connected Xbox profile.
 
 [![CI](https://github.com/Conroy1988/Achievement-Relay/actions/workflows/ci.yml/badge.svg)](https://github.com/Conroy1988/Achievement-Relay/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-56e39f.svg)](LICENSE)
@@ -10,66 +10,73 @@
 [![Support on Ko-fi](https://img.shields.io/badge/Support_on_Ko--fi-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/D4P124RWI9)
 
 > [!IMPORTANT]
-> Achievement Relay is an early alpha. The notification formats used by Xbox can vary by game, Windows language, and Xbox app version. Use the **Activity** and **Diagnostics** screens when testing and report missed formats with a redacted support summary.
+> Version 0.2 is a beta and uses [OpenXBL](https://xbl.io), an independent, unofficial Xbox API provider. You need your own OpenXBL account/API key and are also subject to OpenXBL's availability, limits, and terms. Achievement Relay is not affiliated with Microsoft, Xbox, OpenXBL, or Discord.
 
-## What it does
+> [!WARNING]
+> The 0.1.x Windows-notification approach cannot see achievements shown only in the Xbox Game Bar overlay. Upgrade to 0.2; it checks the Xbox account instead and does not require a Windows Notification Center toast.
 
-- Watches Windows Notification Center with the user-approved `UserNotificationListener` API.
-- Checks sender identity before reading notification text and discards non-Xbox senders.
-- Recognizes achievement unlock text and Gamerscore across several common languages.
-- Posts a Discord embed with the achievement name, description, game, Gamerscore, rarity, and optional player name when those values are present.
-- Encrypts the Discord webhook for the current Windows account with DPAPI.
-- Prevents duplicate posts with a bounded 90-day local event ledger.
-- Runs quietly in the Windows notification area and can configure startup for the user.
-- Includes a four-step first-run guide, live webhook test, sample achievement, activity log, and diagnostics.
+## Highlights
+
+- Checks the connected Xbox account about once a minute—no Game Bar scraping, OCR, or Windows notification permission.
+- Posts a Discord embed with achievement name, game, Gamerscore, rarity, description, unlock time, player name, and artwork when the Xbox response supplies them.
+- Creates a first-run baseline so installing the app never floods Discord with old achievements.
+- Recovers achievements earned while the app was closed and retries failed Discord delivery without duplicate posts.
+- Encrypts the OpenXBL API key and Discord webhook with Windows DPAPI for the current Windows user.
+- Runs quietly in the system tray, supports Windows startup, and includes manual sync, diagnostics, activity history, and a safe redacted support summary.
+- Provides a gaming-themed `.exe` installer with optional account setup, a clear **configure later** path, and a desktop-shortcut toggle.
 
 ```mermaid
-flowchart TD
-    A["Xbox-enabled PC game"] --> B["Xbox notification"]
-    B --> C["Source filter + parser"]
-    C --> D["Local deduplication"]
-    D --> E["Discord webhook"]
+flowchart LR
+    X["Xbox account"] --> O["OpenXBL API"]
+    O --> R["Achievement Relay"]
+    R --> D["Discord webhook"]
 ```
 
-No Xbox password, Microsoft account token, Discord bot, public server, or cloud relay is required.
+No Xbox password, Microsoft password, Discord bot, public Achievement Relay server, or developer-operated relay service is required.
 
-## Quick start
+## Install and connect
 
-1. Download `AchievementRelay_Setup.exe` from the latest **Release**.
-2. Open it and follow the setup wizard. For an alpha build, approve the one administrator prompt that lets Windows trust its package certificate.
-3. In Achievement Relay, grant Windows notification access.
-4. Confirm Xbox/Game Bar achievement notifications are enabled.
-5. Create a Discord channel webhook, paste its URL, and select **Save and test**.
-6. Choose startup behaviour and select **Finish setup**.
+1. Download `AchievementRelay_Setup.exe` from the [latest GitHub Release](https://github.com/Conroy1988/Achievement-Relay/releases/latest).
+2. In the installer, choose either:
+   - **Connect OpenXBL and Discord now** — paste your OpenXBL API key and Discord webhook; or
+   - **Skip — I will do this later** — the app opens at Guided setup.
+3. Choose whether to create a desktop shortcut and install.
+4. On first launch, the app verifies the Xbox account and Discord channel, securely stores both secrets, and establishes a no-spam baseline.
+5. Leave Achievement Relay in the notification area while playing. A new unlock normally posts within about one minute.
 
-The installer and every first-run screen are documented in [Getting Started](GETTING_STARTED.md). Alpha certificate and manual-install details are in [Installation](docs/INSTALL.md).
+The complete walkthrough is in [Getting Started](GETTING_STARTED.md). SmartScreen, signing, architecture selection, and manual installation are covered in [Installation](docs/INSTALL.md).
 
-## Compatibility
+## Compatibility and limits
 
-Achievement Relay can detect an unlock when all of these are true:
+Achievement Relay can relay an unlock when:
 
-- The PC game uses Xbox network achievements.
-- Xbox Game Bar or the Xbox app creates an achievement notification on that PC.
-- Achievement Relay is running, or the notification remains in Notification Center and the user selects **Re-scan**.
-- Windows notification access has been granted.
-- The computer can reach Discord.
+- the game records an achievement on the connected Xbox network profile;
+- OpenXBL returns that achievement and is reachable within the account's request allowance;
+- Achievement Relay is running, or it is started after the offline unlock; and
+- the PC can reach the configured Discord webhook.
 
-Steam-only achievements are not supported yet. Games that record an Xbox achievement without creating a Windows notification cannot be observed by this first release. Offline unlocks may arrive later after Xbox validates and surfaces the achievement.
+Important limits:
 
-## Why notification access?
+- Steam-only achievements are not supported yet.
+- Xbox may delay achievements earned offline before syncing them to the profile.
+- The account feed can include console or cloud-gaming unlocks on the same Xbox account; version 0.2 does not reliably filter by device platform.
+- Delivery is account polling, not instant push. The normal delay is approximately 0–60 seconds plus any Xbox/OpenXBL delay.
+- OpenXBL currently advertises a free allowance sufficient for the default one-minute polling interval, but its plans and limits can change. Check [OpenXBL pricing](https://xbl.io/pricing).
 
-Microsoft's achievement API is designed primarily for the title that owns the achievement and requires Xbox service onboarding. It is not a general-purpose feed for every game a player owns. Achievement Relay therefore uses the official Windows notification-listener capability for its public MVP.
+## Privacy and security
 
-Windows describes that capability broadly because it can expose notifications from other apps. Achievement Relay minimizes that access in code: it checks package/display identity first, reads text only for known Xbox senders, keeps no unrelated content, and contains no telemetry. See [Privacy](PRIVACY.md) and [Architecture](docs/ARCHITECTURE.md).
+The API key is sent only to OpenXBL. Achievement details are sent to the Discord webhook selected by the user. The app has no analytics, ads, cloud database, or telemetry.
+
+If account details are entered in the installer, they are passed through a one-time current-user DPAPI-encrypted handoff—never command-line arguments—and the app deletes that handoff after first launch. See [Privacy](PRIVACY.md), [Security](SECURITY.md), and [Architecture](docs/ARCHITECTURE.md) for the exact data flow.
 
 ## Build and test
 
 Requirements:
 
-- Windows 10 version 2004 (build 19041) or newer
-- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
-- Windows 10/11 SDK with `MakeAppx.exe` and `SignTool.exe` for packaging
-- [Inno Setup 6](https://jrsoftware.org/isinfo.php) for the single-file setup executable
+- Windows 10 version 2004 (build 19041) or newer;
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0);
+- Windows 10/11 SDK with `MakeAppx.exe` and `SignTool.exe`; and
+- [Inno Setup 6](https://jrsoftware.org/isinfo.php) for `AchievementRelay_Setup.exe`.
 
 ```powershell
 dotnet restore .\AchievementRelay.sln
@@ -78,39 +85,37 @@ dotnet run --project .\tests\AchievementRelay.Core.Tests --configuration Release
 .\scripts\Test-Repository.ps1
 ```
 
-To create installable x64 and Arm64 development packages:
+Create x64 and Arm64 packages plus the setup executable:
 
 ```powershell
-.\scripts\Build-Release.ps1 -Version 0.1.1.0
+.\scripts\Build-Release.ps1 -Version 0.2.0.0
 ```
 
-The notification listener requires package identity and the manifest capability, so test real capture from an installed MSIX rather than an unpackaged `dotnet run` process. Maintainer signing and release instructions are in [Release Process](docs/RELEASING.md).
+Maintainer instructions are in [Release Process](docs/RELEASING.md).
 
-## Project status and roadmap
+## Roadmap
 
-- [x] Xbox/Game Bar notification capture
-- [x] Discord webhook embeds
-- [x] Permission-first setup and tray operation
-- [x] Local encryption, source filtering, deduplication, and diagnostics
-- [ ] Expand parser fixtures from real-world, redacted notification formats
-- [x] Single-file Windows setup executable
-- [ ] Trusted production signing and automated update channel
+- [x] Xbox account achievement polling through a user-supplied OpenXBL key
+- [x] Discord webhook embeds, retry, deduplication, and offline recovery
+- [x] DPAPI-protected secrets and redacted diagnostics
+- [x] Gaming-themed guided installer and desktop-shortcut choice
+- [ ] First-party Xbox integration if Microsoft makes an appropriate cross-title API available
+- [ ] Trusted production signing and automatic updates
 - [ ] Optional Steam achievement provider
 - [ ] Additional outbound destinations
 
-Issues and pull requests are welcome. Read [Contributing](CONTRIBUTING.md) before sharing diagnostics, and never post a Discord webhook URL in an issue.
+Issues and pull requests are welcome. Read [Contributing](CONTRIBUTING.md) before sharing diagnostics. Never post an OpenXBL API key or Discord webhook URL in an issue.
 
-Release history is recorded in the [Changelog](CHANGELOG.md).
+## Support the project
 
-## Support Achievement Relay
+Achievement Relay is free and open source. If it makes sharing your unlocks easier, [support future development on Ko-fi](https://ko-fi.com/D4P124RWI9). The link is also available in the app's About screen; contributions are appreciated, never required.
 
-Achievement Relay is free and open source. If it makes sharing your unlocks easier, [support future development on Ko-fi](https://ko-fi.com/D4P124RWI9). Contributions are appreciated, never required.
+## References
 
-## Official references
-
-- [Microsoft: Notification listener](https://learn.microsoft.com/windows/apps/develop/notifications/app-notifications/notification-listener)
-- [Xbox Support: Manage Xbox and app pop-up notifications](https://support.xbox.com/help/hardware-network/settings-updates/pop-up-notifications)
+- [OpenXBL API documentation](https://api.xbl.io/docs)
+- [OpenXBL pricing and request limits](https://xbl.io/pricing)
 - [Discord Support: Intro to Webhooks](https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks)
+- [Microsoft: Xbox achievement JSON](https://learn.microsoft.com/gaming/gdk/docs/reference/live/rest/json/json-achievementv2)
 - [Microsoft: Sign an MSIX package with SignTool](https://learn.microsoft.com/windows/msix/package/sign-app-package-using-signtool)
 
-Achievement Relay is not affiliated with, endorsed by, or sponsored by Microsoft, Xbox, or Discord. Xbox, Microsoft, Discord, Steam, and related marks belong to their respective owners.
+Xbox, Microsoft, Discord, Steam, OpenXBL, and related marks belong to their respective owners.

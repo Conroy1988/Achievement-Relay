@@ -19,5 +19,9 @@ public sealed class AppPaths
 
     public string EventLedgerFile => Path.Combine(DataDirectory, "processed-events.json");
 
+    public string XboxSyncStateFile => Path.Combine(DataDirectory, "xbox-sync-state.json");
+
+    public string PendingInstallerSetupFile => Path.Combine(DataDirectory, "pending-installer-setup.json");
+
     public string LogFile => Path.Combine(DataDirectory, "achievement-relay.log");
 }

@@ -44,11 +44,6 @@ public static class DiscordWebhookPayloadFactory
         var description = settings.IncludeRawDetailsWhenUncertain
             ? achievement.Description
             : null;
-        if (string.IsNullOrWhiteSpace(description) && settings.IncludeRawDetailsWhenUncertain)
-        {
-            description = achievement.RawTextElements
-                .FirstOrDefault(line => !line.Equals(achievement.Name, StringComparison.OrdinalIgnoreCase));
-        }
 
         var embed = new Dictionary<string, object?>
         {
@@ -99,7 +94,7 @@ public static class DiscordWebhookPayloadFactory
                     title = "✅ Achievement Relay connected",
                     description = "This channel is ready. Your next detected Xbox achievement will appear here automatically.",
                     color = XboxGreen,
-                    footer = new { text = "Every achievement. Instantly shared." },
+                    footer = new { text = "Every achievement. Reliably shared." },
                     timestamp = DateTimeOffset.UtcNow.ToString("O")
                 }
             }

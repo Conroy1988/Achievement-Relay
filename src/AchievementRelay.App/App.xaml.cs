@@ -41,27 +41,45 @@ public partial class App : System.Windows.Application
 
         _services = new AppServices();
         var settings = await _services.SettingsStore.LoadAsync();
+        var installerImport = await _services.InstallerSetupImporter.TryImportAsync(settings);
+        settings = installerImport.Settings;
         _mainWindow = new MainWindow(_services, settings);
         MainWindow = _mainWindow;
 
+        if (installerImport.Found)
+        {
+            if (installerImport.Completed)
+            {
+                _services.ActivityLog.Success(installerImport.Message);
+                var startupApplied = await _services.StartupService.SetEnabledAsync(settings.StartWithWindows);
+                if (settings.StartWithWindows && !startupApplied)
+                {
+                    _services.ActivityLog.Warning(
+                        "Installer setup completed, but Windows did not enable automatic startup. Enable Achievement Relay in Windows Startup Apps.");
+                }
+            }
+            else
+            {
+                _services.ActivityLog.Warning(installerImport.Message);
+            }
+        }
+
+        var relayStarted = settings.SetupCompleted && await _services.RelayCoordinator.StartAsync();
+        var setupReady = settings.SetupCompleted && relayStarted;
         var startMinimized = e.Args.Contains("--minimized", StringComparer.OrdinalIgnoreCase) &&
-                             settings.SetupCompleted &&
+                             setupReady &&
                              settings.StartMinimized;
 
         if (!startMinimized)
         {
             _mainWindow.Show();
-            if (!settings.SetupCompleted)
+            if (!setupReady)
             {
                 _mainWindow.ShowSetup();
             }
         }
 
-        if (_services.NotificationListener.GetAccessState() == Services.NotificationAccessState.Allowed)
-        {
-            await _services.RelayCoordinator.StartAsync();
-            _mainWindow.RefreshStatus();
-        }
+        _mainWindow.RefreshStatus();
     }
 
     public void ExitApplication()

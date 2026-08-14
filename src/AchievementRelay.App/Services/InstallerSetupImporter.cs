@@ -84,8 +84,16 @@ public sealed class InstallerSetupImporter(
         if (!OpenXblApiKeyValidator.TryNormalize(
                 pendingApiKey,
                 out var apiKey,
-                out var keyError) ||
-            !WebhookUrlValidator.TryNormalize(
+                out var keyError))
+        {
+            return new InstallerSetupImportResult(
+                currentSettings,
+                true,
+                false,
+                keyError ?? "The optional OpenXBL setting was invalid. Complete Guided setup in the app.");
+        }
+
+        if (!WebhookUrlValidator.TryNormalize(
                 pendingWebhook,
                 out var webhookUri,
                 out var webhookError) ||
@@ -95,7 +103,7 @@ public sealed class InstallerSetupImporter(
                 currentSettings,
                 true,
                 false,
-                keyError ?? webhookError ?? "The optional installer settings were invalid. Complete Guided setup in the app.");
+                webhookError ?? "The optional Discord setting was invalid. Complete Guided setup in the app.");
         }
 
         var nextSettings = currentSettings with

@@ -604,7 +604,8 @@ public partial class MainWindow : Window
         };
     }
 
-    private Brush Brush(string resourceName) => (Brush)FindResource(resourceName);
+    private System.Windows.Media.Brush Brush(string resourceName) =>
+        (System.Windows.Media.Brush)FindResource(resourceName);
 
     private enum StatusTone
     {

@@ -10,6 +10,7 @@ All notable changes to Achievement Relay are documented here. The project follow
 - Attempted direct shutdown of the running tray process, then delegated any stubborn or elevated instance to Windows' package deployment broker instead of aborting the upgrade
 - Switched account verification from OpenXBL's legacy route to the provider's current `api.xbl.io/v2` service so a saved key can resolve the Xbox profile and complete setup
 - Combined XUID and gamertag fields found across nested OpenXBL account envelopes instead of requiring both values in the same JSON object
+- Switched title polling to OpenXBL's dedicated `player/titleHistory/{xuid}` route instead of treating the overall achievement response as title history
 
 ### Planned
 

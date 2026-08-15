@@ -93,7 +93,7 @@ public sealed class OpenXblClient : IDisposable
         }
 
         var response = await SendAsync(
-            $"achievements/player/{Uri.EscapeDataString(accountId.Trim())}",
+            $"player/titleHistory/{Uri.EscapeDataString(accountId.Trim())}",
             normalized,
             cancellationToken);
         if (!response.Success || response.Content is null)

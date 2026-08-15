@@ -190,7 +190,7 @@ public static class OpenXblResponseParser
         ArgumentException.ThrowIfNullOrWhiteSpace(json);
 
         using var document = JsonDocument.Parse(json);
-        var titles = GetArray(document.RootElement, "titles", "items");
+        var titles = GetArray(document.RootElement, "titles", "userTitles", "items");
         if (titles is null)
         {
             throw new JsonException("OpenXBL did not return an Xbox title collection.");
@@ -220,8 +220,8 @@ public static class OpenXblResponseParser
                 : default;
             DateTimeOffset? lastPlayedAt = null;
             var lastPlayedValue = titleHistory.ValueKind == JsonValueKind.Object
-                ? GetString(titleHistory, "lastTimePlayed")
-                : GetString(item, "lastTimePlayed");
+                ? GetString(titleHistory, "lastTimePlayed", "lastPlayed")
+                : GetString(item, "lastTimePlayed", "lastPlayed");
             if (DateTimeOffset.TryParse(
                     lastPlayedValue,
                     CultureInfo.InvariantCulture,
@@ -398,7 +398,10 @@ public static class OpenXblResponseParser
                 }
             }
 
-            foreach (var containerName in new[] { "data", "result", "response", "payload", "value" })
+            foreach (var containerName in new[]
+                     {
+                         "data", "result", "response", "payload", "value", "titleHistory", "history"
+                     })
             {
                 if (!TryGetProperty(root, containerName, out var container))
                 {

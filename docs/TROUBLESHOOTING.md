@@ -21,7 +21,7 @@ Check [OpenXBL pricing](https://xbl.io/pricing) and provider status. Do not laun
 
 ## Xbox account connects but the achievement feed fails
 
-OpenXBL profile lookup and achievement lookup are separate checks. Use **Sync Xbox now**, confirm internet access to `api.xbl.io`, and retry later. If the provider changed its JSON shape, copy the redacted support summary and open an issue without attaching raw account JSON.
+OpenXBL profile lookup, title-history lookup, and per-title achievement lookup are separate checks. Current builds use `player/titleHistory/{xuid}` for the lightweight title index; `achievements/player/{xuid}` is not a title-history operation. If **Sync Xbox now** says title progress could not be read, install the newest build, confirm internet access to `api.xbl.io`, and retry. If the current build still fails, copy the redacted support summary and open an issue without attaching raw account JSON.
 
 ## Discord sample/test fails
 

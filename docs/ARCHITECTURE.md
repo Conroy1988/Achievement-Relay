@@ -38,7 +38,7 @@ sequenceDiagram
 
 On the first verified account connection, `XboxSyncStateStore` records the complete first successful title snapshot and a baseline timestamp. Achievements already present in that response are intentionally ignored, preventing historical Discord floods. Monitoring begins from that verified snapshot.
 
-Each successful poll records `LastSuccessfulPollUtc` and a per-title snapshot of unlocked count plus current Gamerscore. The inexpensive title index is polled every minute; detailed achievement JSON is requested only for new or changed titles. Later checks examine detailed unlocks newer than the baseline and use a 24-hour overlap before the last cursor. The overlap allows failed Discord posts to retry, while `EventLedger` prevents already handled events from posting twice. The cursor/title snapshot is not advanced past a pending provider or Discord delivery.
+Each successful poll records `LastSuccessfulPollUtc` and a per-title snapshot of unlocked count plus current Gamerscore. The inexpensive `player/titleHistory/{xuid}` index is polled every minute; `achievements/player/{xuid}/{titleId}` is requested only for new or changed titles. Later checks examine detailed unlocks newer than the baseline and use a 24-hour overlap before the last cursor. The overlap allows failed Discord posts to retry, while `EventLedger` prevents already handled events from posting twice. The cursor/title snapshot is not advanced past a pending provider or Discord delivery.
 
 The overlap does not limit offline recovery: after several days offline, the cursor still begins at the previous successful poll, so achievements earned during downtime remain candidates when returned by OpenXBL.
 

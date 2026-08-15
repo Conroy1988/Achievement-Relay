@@ -12,6 +12,7 @@ var tests = new (string Name, Action Run)[]
     ("Incomplete OpenXBL account profile is rejected", RejectsIncompleteOpenXblAccount),
     ("OpenXBL title progress index is parsed", ParsesTitleProgress),
     ("OpenXBL title progress envelopes are supported", ParsesWrappedTitleProgress),
+    ("OpenXBL title-history envelopes and userTitles are supported", ParsesTitleHistoryEnvelope),
     ("Only unlocked, non-revoked achievements are parsed", ParsesUnlockedAchievements),
     ("Achievement identities are stable and account-specific", AchievementIdentityIsStable),
     ("OpenXBL root arrays and alternate fields are supported", ParsesAlternateAchievementShape),
@@ -205,6 +206,37 @@ static void ParsesWrappedTitleProgress()
     var titles = OpenXblResponseParser.ParseTitleProgress(json);
     Assert(titles.Count == 1, $"Expected one wrapped title summary, found {titles.Count}.");
     Assert(titles[0].Name == "Wrapped Game", $"Unexpected wrapped title name: {titles[0].Name}");
+}
+
+static void ParsesTitleHistoryEnvelope()
+{
+    const string json = """
+        {
+          "data": {
+            "titleHistory": {
+              "userTitles": [
+                {
+                  "titleId": "1297287736",
+                  "titleName": "History Test Game",
+                  "currentAchievements": 8,
+                  "currentGamerscore": 80,
+                  "lastPlayed": "2026-08-15T15:20:00Z"
+                }
+              ]
+            }
+          }
+        }
+        """;
+
+    var titles = OpenXblResponseParser.ParseTitleProgress(json);
+    Assert(titles.Count == 1, $"Expected one title-history summary, found {titles.Count}.");
+    Assert(titles[0].TitleId == "1297287736", $"Unexpected title-history ID: {titles[0].TitleId}");
+    Assert(titles[0].Name == "History Test Game", $"Unexpected title-history name: {titles[0].Name}");
+    Assert(titles[0].CurrentAchievements == 8, "Title-history achievement count was not parsed.");
+    Assert(titles[0].CurrentGamerscore == 80, "Title-history Gamerscore was not parsed.");
+    Assert(
+        titles[0].LastPlayedAt == new DateTimeOffset(2026, 8, 15, 15, 20, 0, TimeSpan.Zero),
+        $"Unexpected title-history last-played timestamp: {titles[0].LastPlayedAt:O}");
 }
 
 static void ParsesUnlockedAchievements()

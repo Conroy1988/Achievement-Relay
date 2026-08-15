@@ -149,6 +149,11 @@ if (-not $openXblClientText.Contains('new("https://api.xbl.io/v2/")') -or
     $openXblClientText.Contains('https://xbl.io/api/v2/')) {
     throw 'OpenXBL requests must use the provider current api.xbl.io v2 endpoint.'
 }
+if (-not $openXblClientText.Contains('$"player/titleHistory/{Uri.EscapeDataString(accountId.Trim())}"') -or
+    $openXblClientText.Contains('$"achievements/player/{Uri.EscapeDataString(accountId.Trim())}",') -or
+    -not $openXblClientText.Contains('$"achievements/player/{Uri.EscapeDataString(accountId.Trim())}/{Uri.EscapeDataString(titleId.Trim())}"')) {
+    throw 'OpenXBL polling must use title history for the lightweight index and the title-specific route for achievement details.'
+}
 
 $appProjectText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\AchievementRelay.App.csproj') -Raw
 if (-not $appProjectText.Contains('THIRD-PARTY-NOTICES.md') -or

@@ -6,7 +6,7 @@ Achievement Relay is a local, open-source Windows application. It has no analyti
 
 ## OpenXBL account access
 
-Version 0.2 uses [OpenXBL](https://xbl.io), an independent and unofficial Xbox API provider. The user supplies a personal OpenXBL API key. Achievement Relay sends that key only to OpenXBL's current `https://api.xbl.io/v2/` service in an `X-Authorization` HTTPS header to request:
+Version 0.2 uses [OpenXBL](https://xbl.io), an independent and unofficial Xbox API provider. The user supplies a personal OpenXBL API key. Achievement Relay sends that key only to OpenXBL's documented `https://api.xbl.io/api/v2/` service in an `X-Authorization` HTTPS header to request:
 
 - the connected Xbox profile, including XUID and gamertag; and
 - the account's achievement feed, including achievement/title identifiers, names, descriptions, Gamerscore, rarity, artwork URLs, status, and unlock timestamps when available.

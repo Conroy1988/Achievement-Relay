@@ -145,9 +145,10 @@ if (-not $openXblParserText.Contains('"profileUsers"') -or
 }
 
 $openXblClientText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\OpenXblClient.cs') -Raw
-if (-not $openXblClientText.Contains('new("https://api.xbl.io/v2/")') -or
+if (-not $openXblClientText.Contains('new("https://api.xbl.io/api/v2/")') -or
+    $openXblClientText.Contains('new("https://api.xbl.io/v2/")') -or
     $openXblClientText.Contains('https://xbl.io/api/v2/')) {
-    throw 'OpenXBL requests must use the provider current api.xbl.io v2 endpoint.'
+    throw 'OpenXBL requests must use the provider documented https://api.xbl.io/api/v2/ base endpoint.'
 }
 if (-not $openXblClientText.Contains('$"player/titleHistory/{Uri.EscapeDataString(accountId.Trim())}"') -or
     $openXblClientText.Contains('$"achievements/player/{Uri.EscapeDataString(accountId.Trim())}",') -or

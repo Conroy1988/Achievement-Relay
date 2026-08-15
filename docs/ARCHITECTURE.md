@@ -32,7 +32,7 @@ sequenceDiagram
     end
 ```
 
-`OpenXblClient` sends the user-supplied key only in the `X-Authorization` header to OpenXBL's current `https://api.xbl.io/v2/` endpoint. Requests time out after 20 seconds and response buffering is capped at 20 MiB. Provider and network failures become user-safe messages; the key is never included.
+`OpenXblClient` sends the user-supplied key only in the `X-Authorization` header to OpenXBL's documented `https://api.xbl.io/api/v2/` endpoint. Requests time out after 20 seconds and response buffering is capped at 20 MiB. Provider and network failures become user-safe messages; the key is never included.
 
 ## Baseline, recovery, and duplicates
 

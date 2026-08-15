@@ -11,7 +11,7 @@ Start with **Diagnostics → Sync Xbox now**. It tests the real OpenXBL → Achi
 
 Never paste the key into a GitHub issue. If it was exposed, revoke it before creating another.
 
-If the key saves but setup says that no usable Xbox profile was returned, confirm the Xbox profile is connected on the OpenXBL profile page. Achievement Relay uses OpenXBL's current `api.xbl.io/v2` service; older `xbl.io/api/v2` responses are not used as account verification.
+If the key saves but setup says that no usable Xbox profile was returned, confirm the Xbox profile is connected on the OpenXBL profile page. Achievement Relay uses OpenXBL's documented `api.xbl.io/api/v2` service; the legacy `xbl.io/api/v2` host is not used for account verification.
 
 ## OpenXBL is rate-limiting requests
 
@@ -21,7 +21,7 @@ Check [OpenXBL pricing](https://xbl.io/pricing) and provider status. Do not laun
 
 ## Xbox account connects but the achievement feed fails
 
-OpenXBL profile lookup, title-history lookup, and per-title achievement lookup are separate checks. Current builds use `player/titleHistory/{xuid}` for the lightweight title index; `achievements/player/{xuid}` is not a title-history operation. If **Sync Xbox now** says title progress could not be read, install the newest build, confirm internet access to `api.xbl.io`, and retry. If the current build still fails, copy the redacted support summary and open an issue without attaching raw account JSON.
+OpenXBL profile lookup, title-history lookup, and per-title achievement lookup are separate checks. Current builds use the documented `https://api.xbl.io/api/v2/` base and `player/titleHistory/{xuid}` for the lightweight title index; `achievements/player/{xuid}` is not a title-history operation. Build 0.2.1.33 used the correct operation under the incomplete `/v2/` base path, so it could connect the account but could not read title progress. If **Sync Xbox now** reports that warning, install a newer build, confirm internet access to `api.xbl.io`, and retry. If the current build still fails, copy the redacted support summary and open an issue without attaching raw account JSON.
 
 ## Discord sample/test fails
 

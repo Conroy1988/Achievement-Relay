@@ -24,13 +24,15 @@ function Stop-AchievementRelayProcess {
         Stop-Process -Id $runningProcess.Id -Force -ErrorAction SilentlyContinue
     }
 
-    $runningProcesses | Wait-Process -Timeout 10 -ErrorAction SilentlyContinue
+    $runningProcesses | Wait-Process -Timeout 3 -ErrorAction SilentlyContinue
     $remainingProcesses = @(
         Get-Process -Name 'AchievementRelay.App' -ErrorAction SilentlyContinue |
             Where-Object { $_.SessionId -eq $currentSessionId }
     )
     if ($remainingProcesses.Count -gt 0) {
-        throw 'Achievement Relay is still running. Exit it from the notification area and run Setup again.'
+        # A packaged or elevated process can outlive this best-effort user-level stop.
+        # Do not abort: the AppX deployment broker receives ForceApplicationShutdown below.
+        Write-Host 'Windows package deployment will close the remaining Achievement Relay instance...'
     }
 }
 

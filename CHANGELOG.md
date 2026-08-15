@@ -7,7 +7,7 @@ All notable changes to Achievement Relay are documented here. The project follow
 ### Fixed
 
 - Gave each pull-request installer an increasing MSIX revision so updated test builds install over earlier packages instead of failing with `0x80073CFB`
-- Closed an already-running Achievement Relay tray process before package deployment and relaunched the updated app afterward
+- Attempted direct shutdown of the running tray process, then delegated any stubborn or elevated instance to Windows' package deployment broker instead of aborting the upgrade
 
 ### Planned
 

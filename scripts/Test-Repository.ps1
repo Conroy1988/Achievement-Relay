@@ -78,16 +78,24 @@ if (($installerText -split "`r?`n") | Where-Object { $_ -match 'Parameters.*Cred
 }
 
 $installScriptText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'scripts\Install.ps1') -Raw
+$shutdownFunctionMatch = [regex]::Match(
+    $installScriptText,
+    '(?ms)^function Stop-AchievementRelayProcess\s*\{.*?^\}(?=\r?\n\r?\ntry\s*\{)')
+$shutdownFunctionText = $shutdownFunctionMatch.Value
 $shutdownCallIndex = $installScriptText.LastIndexOf('Stop-AchievementRelayProcess', [StringComparison]::Ordinal)
-$packageInstallIndex = $installScriptText.IndexOf('Add-AppxPackage', [StringComparison]::Ordinal)
-if (-not $installScriptText.Contains("Get-Process -Name 'AchievementRelay.App'") -or
-    -not $installScriptText.Contains('(Get-Process -Id $PID).SessionId') -or
-    -not $installScriptText.Contains('Where-Object { $_.SessionId -eq $currentSessionId }') -or
-    -not $installScriptText.Contains('Stop-Process') -or
-    -not $installScriptText.Contains('Wait-Process') -or
-    -not $installScriptText.Contains('-ForceApplicationShutdown') -or
+$packageInstallMatch = [regex]::Match(
+    $installScriptText,
+    '(?m)^[ \t]*Add-AppxPackage[^\r\n]*-ForceApplicationShutdown[ \t]*\r?$')
+$packageInstallIndex = if ($packageInstallMatch.Success) { $packageInstallMatch.Index } else { -1 }
+if (-not $shutdownFunctionMatch.Success -or
+    -not $shutdownFunctionText.Contains("Get-Process -Name 'AchievementRelay.App'") -or
+    -not $shutdownFunctionText.Contains('(Get-Process -Id $PID).SessionId') -or
+    -not $shutdownFunctionText.Contains('Where-Object { $_.SessionId -eq $currentSessionId }') -or
+    -not $shutdownFunctionText.Contains('Stop-Process') -or
+    -not $shutdownFunctionText.Contains('Wait-Process -Timeout 3') -or
+    $shutdownFunctionText.Contains('throw') -or
     $shutdownCallIndex -lt 0 -or $packageInstallIndex -lt 0 -or $shutdownCallIndex -gt $packageInstallIndex) {
-    throw 'Setup must close the running Achievement Relay process before deploying an update.'
+    throw 'Setup must attempt direct shutdown, then let the AppX deployment broker close any remaining process.'
 }
 
 $protectionScriptText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'scripts\Protect-InstallerSetup.ps1') -Raw

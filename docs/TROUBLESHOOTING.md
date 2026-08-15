@@ -64,7 +64,7 @@ Re-run `AchievementRelay_Setup.exe` and enable **Create a desktop shortcut**, or
 
 Windows rejects a changed MSIX when it reuses an installed four-part package version. Current pull-request installers include an increasing test revision so each newer artifact performs an in-place upgrade. Download the newest artifact instead of retrying an older installer.
 
-Setup closes any Achievement Relay instance running in the current Windows session—including the notification-area instance—before deployment, retains the encrypted per-user settings, and relaunches the updated app afterward. `Add-AppxPackage -ForceApplicationShutdown` remains enabled as a deployment fallback.
+Setup first attempts to close any Achievement Relay instance running in the current Windows session, including the notification-area instance. If a packaged or elevated process remains, Setup no longer aborts or asks for manual closure: `Add-AppxPackage -ForceApplicationShutdown` delegates the final termination to Windows' package deployment broker. The upgrade retains encrypted per-user settings and relaunches the updated app afterward.
 
 ## Duplicate posts
 

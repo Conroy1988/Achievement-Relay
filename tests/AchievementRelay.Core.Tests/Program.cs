@@ -8,6 +8,7 @@ var tests = new (string Name, Action Run)[]
     ("OpenXBL account profile is parsed case-insensitively", ParsesOpenXblAccount),
     ("OpenXBL object profiles and display-name fallbacks are supported", ParsesOpenXblObjectAccount),
     ("OpenXBL account envelopes and people profiles are supported", ParsesOpenXblAccountEnvelope),
+    ("OpenXBL nested identity and profile fields are combined", ParsesNestedOpenXblAccount),
     ("Incomplete OpenXBL account profile is rejected", RejectsIncompleteOpenXblAccount),
     ("OpenXBL title progress index is parsed", ParsesTitleProgress),
     ("OpenXBL title progress envelopes are supported", ParsesWrappedTitleProgress),
@@ -109,6 +110,26 @@ static void ParsesOpenXblAccountEnvelope()
     var account = OpenXblResponseParser.ParseAccount(json);
     Assert(account.Xuid == "2533274999999997", $"Unexpected enveloped XUID: {account.Xuid}");
     Assert(account.Gamertag == "EnvelopeRelay", $"Unexpected enveloped gamertag: {account.Gamertag}");
+}
+
+static void ParsesNestedOpenXblAccount()
+{
+    const string json = """
+        {
+          "data": {
+            "account": {
+              "xboxUserId": "2533274999999996",
+              "profile": {
+                "uniqueModernGamertag": "NestedRelay#1100"
+              }
+            }
+          }
+        }
+        """;
+
+    var account = OpenXblResponseParser.ParseAccount(json);
+    Assert(account.Xuid == "2533274999999996", $"Unexpected nested XUID: {account.Xuid}");
+    Assert(account.Gamertag == "NestedRelay#1100", $"Unexpected nested gamertag: {account.Gamertag}");
 }
 
 static void RejectsIncompleteOpenXblAccount()

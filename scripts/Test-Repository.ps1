@@ -139,8 +139,15 @@ $openXblParserText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\Ac
 if (-not $openXblParserText.Contains('"profileUsers"') -or
     -not $openXblParserText.Contains('"people"') -or
     -not $openXblParserText.Contains('"data"') -or
+    -not $openXblParserText.Contains('inheritedXuid') -or
     -not $openXblParserText.Contains('GetAccountSetting(settings, "GameDisplayName")')) {
     throw 'The OpenXBL account parser must accept current profile envelopes and display-name fallbacks.'
+}
+
+$openXblClientText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\OpenXblClient.cs') -Raw
+if (-not $openXblClientText.Contains('new("https://api.xbl.io/v2/")') -or
+    $openXblClientText.Contains('https://xbl.io/api/v2/')) {
+    throw 'OpenXBL requests must use the provider current api.xbl.io v2 endpoint.'
 }
 
 $appProjectText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\AchievementRelay.App.csproj') -Raw

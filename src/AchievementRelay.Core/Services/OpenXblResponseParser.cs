@@ -13,18 +13,25 @@ public static class OpenXblResponseParser
         ArgumentException.ThrowIfNullOrWhiteSpace(json);
 
         using var document = JsonDocument.Parse(json.Trim().TrimStart('\uFEFF'));
-        if (TryParseAccountElement(document.RootElement, 0, out var account))
+        if (TryParseAccountElement(document.RootElement, 0, string.Empty, string.Empty, out var account))
         {
             return account;
         }
 
-        throw new JsonException("OpenXBL did not return a complete Xbox profile.");
+        throw new JsonException(
+            "OpenXBL accepted the API key, but did not return a usable Xbox profile. " +
+            "Confirm the intended Xbox profile is connected in OpenXBL, then try again.");
     }
 
-    private static bool TryParseAccountElement(JsonElement element, int depth, out XboxAccount account)
+    private static bool TryParseAccountElement(
+        JsonElement element,
+        int depth,
+        string inheritedXuid,
+        string inheritedGamertag,
+        out XboxAccount account)
     {
         account = default!;
-        if (depth > 4)
+        if (depth > 8)
         {
             return false;
         }
@@ -37,7 +44,12 @@ public static class OpenXblResponseParser
                 try
                 {
                     using var nestedDocument = JsonDocument.Parse(nestedJson.Trim().TrimStart('\uFEFF'));
-                    return TryParseAccountElement(nestedDocument.RootElement, depth + 1, out account);
+                    return TryParseAccountElement(
+                        nestedDocument.RootElement,
+                        depth + 1,
+                        inheritedXuid,
+                        inheritedGamertag,
+                        out account);
                 }
                 catch (JsonException)
                 {
@@ -52,7 +64,12 @@ public static class OpenXblResponseParser
         {
             foreach (var item in element.EnumerateArray())
             {
-                if (TryParseAccountElement(item, depth + 1, out account))
+                if (TryParseAccountElement(
+                        item,
+                        depth + 1,
+                        inheritedXuid,
+                        inheritedGamertag,
+                        out account))
                 {
                     return true;
                 }
@@ -66,14 +83,17 @@ public static class OpenXblResponseParser
             return false;
         }
 
-        var xuid = GetString(element, "xuid", "id", "hostId");
-        var gamertag = GetString(
+        var xuid = FirstNonEmpty(
+            GetAccountXuid(element),
+            inheritedXuid);
+        var directGamertag = GetString(
             element,
             "gamertag",
             "uniqueModernGamertag",
             "modernGamertag",
             "gameDisplayName",
             "displayName");
+        var gamertag = FirstNonEmpty(directGamertag, inheritedGamertag);
 
         if (TryGetProperty(element, "settings", out var settings))
         {
@@ -82,7 +102,8 @@ public static class OpenXblResponseParser
                 GetAccountSetting(settings, "UniqueModernGamertag"),
                 GetAccountSetting(settings, "ModernGamertag"),
                 GetAccountSetting(settings, "GameDisplayName"),
-                gamertag);
+                directGamertag,
+                inheritedGamertag);
         }
 
         if (!string.IsNullOrWhiteSpace(xuid) && !string.IsNullOrWhiteSpace(gamertag))
@@ -94,17 +115,31 @@ public static class OpenXblResponseParser
         foreach (var containerName in new[]
                  {
                      "profileUsers", "people", "profiles", "users", "accounts", "items", "data", "result", "response",
-                     "payload", "value", "account", "profile"
+                     "payload", "value", "body", "content", "account", "profile"
                  })
         {
             if (TryGetProperty(element, containerName, out var container) &&
-                TryParseAccountElement(container, depth + 1, out account))
+                TryParseAccountElement(container, depth + 1, xuid, gamertag, out account))
             {
                 return true;
             }
         }
 
         return false;
+    }
+
+    private static string GetAccountXuid(JsonElement element)
+    {
+        foreach (var propertyName in new[] { "xuid", "xboxUserId", "userId", "id", "hostId" })
+        {
+            var value = GetString(element, propertyName).Trim();
+            if (value.Length is >= 12 and <= 20 && value.All(char.IsAsciiDigit))
+            {
+                return value;
+            }
+        }
+
+        return string.Empty;
     }
 
     private static string GetAccountSetting(JsonElement settings, string settingName)

@@ -31,7 +31,7 @@ public sealed record OpenXblTitleProgressResult(
 
 public sealed class OpenXblClient : IDisposable
 {
-    private static readonly Uri BaseAddress = new("https://xbl.io/api/v2/");
+    private static readonly Uri BaseAddress = new("https://api.xbl.io/v2/");
     private const int MaximumResponseCharacters = 20 * 1024 * 1024;
 
     private readonly HttpClient _httpClient = new()

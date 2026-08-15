@@ -11,6 +11,8 @@ Start with **Diagnostics → Sync Xbox now**. It tests the real OpenXBL → Achi
 
 Never paste the key into a GitHub issue. If it was exposed, revoke it before creating another.
 
+If the key saves but setup says that no usable Xbox profile was returned, confirm the Xbox profile is connected on the OpenXBL profile page. Achievement Relay uses OpenXBL's current `api.xbl.io/v2` service; older `xbl.io/api/v2` responses are not used as account verification.
+
 ## OpenXBL is rate-limiting requests
 
 Achievement Relay's default one-minute interval normally uses about 60 achievement requests per hour plus occasional account/setup checks. If the same key is used by other software, or OpenXBL changes the plan limit, the provider can return HTTP 429. The app respects `Retry-After` when supplied and waits up to 15 minutes before retrying.
@@ -19,7 +21,7 @@ Check [OpenXBL pricing](https://xbl.io/pricing) and provider status. Do not laun
 
 ## Xbox account connects but the achievement feed fails
 
-OpenXBL profile lookup and achievement lookup are separate checks. Use **Sync Xbox now**, confirm internet access to `xbl.io`, and retry later. If the provider changed its JSON shape, copy the redacted support summary and open an issue without attaching raw account JSON.
+OpenXBL profile lookup and achievement lookup are separate checks. Use **Sync Xbox now**, confirm internet access to `api.xbl.io`, and retry later. If the provider changed its JSON shape, copy the redacted support summary and open an issue without attaching raw account JSON.
 
 ## Discord sample/test fails
 

@@ -8,6 +8,8 @@ All notable changes to Achievement Relay are documented here. The project follow
 
 - Gave each pull-request installer an increasing MSIX revision so updated test builds install over earlier packages instead of failing with `0x80073CFB`
 - Attempted direct shutdown of the running tray process, then delegated any stubborn or elevated instance to Windows' package deployment broker instead of aborting the upgrade
+- Switched account verification from OpenXBL's legacy route to the provider's current `api.xbl.io/v2` service so a saved key can resolve the Xbox profile and complete setup
+- Combined XUID and gamertag fields found across nested OpenXBL account envelopes instead of requiring both values in the same JSON object
 
 ### Planned
 

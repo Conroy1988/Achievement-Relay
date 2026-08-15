@@ -160,7 +160,7 @@ if (-not $openXblClientText.Contains('"api/v2/player/titleHistory"') -or
     -not $openXblClientText.Contains('"api/v2/achievements/x360/{xuid}/title/{titleId}"') -or
     -not $openXblClientText.Contains('"api/v2/achievements/player/{xuid}/{titleId}"') -or
     -not $openXblClientText.Contains('"api/v2/achievements/title/{titleId}"') -or
-    -not $openXblClientText.Contains('achievements.Count >= Math.Max(0, expectedUnlockedCount)') -or
+    -not $openXblClientText.Contains('achievements.Length == Math.Max(0, expectedUnlockedCount)') -or
     -not $openXblClientText.Contains('_preferredTitleAchievementRouteTemplates[titleId] = routeTemplate') -or
     -not $openXblClientText.Contains('HttpStatusCode.BadRequest') -or
     -not $openXblParserText.Contains('TryGetProperty(item, "unlocked"') -or

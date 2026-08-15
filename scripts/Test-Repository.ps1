@@ -202,7 +202,7 @@ if (-not $openXblParserText.Contains('DateTimeOffset? unlockedAt = null') -or
     -not $relayCoordinatorText.Contains('XboxSyncWorkPlanner.SelectNext') -or
     -not $relayCoordinatorText.Contains('BackgroundWorkInterval = TimeSpan.FromMinutes(15)') -or
     -not $relayCoordinatorText.Contains('ShouldPauseAllOpenXblWork') -or
-    -not $relayCoordinatorText.Contains('at most one title in this sync') -or
+    -not $relayCoordinatorText.Contains('if (selectedWork is null && backgroundWorkDue)') -or
     -not $relayCoordinatorText.Contains('AchievementDeltaDetector.Detect') -or
     -not $relayCoordinatorText.Contains('var hydrationTitle =') -or
     -not $relayCoordinatorText.Contains('Nothing historical was sent to Discord') -or

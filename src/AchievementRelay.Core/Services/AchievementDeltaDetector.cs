@@ -4,18 +4,17 @@ namespace AchievementRelay.Core.Services;
 
 /// <summary>
 /// Detects achievement changes from durable identities. Provider timestamps
-/// are used only to bridge a pre-identity state written by older app versions.
+/// are used only to prove that an achievement first seen before an identity
+/// baseline was unlocked after the app began monitoring.
 /// </summary>
 public static class AchievementDeltaDetector
 {
     public static AchievementDeltaResult Detect(
         int previousReportedCount,
         IReadOnlyCollection<string>? previousAchievementIds,
-        int previousReportedGamerscore,
         int currentReportedCount,
-        int currentReportedGamerscore,
         IReadOnlyList<AchievementEvent> currentAchievements,
-        DateTimeOffset previousSuccessfulPollUtc,
+        DateTimeOffset monitoringBaselineUtc,
         DateTimeOffset observedAt,
         TimeSpan futureClockTolerance)
     {
@@ -28,16 +27,6 @@ public static class AchievementDeltaDetector
         if (currentReportedCount < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(currentReportedCount));
-        }
-
-        if (previousReportedGamerscore < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(previousReportedGamerscore));
-        }
-
-        if (currentReportedGamerscore < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(currentReportedGamerscore));
         }
 
         var current = currentAchievements
@@ -65,7 +54,9 @@ public static class AchievementDeltaDetector
             var knownIds = new HashSet<string>(
                 previousAchievementIds.Where(id => !string.IsNullOrWhiteSpace(id)),
                 StringComparer.Ordinal);
-            var detected = OrderForDelivery(current.Where(achievement => !knownIds.Contains(achievement.Id)));
+            var newlyObserved = current
+                .Where(achievement => !knownIds.Contains(achievement.Id))
+                .ToArray();
             var durableIds = knownIds
                 .Concat(currentIds)
                 .Distinct(StringComparer.Ordinal)
@@ -75,14 +66,14 @@ public static class AchievementDeltaDetector
 
             // A rising summary count with too few new detail identities means
             // the provider's summary and detail endpoints have not converged.
-            if (detected.Count < reportedIncrease)
+            if (newlyObserved.Length < reportedIncrease)
             {
                 return new AchievementDeltaResult(
                     IsComplete: false,
                     NewAchievements: [],
                     CurrentAchievementIds: durableIds,
                     IdentityBaselineEstablished: true,
-                    UnidentifiedIncrease: reportedIncrease - detected.Count);
+                    UnidentifiedIncrease: reportedIncrease - newlyObserved.Length);
             }
 
             // If a provider route changes how it represents identity, it can
@@ -90,7 +81,7 @@ public static class AchievementDeltaDetector
             // only one (or did not rise at all). Never flood those items. Keep
             // both identity forms as the durable baseline and let later real
             // count increases be detected normally.
-            if (detected.Count > reportedIncrease)
+            if (newlyObserved.Length > reportedIncrease)
             {
                 return new AchievementDeltaResult(
                     IsComplete: true,
@@ -100,37 +91,41 @@ public static class AchievementDeltaDetector
                     UnidentifiedIncrease: reportedIncrease);
             }
 
+            // Even with a durable identity set, a provider correction can
+            // expose an old identity for the first time. A real historical
+            // timestamp at or before the monitoring baseline is conclusive:
+            // retain the identity, but never send it to Discord. Missing or
+            // unusable timestamps remain eligible here because the known ID
+            // baseline proves that the identity itself is new.
+            var deliverable = OrderForDelivery(newlyObserved.Where(achievement =>
+                achievement.UnlockedAt is null ||
+                achievement.UnlockedAt > monitoringBaselineUtc));
+            var historical = newlyObserved.Length - deliverable.Count;
+
             return new AchievementDeltaResult(
                 IsComplete: true,
-                NewAchievements: detected,
+                NewAchievements: deliverable,
                 CurrentAchievementIds: durableIds,
                 IdentityBaselineEstablished: true,
-                UnidentifiedIncrease: 0);
+                UnidentifiedIncrease: historical);
         }
 
-        // Schema-v2 states contain counts but no identities. Use trustworthy
-        // post-poll timestamps, plus a uniquely attributable untimestamped
-        // remainder, for this one migration poll. The full current identity set
-        // is then persisted and all later polls are timestamp-independent.
+        // A title absent from the original title-history page, or a snapshot
+        // written before identity tracking existed, has counts but no verified
+        // ID set. Never infer new events from a count or Gamerscore delta: that
+        // can turn a newly revealed old game into a complete Discord backlog.
+        // Only a usable provider timestamp strictly after the monitoring
+        // baseline can prove an event is new. Everything else becomes the
+        // silent identity baseline; later set differences are exact.
         var increase = Math.Max(0, currentReportedCount - previousReportedCount);
-        if (increase == 0)
-        {
-            return new AchievementDeltaResult(
-                IsComplete: true,
-                NewAchievements: [],
-                CurrentAchievementIds: currentIds,
-                IdentityBaselineEstablished: true,
-                UnidentifiedIncrease: 0);
-        }
-
         var latestAcceptedTime = observedAt + futureClockTolerance;
-        var timestamped = current
+        var provenPostBaseline = current
             .Where(achievement => achievement.UnlockedAt is { } unlockedAt &&
-                                  unlockedAt > previousSuccessfulPollUtc &&
+                                  unlockedAt > monitoringBaselineUtc &&
                                   unlockedAt <= latestAcceptedTime)
             .ToArray();
 
-        if (timestamped.Length > increase)
+        if (provenPostBaseline.Length > increase)
         {
             return new AchievementDeltaResult(
                 IsComplete: true,
@@ -140,54 +135,11 @@ public static class AchievementDeltaDetector
                 UnidentifiedIncrease: increase);
         }
 
-        var remaining = increase - timestamped.Length;
-        var timestampedIds = new HashSet<string>(
-            timestamped.Select(achievement => achievement.Id),
-            StringComparer.Ordinal);
-        var unattributed = current
-            .Where(achievement => !timestampedIds.Contains(achievement.Id))
-            .ToArray();
-        var untimestamped = unattributed
-            .Where(achievement => achievement.UnlockedAt is null)
-            .ToArray();
-        var remainingGamerscore = currentReportedGamerscore - previousReportedGamerscore;
-        if (timestamped.All(achievement => achievement.Gamerscore is not null))
-        {
-            remainingGamerscore -= timestamped.Sum(achievement => achievement.Gamerscore!.Value);
-        }
-        else
-        {
-            remainingGamerscore = -1;
-        }
-
-        IReadOnlyList<AchievementEvent> attributableRemainder = [];
-        if (remaining > 0 && remainingGamerscore >= 0)
-        {
-            attributableRemainder = AttributeByCountAndGamerscore(
-                untimestamped,
-                remaining,
-                remainingGamerscore);
-            if (attributableRemainder.Count == 0)
-            {
-                // A delayed provider update can expose a usable but old time.
-                // Fall back to all not-already-attributed identities only when
-                // count and Gamerscore still yield exactly one possible set.
-                attributableRemainder = AttributeByCountAndGamerscore(
-                    unattributed,
-                    remaining,
-                    remainingGamerscore);
-            }
-        }
-        var detectedDuringMigration = timestamped
-            .Concat(attributableRemainder)
-            .GroupBy(achievement => achievement.Id, StringComparer.Ordinal)
-            .Select(group => group.First())
-            .ToArray();
-        var unidentified = Math.Max(0, increase - detectedDuringMigration.Length);
+        var unidentified = Math.Max(0, increase - provenPostBaseline.Length);
 
         return new AchievementDeltaResult(
             IsComplete: true,
-            NewAchievements: OrderForDelivery(detectedDuringMigration),
+            NewAchievements: OrderForDelivery(provenPostBaseline),
             CurrentAchievementIds: currentIds,
             IdentityBaselineEstablished: true,
             UnidentifiedIncrease: unidentified);
@@ -198,83 +150,6 @@ public static class AchievementDeltaDetector
             .OrderBy(achievement => achievement.UnlockedAt ?? DateTimeOffset.MaxValue)
             .ThenBy(achievement => achievement.Id, StringComparer.Ordinal)
             .ToArray();
-
-    private static IReadOnlyList<AchievementEvent> AttributeByCountAndGamerscore(
-        IReadOnlyList<AchievementEvent> candidates,
-        int requiredCount,
-        int requiredGamerscore)
-    {
-        if (candidates.Count == requiredCount &&
-            candidates.All(achievement => achievement.Gamerscore is not null) &&
-            candidates.Sum(achievement => achievement.Gamerscore!.Value) == requiredGamerscore)
-        {
-            return candidates;
-        }
-
-        return FindUniqueGamerscoreCombination(candidates, requiredCount, requiredGamerscore);
-    }
-
-    private static IReadOnlyList<AchievementEvent> FindUniqueGamerscoreCombination(
-        IReadOnlyList<AchievementEvent> candidates,
-        int requiredCount,
-        int requiredGamerscore)
-    {
-        // Real polls normally increase by one. Bound the general search so a
-        // malformed or unusually large provider response cannot create an
-        // expensive combinatorial operation.
-        if (requiredCount is < 1 or > 4 ||
-            candidates.Count > 128 ||
-            candidates.Any(achievement => achievement.Gamerscore is null))
-        {
-            return [];
-        }
-
-        List<AchievementEvent>? unique = null;
-        var multiple = false;
-        var selected = new List<AchievementEvent>(requiredCount);
-
-        void Search(int start, int countRemaining, int scoreRemaining)
-        {
-            if (multiple || scoreRemaining < 0)
-            {
-                return;
-            }
-
-            if (countRemaining == 0)
-            {
-                if (scoreRemaining != 0)
-                {
-                    return;
-                }
-
-                if (unique is null)
-                {
-                    unique = [.. selected];
-                }
-                else
-                {
-                    multiple = true;
-                }
-
-                return;
-            }
-
-            for (var index = start; index <= candidates.Count - countRemaining; index++)
-            {
-                var candidate = candidates[index];
-                selected.Add(candidate);
-                Search(index + 1, countRemaining - 1, scoreRemaining - candidate.Gamerscore!.Value);
-                selected.RemoveAt(selected.Count - 1);
-                if (multiple)
-                {
-                    return;
-                }
-            }
-        }
-
-        Search(0, requiredCount, requiredGamerscore);
-        return multiple || unique is null ? [] : unique;
-    }
 }
 
 public sealed record AchievementDeltaResult(

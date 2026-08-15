@@ -7,7 +7,7 @@ namespace AchievementRelay.App.Services;
 
 public sealed record XboxSyncState
 {
-    public const int CurrentSchemaVersion = 3;
+    public const int CurrentSchemaVersion = 4;
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
 
@@ -27,9 +27,9 @@ public sealed record XboxTitleSnapshot
     public int CurrentGamerscore { get; init; }
 
     /// <summary>
-    /// Null means this title came from a schema-v2/count-only baseline. An
-    /// empty array is a complete baseline for a title with no unlocked
-    /// achievements.
+    /// Null means the title has only an unverified count snapshot, whether it
+    /// came from an older schema or a newly observed title. An empty array is
+    /// a detail-verified baseline for a title with no unlocked achievements.
     /// </summary>
     public string[]? UnlockedAchievementIds { get; init; }
 
@@ -63,6 +63,8 @@ public sealed class XboxSyncStateStore(AppPaths paths)
                 return new XboxSyncState();
             }
 
+            var sourceSchemaVersion = state.SchemaVersion;
+
             return state with
             {
                 SchemaVersion = XboxSyncState.CurrentSchemaVersion,
@@ -70,7 +72,7 @@ public sealed class XboxSyncStateStore(AppPaths paths)
                     (state.Titles ?? new Dictionary<string, XboxTitleSnapshot>())
                         .ToDictionary(
                             entry => entry.Key,
-                            entry => NormalizeSnapshot(entry.Value),
+                            entry => NormalizeSnapshot(entry.Value, sourceSchemaVersion),
                             StringComparer.Ordinal),
                     StringComparer.Ordinal)
             };
@@ -136,8 +138,10 @@ public sealed class XboxSyncStateStore(AppPaths paths)
                 CurrentGamerscore = Math.Max(
                     title.CurrentGamerscore,
                     previous?.CurrentGamerscore ?? 0),
-                UnlockedAchievementIds = previous?.UnlockedAchievementIds ??
-                                         (title.CurrentAchievements == 0 ? [] : null)
+                // Counts alone never prove an identity baseline, including a
+                // reported zero. Leave new titles unverified until a complete
+                // detail response has been silently hydrated.
+                UnlockedAchievementIds = previous?.UnlockedAchievementIds
             };
         }
 
@@ -192,16 +196,30 @@ public sealed class XboxSyncStateStore(AppPaths paths)
         }
     }
 
-    private static XboxTitleSnapshot NormalizeSnapshot(XboxTitleSnapshot? snapshot)
+    private static XboxTitleSnapshot NormalizeSnapshot(
+        XboxTitleSnapshot? snapshot,
+        int sourceSchemaVersion = XboxSyncState.CurrentSchemaVersion)
     {
         snapshot ??= new XboxTitleSnapshot();
+        var normalizedIds = snapshot.UnlockedAchievementIds?
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(id => id, StringComparer.Ordinal)
+            .ToArray();
+
+        // Schema 3 treated a summary count of zero as a verified empty ID
+        // baseline without fetching details. Re-open those snapshots once so
+        // a later provider correction cannot turn old history into new posts.
+        if (sourceSchemaVersion < XboxSyncState.CurrentSchemaVersion &&
+            snapshot.CurrentAchievements == 0 &&
+            normalizedIds is { Length: 0 })
+        {
+            normalizedIds = null;
+        }
+
         return snapshot with
         {
-            UnlockedAchievementIds = snapshot.UnlockedAchievementIds?
-                .Where(id => !string.IsNullOrWhiteSpace(id))
-                .Distinct(StringComparer.Ordinal)
-                .OrderBy(id => id, StringComparer.Ordinal)
-                .ToArray()
+            UnlockedAchievementIds = normalizedIds
         };
     }
 }

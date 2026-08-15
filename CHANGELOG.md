@@ -16,9 +16,10 @@ All notable changes to Achievement Relay are documented here. The project follow
 - Added OpenXBL's dedicated Xbox 360 achievement route and accepted its `unlocked` response field
 - Kept probing documented per-title detail routes when the first readable response contains fewer unlocked achievements than title history reports, then cached the complete route per title
 - Replaced timestamp-only unlock detection with durable per-title achievement identity sets, so Xbox 360/backward-compatible unlocks with missing or `0001-01-01` times can post normally
-- Added a conservative schema-v2 to schema-v3 sync-state migration that attributes a unique untimestamped count increase without flooding historical achievements
+- Added a fail-closed schema-v2/v3 to schema-v4 migration: count and Gamerscore changes can never infer an untimestamped post before a verified identity baseline
+- Silently baselined titles first revealed after the original title-history page, preventing complete 2009-era and other historical game backlogs from reaching Discord
 - Retained saved title snapshots when OpenXBL omits a title from a later page, preventing an old game from reappearing as a false new title
-- Required exact title-index/detail agreement, followed documented continuation pages, and gradually hydrated legacy count-only baselines without posting historical achievements
+- Required exact title-index/detail agreement, followed documented continuation pages, and gradually hydrated every unverified count-only baseline without posting historical achievements
 - Preserved durable counts and identities across regressive or representation-changing provider responses instead of risking a historical Discord flood
 - Labelled Discord timestamps as detected/estimated when Xbox supplies no usable unlock time
 - Requested Discord webhook responses with `wait=true`, honored both forms of `Retry-After`, canonicalized legacy webhook hosts, and disabled credential-bearing redirects

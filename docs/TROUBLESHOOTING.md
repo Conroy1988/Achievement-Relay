@@ -56,7 +56,7 @@ No Windows Notification Center entry is required. Xbox can take time to add an o
 
 Current builds do not require an OpenXBL timestamp to detect an achievement. Xbox 360/backward-compatible responses can report an achieved identity with a missing or `0001-01-01` time. Achievement Relay compares stable achievement IDs, posts the new identity with the detection time, and labels that time as estimated in Discord.
 
-When upgrading from a count-only test build, the first changed-title check also creates the identity baseline. If exactly one untimestamped identity explains the count increase, it is posted. If several historical untimestamped entries are indistinguishable, the app baselines them once to avoid an old-achievement flood; later unlocks for that title are exact and timestamp-independent. A repeating “no new timestamped achievement” warning indicates an obsolete build.
+When upgrading from a count-only build, or when OpenXBL reveals an old title that was absent from the original baseline page, the first complete detail response creates the identity baseline. Counts and Gamerscore never authorize a post. A usable timestamp strictly after the monitoring baseline may prove a genuinely new event; old, missing-time, sentinel-time, and otherwise unproven entries are stored silently. Later unlocks for that title are exact and timestamp-independent. A repeating backlog or “no new timestamped achievement” warning indicates an obsolete build; exit it from the notification area and install the latest test build.
 
 ## Installer-provided credentials need attention
 

@@ -25,9 +25,13 @@ var tests = new (string Name, Action Run)[]
     ("Durable identities detect untimestamped achievements", DetectsUntimestampedAchievementByIdentity),
     ("Unchanged count-only state hydrates identities without posting", HydratesIdentityBaselineWithoutPosting),
     ("Provider identity churn cannot flood historical achievements", SafelyBaselinesProviderIdentityChurn),
-    ("Count-only state safely attributes one untimestamped migration unlock", AttributesUniqueUntimestampedMigrationUnlock),
-    ("Gamerscore uniquely attributes an untimestamped migration unlock", AttributesUntimestampedMigrationUnlockByGamerscore),
-    ("Ambiguous count-only migration baselines without flooding Discord", SafelyBaselinesAmbiguousMigrationUnlock),
+    ("Count-only state never posts an unproven untimestamped unlock", DoesNotPostUntimestampedMigrationUnlock),
+    ("Count-only state posts only proven post-baseline timestamps", PostsTimestampedUnlockAfterMonitoringBaseline),
+    ("Count-only state rejects future-skewed timestamps", DoesNotPostFutureSkewedBaselineTimestamp),
+    ("Gamerscore never infers a migration unlock", DoesNotInferMigrationUnlockFromGamerscore),
+    ("Newly discovered historical titles baseline without posting", SafelyBaselinesNewlyDiscoveredHistoricalTitle),
+    ("Historical provider corrections cannot post after baseline", SafelyBaselinesHistoricalProviderCorrection),
+    ("Restarting with the same identities never reposts", DoesNotRepostKnownIdentitiesAfterRestart),
     ("Incomplete achievement detail is retried without advancing state", RejectsIncompleteAchievementDetail),
     ("Ahead-of-summary achievement detail is retried without advancing state", RejectsOvercompleteAchievementDetail),
     ("Webhook URL validation is strict", ValidatesWebhookUrls),
@@ -467,11 +471,9 @@ static void DetectsUntimestampedAchievementByIdentity()
     var result = AchievementDeltaDetector.Detect(
         previousReportedCount: 1,
         previousAchievementIds: new[] { previous.Id },
-        previousReportedGamerscore: 10,
         currentReportedCount: 2,
-        currentReportedGamerscore: 20,
         currentAchievements: new[] { previous, added },
-        previousSuccessfulPollUtc: observedAt.AddMinutes(-1),
+        monitoringBaselineUtc: observedAt.AddDays(-30),
         observedAt: observedAt,
         futureClockTolerance: TimeSpan.FromMinutes(5));
 
@@ -486,15 +488,13 @@ static void HydratesIdentityBaselineWithoutPosting()
     var result = AchievementDeltaDetector.Detect(
         previousReportedCount: 2,
         previousAchievementIds: null,
-        previousReportedGamerscore: 20,
         currentReportedCount: 2,
-        currentReportedGamerscore: 20,
         currentAchievements: new[]
         {
             AchievementWithIdentity("historic-one", null),
             AchievementWithIdentity("historic-two", null)
         },
-        previousSuccessfulPollUtc: observedAt.AddMinutes(-1),
+        monitoringBaselineUtc: observedAt.AddHours(-1),
         observedAt: observedAt,
         futureClockTolerance: TimeSpan.FromMinutes(5));
 
@@ -509,15 +509,13 @@ static void SafelyBaselinesProviderIdentityChurn()
     var result = AchievementDeltaDetector.Detect(
         previousReportedCount: 2,
         previousAchievementIds: new[] { "old-route-one", "old-route-two" },
-        previousReportedGamerscore: 20,
         currentReportedCount: 2,
-        currentReportedGamerscore: 20,
         currentAchievements: new[]
         {
             AchievementWithIdentity("new-route-one", null),
             AchievementWithIdentity("new-route-two", null)
         },
-        previousSuccessfulPollUtc: observedAt.AddMinutes(-1),
+        monitoringBaselineUtc: observedAt.AddHours(-1),
         observedAt: observedAt,
         futureClockTolerance: TimeSpan.FromMinutes(5));
 
@@ -526,7 +524,7 @@ static void SafelyBaselinesProviderIdentityChurn()
     Assert(result.CurrentAchievementIds.Count == 4, "Both provider identity forms were not retained for deduplication.");
 }
 
-static void AttributesUniqueUntimestampedMigrationUnlock()
+static void DoesNotPostUntimestampedMigrationUnlock()
 {
     var observedAt = new DateTimeOffset(2026, 8, 15, 20, 0, 0, TimeSpan.Zero);
     var previous = AchievementWithIdentity("old", observedAt.AddDays(-10));
@@ -535,44 +533,62 @@ static void AttributesUniqueUntimestampedMigrationUnlock()
     var result = AchievementDeltaDetector.Detect(
         previousReportedCount: 1,
         previousAchievementIds: null,
-        previousReportedGamerscore: 10,
         currentReportedCount: 2,
-        currentReportedGamerscore: 20,
         currentAchievements: new[] { previous, added },
-        previousSuccessfulPollUtc: observedAt.AddMinutes(-1),
+        monitoringBaselineUtc: observedAt.AddHours(-1),
         observedAt: observedAt,
         futureClockTolerance: TimeSpan.FromMinutes(5));
 
-    Assert(result.NewAchievements.Select(item => item.Id).SequenceEqual(new[] { "new" }), "The sole untimestamped count increase was not attributed.");
+    Assert(result.NewAchievements.Count == 0, "An untimestamped count-only migration would post without a verified identity baseline.");
     Assert(result.CurrentAchievementIds.Count == 2, "The complete migration identity baseline was not returned.");
-    Assert(result.UnidentifiedIncrease == 0, "A uniquely attributable migration unlock was marked ambiguous.");
+    Assert(result.UnidentifiedIncrease == 1, "The silently baselined migration increase was not reported.");
 }
 
-static void SafelyBaselinesAmbiguousMigrationUnlock()
+static void PostsTimestampedUnlockAfterMonitoringBaseline()
 {
     var observedAt = new DateTimeOffset(2026, 8, 15, 20, 0, 0, TimeSpan.Zero);
+    var monitoringBaseline = observedAt.AddHours(-1);
+    var historical = AchievementWithIdentity(
+        "historic",
+        new DateTimeOffset(2009, 8, 24, 12, 47, 0, TimeSpan.Zero));
+    var newUnlock = AchievementWithIdentity("new", observedAt.AddMinutes(-1));
+
     var result = AchievementDeltaDetector.Detect(
         previousReportedCount: 1,
         previousAchievementIds: null,
-        previousReportedGamerscore: 10,
         currentReportedCount: 2,
-        currentReportedGamerscore: 20,
-        currentAchievements: new[]
-        {
-            AchievementWithIdentity("historic-untimed", null),
-            AchievementWithIdentity("possibly-new", null)
-        },
-        previousSuccessfulPollUtc: observedAt.AddMinutes(-1),
+        currentAchievements: new[] { historical, newUnlock },
+        monitoringBaselineUtc: monitoringBaseline,
         observedAt: observedAt,
         futureClockTolerance: TimeSpan.FromMinutes(5));
 
-    Assert(result.IsComplete, "An ambiguity that can be safely baselined was left in a retry loop.");
-    Assert(result.NewAchievements.Count == 0, "Ambiguous historical achievements would have flooded Discord.");
-    Assert(result.UnidentifiedIncrease == 1, "The ambiguous count increase was not reported.");
-    Assert(result.CurrentAchievementIds.Count == 2, "The ambiguity did not produce a durable identity baseline.");
+    Assert(result.IsComplete, "A complete post-baseline migration response was rejected.");
+    Assert(result.NewAchievements.Select(item => item.Id).SequenceEqual(new[] { "new" }), "A proven post-baseline timestamp was not delivered.");
+    Assert(result.CurrentAchievementIds.Count == 2, "The full identity baseline was not persisted after migration.");
 }
 
-static void AttributesUntimestampedMigrationUnlockByGamerscore()
+static void DoesNotPostFutureSkewedBaselineTimestamp()
+{
+    var observedAt = new DateTimeOffset(2026, 8, 15, 20, 0, 0, TimeSpan.Zero);
+    var result = AchievementDeltaDetector.Detect(
+        previousReportedCount: 0,
+        previousAchievementIds: null,
+        currentReportedCount: 1,
+        currentAchievements: new[]
+        {
+            AchievementWithIdentity("future-skew", observedAt.AddHours(2))
+        },
+        monitoringBaselineUtc: observedAt.AddHours(-1),
+        observedAt: observedAt,
+        futureClockTolerance: TimeSpan.FromMinutes(5));
+
+    Assert(result.IsComplete, "A complete future-skewed response was rejected instead of safely baselined.");
+    Assert(result.NewAchievements.Count == 0, "A future-skewed timestamp would be accepted as a new unlock.");
+    Assert(result.UnidentifiedIncrease == 1, "The future-skewed entry was not classified for silent baseline.");
+    Assert(result.CurrentAchievementIds.SequenceEqual(new[] { "future-skew" }), "The future-skewed identity was not retained for deduplication.");
+}
+
+static void DoesNotInferMigrationUnlockFromGamerscore()
 {
     var observedAt = new DateTimeOffset(2026, 8, 15, 20, 0, 0, TimeSpan.Zero);
     var fivePoint = AchievementWithIdentity("historic-five", null) with { Gamerscore = 5 };
@@ -582,16 +598,82 @@ static void AttributesUntimestampedMigrationUnlockByGamerscore()
     var result = AchievementDeltaDetector.Detect(
         previousReportedCount: 2,
         previousAchievementIds: null,
-        previousReportedGamerscore: 25,
         currentReportedCount: 3,
-        currentReportedGamerscore: 35,
         currentAchievements: new[] { fivePoint, tenPoint, twentyPoint },
-        previousSuccessfulPollUtc: observedAt.AddMinutes(-1),
+        monitoringBaselineUtc: observedAt.AddHours(-1),
         observedAt: observedAt,
         futureClockTolerance: TimeSpan.FromMinutes(5));
 
-    Assert(result.NewAchievements.Select(item => item.Id).SequenceEqual(new[] { "new-ten" }), "Gamerscore did not isolate the only possible untimestamped unlock.");
-    Assert(result.UnidentifiedIncrease == 0, "A unique Gamerscore match was marked ambiguous.");
+    Assert(result.NewAchievements.Count == 0, "Gamerscore inference would post an unproven historical achievement.");
+    Assert(result.UnidentifiedIncrease == 1, "The unproven migration increase was not silently baselined.");
+}
+
+static void SafelyBaselinesNewlyDiscoveredHistoricalTitle()
+{
+    var observedAt = new DateTimeOffset(2026, 8, 15, 20, 0, 0, TimeSpan.Zero);
+    var result = AchievementDeltaDetector.Detect(
+        previousReportedCount: 0,
+        previousAchievementIds: null,
+        currentReportedCount: 4,
+        currentAchievements: new[]
+        {
+            AchievementWithIdentity("gears-2009-a", new DateTimeOffset(2009, 8, 24, 2, 32, 0, TimeSpan.Zero)),
+            AchievementWithIdentity("gears-2009-b", new DateTimeOffset(2009, 8, 24, 12, 47, 0, TimeSpan.Zero)),
+            AchievementWithIdentity("gta-2013-a", new DateTimeOffset(2013, 9, 17, 17, 4, 0, TimeSpan.Zero)),
+            AchievementWithIdentity("gta-2013-b", new DateTimeOffset(2013, 9, 18, 19, 53, 0, TimeSpan.Zero))
+        },
+        monitoringBaselineUtc: observedAt.AddHours(-1),
+        observedAt: observedAt,
+        futureClockTolerance: TimeSpan.FromMinutes(5));
+
+    Assert(result.IsComplete, "A complete newly discovered historical title was rejected.");
+    Assert(result.NewAchievements.Count == 0, "A newly discovered old title would flood its achievement backlog.");
+    Assert(result.UnidentifiedIncrease == 4, "The complete historical backlog was not classified for silent baseline.");
+    Assert(result.CurrentAchievementIds.Count == 4, "The historical identities were not retained as the new baseline.");
+}
+
+static void SafelyBaselinesHistoricalProviderCorrection()
+{
+    var observedAt = new DateTimeOffset(2026, 8, 15, 20, 0, 0, TimeSpan.Zero);
+    var result = AchievementDeltaDetector.Detect(
+        previousReportedCount: 1,
+        previousAchievementIds: new[] { "known" },
+        currentReportedCount: 2,
+        currentAchievements: new[]
+        {
+            AchievementWithIdentity("known", observedAt.AddDays(-1)),
+            AchievementWithIdentity("newly-revealed-old", new DateTimeOffset(2013, 9, 18, 20, 49, 0, TimeSpan.Zero))
+        },
+        monitoringBaselineUtc: observedAt.AddHours(-1),
+        observedAt: observedAt,
+        futureClockTolerance: TimeSpan.FromMinutes(5));
+
+    Assert(result.IsComplete, "A complete provider correction was rejected.");
+    Assert(result.NewAchievements.Count == 0, "A historical provider correction would post as a new unlock.");
+    Assert(result.UnidentifiedIncrease == 1, "The historical correction was not reported as silently baselined.");
+    Assert(result.CurrentAchievementIds.Contains("newly-revealed-old"), "The corrected identity was not retained for future deduplication.");
+}
+
+static void DoesNotRepostKnownIdentitiesAfterRestart()
+{
+    var observedAt = new DateTimeOffset(2026, 8, 15, 20, 0, 0, TimeSpan.Zero);
+    var current = new[]
+    {
+        AchievementWithIdentity("known-a", observedAt.AddMinutes(-20)),
+        AchievementWithIdentity("known-b", null)
+    };
+    var result = AchievementDeltaDetector.Detect(
+        previousReportedCount: 2,
+        previousAchievementIds: current.Select(item => item.Id).ToArray(),
+        currentReportedCount: 2,
+        currentAchievements: current,
+        monitoringBaselineUtc: observedAt.AddHours(-1),
+        observedAt: observedAt,
+        futureClockTolerance: TimeSpan.FromMinutes(5));
+
+    Assert(result.IsComplete, "A complete restart snapshot was rejected.");
+    Assert(result.NewAchievements.Count == 0, "Known identities would repost after restart.");
+    Assert(result.UnidentifiedIncrease == 0, "An unchanged restart snapshot was marked as changed.");
 }
 
 static void RejectsIncompleteAchievementDetail()
@@ -600,11 +682,9 @@ static void RejectsIncompleteAchievementDetail()
     var result = AchievementDeltaDetector.Detect(
         previousReportedCount: 1,
         previousAchievementIds: new[] { "old" },
-        previousReportedGamerscore: 10,
         currentReportedCount: 2,
-        currentReportedGamerscore: 20,
         currentAchievements: new[] { AchievementWithIdentity("old", observedAt.AddDays(-1)) },
-        previousSuccessfulPollUtc: observedAt.AddMinutes(-1),
+        monitoringBaselineUtc: observedAt.AddDays(-30),
         observedAt: observedAt,
         futureClockTolerance: TimeSpan.FromMinutes(5));
 
@@ -617,15 +697,13 @@ static void RejectsOvercompleteAchievementDetail()
     var result = AchievementDeltaDetector.Detect(
         previousReportedCount: 1,
         previousAchievementIds: new[] { "old" },
-        previousReportedGamerscore: 10,
         currentReportedCount: 1,
-        currentReportedGamerscore: 10,
         currentAchievements: new[]
         {
             AchievementWithIdentity("old", observedAt.AddDays(-1)),
             AchievementWithIdentity("detail-ahead", null)
         },
-        previousSuccessfulPollUtc: observedAt.AddMinutes(-1),
+        monitoringBaselineUtc: observedAt.AddDays(-30),
         observedAt: observedAt,
         futureClockTolerance: TimeSpan.FromMinutes(5));
 

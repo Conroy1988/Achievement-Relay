@@ -303,11 +303,9 @@ public sealed class RelayCoordinator(
                 var delta = AchievementDeltaDetector.Detect(
                     previousCount,
                     hadPreviousSnapshot ? previous!.UnlockedAchievementIds : null,
-                    hadPreviousSnapshot ? previous!.CurrentGamerscore : 0,
                     title.CurrentAchievements,
-                    title.CurrentGamerscore,
                     detailFetch.Achievements,
-                    state.LastSuccessfulPollUtc.Value,
+                    state.BaselineUtc.Value,
                     now,
                     FutureClockTolerance);
                 if (!delta.IsComplete)
@@ -321,8 +319,8 @@ public sealed class RelayCoordinator(
                 if (delta.UnidentifiedIncrease > 0)
                 {
                     safelyBaselined += delta.UnidentifiedIncrease;
-                    activityLog.Warning(
-                        $"OpenXBL's detail identities could not safely isolate {delta.UnidentifiedIncrease} reported change{(delta.UnidentifiedIncrease == 1 ? "" : "s")} for {title.Name ?? "an Xbox title"} without risking an old post. The current identities were safely baselined; future unlocks for this title are timestamp-independent.");
+                    activityLog.Info(
+                        $"Silently baselined {delta.UnidentifiedIncrease} existing achievement{(delta.UnidentifiedIncrease == 1 ? "" : "s")} for {title.Name ?? "an Xbox title"}. Nothing historical was sent to Discord; only later unlocks are eligible.");
                 }
 
                 currentSnapshots[title.TitleId] = new XboxTitleSnapshot
@@ -378,11 +376,9 @@ public sealed class RelayCoordinator(
                     var hydrationDelta = AchievementDeltaDetector.Detect(
                         hydrationTitle.CurrentAchievements,
                         null,
-                        hydrationTitle.CurrentGamerscore,
                         hydrationTitle.CurrentAchievements,
-                        hydrationTitle.CurrentGamerscore,
                         hydrationFetch.Achievements,
-                        state.LastSuccessfulPollUtc.Value,
+                        state.BaselineUtc.Value,
                         now,
                         FutureClockTolerance);
                     if (hydrationDelta.IsComplete)
@@ -405,7 +401,7 @@ public sealed class RelayCoordinator(
             var message = posted > 0
                 ? $"Posted {posted} new Xbox achievement{(posted == 1 ? string.Empty : "s")} to Discord."
                 : safelyBaselined > 0
-                    ? "Xbox identity tracking was upgraded safely. Future unlocks no longer require an OpenXBL timestamp."
+                    ? "Existing achievement history was baselined silently. Monitoring will post only later unlocks."
                     : "Xbox account is up to date. No new achievements were found.";
             if (manual)
             {

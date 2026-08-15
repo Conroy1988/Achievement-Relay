@@ -39,9 +39,12 @@ The Windows acceptance cycle exposed each layer independently:
 5. Xbox 360 title details required the dedicated legacy route;
 6. a readable route could still be incomplete compared with the title-history count;
 7. a real backward-compatible Black Ops unlock was present and counted, but carried no usable timestamp; and
-8. installer upgrades needed both an increasing MSIX version and package-broker shutdown of a running tray process.
+8. installer upgrades needed both an increasing MSIX version and package-broker shutdown of a running tray process; and
+9. a later OpenXBL title-history page revealed complete Gears of War 2, Dawn of War II, and GTA V histories from 2009-2013, which exposed that the schema-3 count/Gamerscore migration could misclassify an entire old title as new.
 
 These are distinct failure classes. A successful profile check is not proof of a readable title index, a readable title index is not proof of complete per-title details, and a complete detail list is not proof that every unlock has a timestamp.
+
+The live historical-flood regression established a stricter rule: uncertainty must cost a missed notification, never a backlog. The affected build was stopped immediately; its credentials and durable event ledger remain valid. Schema 4 repairs the state in place, preserves already known identities, and silently records any unverified historical identities before normal monitoring continues.
 
 ## Detection invariants
 
@@ -53,9 +56,9 @@ Achievement Relay uses these rules:
 4. **Summary/detail disagreement never advances state.** The parsed unlocked-identity count must exactly match title history; whether detail is behind or ahead, the poll retries until both views converge.
 5. **A failed Discord delivery never advances the title snapshot.** Already processed deterministic IDs remain in the ledger, so a retry does not repost earlier successes from the same poll.
 6. **Provider pages cannot erase history.** Titles absent from a later title-history response remain in local state; if they reappear, they are compared with their retained snapshot rather than treated as a new game.
-7. **Old installs migrate conservatively.** Schema-v2 state contains counts/Gamerscore but not identities. On the first changed-title poll, the app can safely use post-poll timestamps, count/Gamerscore deltas, and a uniquely attributable untimestamped remainder. It then stores the complete ID set. If several historical untimestamped entries are still indistinguishable, it baselines them once instead of guessing, flooding Discord, or retrying forever.
+7. **Old installs and newly revealed titles fail closed.** Counts and Gamerscore never authorize a Discord post when a title has no verified identity set. Only a usable provider timestamp strictly after the app's monitoring baseline can prove such an event is new. Old, missing-time, sentinel-time, and otherwise unproven entries are stored silently as the title's complete identity baseline; later set differences are exact.
 8. **First connection is still a no-spam baseline.** Existing achievements are never posted merely because the app was installed.
-9. **Identity baselines are hydrated gradually.** Titles with zero unlocks start with a complete empty identity set. Each otherwise-successful poll hydrates one unchanged, most-recent unbaselined title without posting, so fresh and upgraded installs converge to exact timestamp-independent detection without a burst of provider calls.
+9. **Identity baselines are hydrated gradually.** A summary count, including zero, is never treated as a verified ID set. Each otherwise-successful poll hydrates one unchanged, most-recent unverified title without posting, so fresh and upgraded installs converge to exact timestamp-independent detection without a burst of provider calls.
 10. **Provider regressions cannot erase durable history.** Saved counts, Gamerscore, and identities do not shrink when a partial or changed provider representation reports less data. If a route suddenly represents more identities than the summary increase can explain, the app baselines the representation change instead of flooding historical achievements.
 
 ## State and delivery transaction
@@ -85,8 +88,8 @@ Discord webhooks do not provide an idempotency key. `wait=true`, deterministic l
 | Route 400/404 during negotiation | No | Try the next documented/compatible route |
 | Readable detail count differs from title index | No | Retry without moving the sync position |
 | Missing/sentinel unlock time with known ID baseline | Yes after delivery | Post with detected time labelled estimated |
-| One uniquely attributable untimestamped schema-v2 change | Yes after delivery | Post it, then persist full identities |
-| Ambiguous historical untimestamped schema-v2 change | Yes, conservative baseline | Do not guess or flood; future changes become exact |
+| Unverified title with a valid post-baseline timestamp | Yes after delivery | Post only the proven post-baseline event; baseline the full identity set |
+| Unverified title with old, missing, sentinel, or otherwise unproven times | Yes, silent baseline | Do not infer from counts/Gamerscore; post nothing historical; future changes become exact |
 | Discord 401/403/404 | No | Actionable webhook error |
 | Discord 429/5xx/timeout | No | Bounded retry, then next poll |
 
@@ -107,10 +110,10 @@ Automated checks must cover:
 - Xbox 360 boolean unlocks with real, sentinel, and missing times;
 - deterministic account-specific identities;
 - known-ID set differences independent of time;
-- safe schema-v2 timestamp/count/Gamerscore attribution and ambiguous migration behavior;
+- silent newly discovered historical-title baselines, post-baseline timestamp proof, and a prohibition on count/Gamerscore inference;
 - incomplete summary/detail responses;
 - mention suppression and estimated-time disclosure;
-- state schema 3, omitted-title retention, route ordering/cache, rate-limit handling, installer versioning, and running-app shutdown.
+- state schema 4, omitted-title retention, route ordering/cache, rate-limit handling, installer versioning, and running-app shutdown.
 
 The Windows release gate is not complete until all of these pass on the generated installer:
 
@@ -119,8 +122,9 @@ The Windows release gate is not complete until all of these pass on the generate
 3. Save and connect resolves the intended account and complete title history;
 4. Finish setup succeeds without reopening the setup-required dialog;
 5. Sync now reaches an up-to-date/monitoring state without a repeating warning;
-6. a newly earned modern achievement posts exactly once;
-7. a newly earned Xbox 360/backward-compatible achievement with no usable provider time posts exactly once with the detected-time footer; and
-8. restart/retry does not repost either event.
+6. two consecutive syncs send no achievement dated before the monitoring baseline, including a title first revealed on a later provider page;
+7. a newly earned modern achievement posts exactly once;
+8. a newly earned Xbox 360/backward-compatible achievement with no usable provider time posts exactly once with the detected-time footer; and
+9. restart/retry does not repost either event.
 
 External Xbox/OpenXBL/Discord availability cannot be made infallible by a desktop client. The release criterion is that every supported upstream response or failure is handled deterministically, securely, without a stuck cursor, and without an avoidable duplicate or historical flood.

@@ -175,17 +175,21 @@ $relayCoordinatorText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src
 if (-not $openXblParserText.Contains('DateTimeOffset? unlockedAt = null') -or
     -not $openXblParserText.Contains('UnlockTimeEstimated = unlockedAt is null') -or
     -not $deltaDetectorText.Contains('previousAchievementIds') -or
-    -not $deltaDetectorText.Contains('previousReportedGamerscore') -or
-    -not $deltaDetectorText.Contains('FindUniqueGamerscoreCombination') -or
-    -not $deltaDetectorText.Contains('timestampedIds') -or
-    -not $syncStateText.Contains('CurrentSchemaVersion = 3') -or
+    -not $deltaDetectorText.Contains('monitoringBaselineUtc') -or
+    -not $deltaDetectorText.Contains('provenPostBaseline') -or
+    $deltaDetectorText.Contains('previousReportedGamerscore') -or
+    $deltaDetectorText.Contains('AttributeByCountAndGamerscore') -or
+    $deltaDetectorText.Contains('FindUniqueGamerscoreCombination') -or
+    -not $syncStateText.Contains('CurrentSchemaVersion = 4') -or
+    -not $syncStateText.Contains('sourceSchemaVersion') -or
     -not $syncStateText.Contains('UnlockedAchievementIds') -or
     -not $syncStateText.Contains('Math.Max(') -or
     -not $relayCoordinatorText.Contains('retainMissingTitles: true') -or
     -not $relayCoordinatorText.Contains('AchievementDeltaDetector.Detect') -or
     -not $relayCoordinatorText.Contains('var hydrationTitle =') -or
+    -not $relayCoordinatorText.Contains('Nothing historical was sent to Discord') -or
     $relayCoordinatorText.Contains('no new timestamped achievement is available yet')) {
-    throw 'Achievement polling must persist stable identities and support legacy unlocks without provider timestamps.'
+    throw 'Achievement polling must silently baseline unverified history and post only proven post-baseline or identity-new unlocks.'
 }
 
 $discordClientText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\DiscordWebhookClient.cs') -Raw

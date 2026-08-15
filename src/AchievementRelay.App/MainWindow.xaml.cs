@@ -11,6 +11,7 @@ using AchievementRelay.Core.Services;
 using Button = System.Windows.Controls.Button;
 using Forms = System.Windows.Forms;
 using MessageBox = System.Windows.MessageBox;
+using TextBox = System.Windows.Controls.TextBox;
 
 namespace AchievementRelay.App;
 

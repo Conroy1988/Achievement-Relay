@@ -48,7 +48,7 @@ If credentials were supplied in Setup, Achievement Relay automatically:
 6. creates a baseline so old achievements are not reposted; and
 7. starts one-minute monitoring if both checks succeed.
 
-If either check fails, the values that passed local validation remain stored encrypted and the app opens **Guided setup** with a useful status. Saved secret fields intentionally remain blank; leave one blank and select its retry button to reuse the stored value. Nothing is silently posted except the clearly disclosed Discord connection test.
+If either check fails, the values that passed local validation remain stored encrypted and the app opens **Guided setup** with a useful status. Stored secret fields show the real saved value in masked form; use **Reveal Key** or **Reveal Webhook** to inspect it, then select the retry button or type a replacement. Nothing is silently posted except the clearly disclosed Discord connection test.
 
 ## 4. Guided setup when skipped
 

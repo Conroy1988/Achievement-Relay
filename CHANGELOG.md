@@ -16,7 +16,9 @@ All notable changes to Achievement Relay are documented here. The project follow
 - Made installer-entered OpenXBL and Discord secrets survive first launch by storing the encrypted app settings before any network verification
 - Moved the one-time encrypted handoff outside virtualized AppData while retaining the 0.2.0 path as a compatibility fallback
 - Kept the encrypted handoff for a later retry if durable settings storage fails instead of consuming it prematurely
-- Allowed Guided setup to retest a stored Discord webhook when its intentionally blank password field is left empty
+- Displayed stored OpenXBL and Discord values as masked fields with explicit Reveal/Hide controls in Guided setup and Settings
+- Saved a manually entered OpenXBL key before network verification so a provider response failure does not make it appear lost
+- Accepted OpenXBL account and title responses wrapped in current object, people, data, result, or response envelopes, including display-name fallbacks
 
 ### Changed
 

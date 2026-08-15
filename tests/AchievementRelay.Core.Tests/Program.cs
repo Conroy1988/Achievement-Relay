@@ -6,8 +6,11 @@ var tests = new (string Name, Action Run)[]
 {
     ("OpenXBL API keys are normalized without weakening validation", ValidatesOpenXblApiKeys),
     ("OpenXBL account profile is parsed case-insensitively", ParsesOpenXblAccount),
+    ("OpenXBL object profiles and display-name fallbacks are supported", ParsesOpenXblObjectAccount),
+    ("OpenXBL account envelopes and people profiles are supported", ParsesOpenXblAccountEnvelope),
     ("Incomplete OpenXBL account profile is rejected", RejectsIncompleteOpenXblAccount),
     ("OpenXBL title progress index is parsed", ParsesTitleProgress),
+    ("OpenXBL title progress envelopes are supported", ParsesWrappedTitleProgress),
     ("Only unlocked, non-revoked achievements are parsed", ParsesUnlockedAchievements),
     ("Achievement identities are stable and account-specific", AchievementIdentityIsStable),
     ("OpenXBL root arrays and alternate fields are supported", ParsesAlternateAchievementShape),
@@ -70,6 +73,44 @@ static void ParsesOpenXblAccount()
     Assert(account.Gamertag == "RelayTester", $"Unexpected gamertag: {account.Gamertag}");
 }
 
+static void ParsesOpenXblObjectAccount()
+{
+    const string json = """
+        {
+          "profileUsers": {
+            "hostId": 2533274999999998,
+            "settings": {
+              "GameDisplayName": "Relay Player"
+            }
+          }
+        }
+        """;
+
+    var account = OpenXblResponseParser.ParseAccount(json);
+    Assert(account.Xuid == "2533274999999998", $"Unexpected object-profile XUID: {account.Xuid}");
+    Assert(account.Gamertag == "Relay Player", $"Unexpected display-name fallback: {account.Gamertag}");
+}
+
+static void ParsesOpenXblAccountEnvelope()
+{
+    const string json = """
+        {
+          "data": {
+            "people": [
+              {
+                "xuid": "2533274999999997",
+                "gamertag": "EnvelopeRelay"
+              }
+            ]
+          }
+        }
+        """;
+
+    var account = OpenXblResponseParser.ParseAccount(json);
+    Assert(account.Xuid == "2533274999999997", $"Unexpected enveloped XUID: {account.Xuid}");
+    Assert(account.Gamertag == "EnvelopeRelay", $"Unexpected enveloped gamertag: {account.Gamertag}");
+}
+
 static void RejectsIncompleteOpenXblAccount()
 {
     AssertThrows<JsonException>(
@@ -119,6 +160,30 @@ static void ParsesTitleProgress()
     Assert(
         title.LastPlayedAt == new DateTimeOffset(2026, 8, 14, 11, 58, 21, 871, TimeSpan.Zero).AddTicks(8942),
         $"Unexpected last-played timestamp: {title.LastPlayedAt:O}");
+}
+
+static void ParsesWrappedTitleProgress()
+{
+    const string json = """
+        {
+          "data": {
+            "items": [
+              {
+                "titleId": "123456789",
+                "name": "Wrapped Game",
+                "achievement": {
+                  "currentAchievements": 4,
+                  "currentGamerscore": 80
+                }
+              }
+            ]
+          }
+        }
+        """;
+
+    var titles = OpenXblResponseParser.ParseTitleProgress(json);
+    Assert(titles.Count == 1, $"Expected one wrapped title summary, found {titles.Count}.");
+    Assert(titles[0].Name == "Wrapped Game", $"Unexpected wrapped title name: {titles[0].Name}");
 }
 
 static void ParsesUnlockedAchievements()

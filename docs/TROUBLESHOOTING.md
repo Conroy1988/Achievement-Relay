@@ -52,7 +52,7 @@ No Windows Notification Center entry is required. Xbox can take time to add an o
 
 ## Installer-provided credentials need attention
 
-Setup only validates the local shape; the app stores both secrets before performing live checks after launch. If one fails, Guided setup opens with status details. Saved fields remain blank by design: leave the field blank and choose **Save and connect** or **Save and test** to retry the encrypted value, or paste a replacement.
+Setup only validates the local shape; the app stores both secrets before performing live checks after launch. If one fails, Guided setup opens with status details. Stored fields show masked saved values: use **Reveal Key** or **Reveal Webhook** to inspect one, choose **Save and connect** or **Save and test** to retry it, or type a replacement.
 
 The one-time installer file contains DPAPI ciphertext, not plaintext. The app truncates and deletes it only after the normal encrypted settings file is safely written. If it remains after a crash, exit the app and remove `%USERPROFILE%\.achievement-relay\pending-installer-setup.json` (or the legacy `%LOCALAPPDATA%\AchievementRelay\pending-installer-setup.json`), then use Guided setup.
 

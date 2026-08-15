@@ -75,7 +75,7 @@ public partial class MainWindow : Window
         {
             SetStatus(XboxStatusText, "Reconnect", StatusTone.Warning);
             XboxStatusDetail.Text = "The saved key needs to be verified";
-            SetupXboxStatus.Text = "✓ API key stored securely  •  Leave the field blank and select Save and connect to retry";
+            SetupXboxStatus.Text = "✓ API key stored securely  •  Select Save and connect to retry verification";
             SetupXboxStatus.Foreground = Brush("WarningBrush");
             SettingsXboxStatus.Text = "An API key is stored, but no Xbox account has been verified.";
         }
@@ -92,7 +92,7 @@ public partial class MainWindow : Window
         {
             SetStatus(DiscordStatusText, "Connected", StatusTone.Success);
             DiscordStatusDetail.Text = "Webhook stored with Windows encryption";
-            SetupWebhookStatus.Text = "✓ Webhook stored securely  •  Leave the field blank to retest it";
+            SetupWebhookStatus.Text = "✓ Webhook stored securely  •  Select Save and test to retest it";
             SetupWebhookStatus.Foreground = Brush("AccentBrush");
             SettingsWebhookStatus.Text = "A Discord webhook is configured and encrypted for this Windows account.";
         }
@@ -214,6 +214,8 @@ public partial class MainWindow : Window
         SettingsRawDetailsCheckBox.IsChecked = _settings.IncludeRawDetailsWhenUncertain;
         SettingsStartWithWindowsCheckBox.IsChecked = _settings.StartWithWindows;
         SettingsStartMinimizedCheckBox.IsChecked = _settings.StartMinimized;
+
+        PopulateSecretControls();
     }
 
     private void ShowFromTray()
@@ -251,11 +253,49 @@ public partial class MainWindow : Window
     private void OpenDiscordWebhookGuide_Click(object sender, RoutedEventArgs e) =>
         OpenExternal(DiscordWebhookGuideUrl);
 
+    private void ToggleSetupXboxApiKeyVisibility_Click(object sender, RoutedEventArgs e) =>
+        ToggleSecretVisibility(
+            SetupXboxApiKeyPasswordBox,
+            SetupXboxApiKeyRevealTextBox,
+            SetupXboxApiKeyRevealButton,
+            "Reveal Key",
+            "Hide Key");
+
+    private void ToggleSettingsXboxApiKeyVisibility_Click(object sender, RoutedEventArgs e) =>
+        ToggleSecretVisibility(
+            SettingsXboxApiKeyPasswordBox,
+            SettingsXboxApiKeyRevealTextBox,
+            SettingsXboxApiKeyRevealButton,
+            "Reveal Key",
+            "Hide Key");
+
+    private void ToggleSetupWebhookVisibility_Click(object sender, RoutedEventArgs e) =>
+        ToggleSecretVisibility(
+            SetupWebhookPasswordBox,
+            SetupWebhookRevealTextBox,
+            SetupWebhookRevealButton,
+            "Reveal Webhook",
+            "Hide Webhook");
+
+    private void ToggleSettingsWebhookVisibility_Click(object sender, RoutedEventArgs e) =>
+        ToggleSecretVisibility(
+            SettingsWebhookPasswordBox,
+            SettingsWebhookRevealTextBox,
+            SettingsWebhookRevealButton,
+            "Reveal Webhook",
+            "Hide Webhook");
+
     private async void SaveAndTestOpenXbl_Click(object sender, RoutedEventArgs e) =>
-        await SaveAndTestOpenXblAsync(sender, SetupXboxApiKeyPasswordBox.Password, SetupXboxStatus);
+        await SaveAndTestOpenXblAsync(
+            sender,
+            GetSecretValue(SetupXboxApiKeyPasswordBox, SetupXboxApiKeyRevealTextBox),
+            SetupXboxStatus);
 
     private async void SaveAndTestSettingsOpenXbl_Click(object sender, RoutedEventArgs e) =>
-        await SaveAndTestOpenXblAsync(sender, SettingsXboxApiKeyPasswordBox.Password, SettingsXboxStatus);
+        await SaveAndTestOpenXblAsync(
+            sender,
+            GetSecretValue(SettingsXboxApiKeyPasswordBox, SettingsXboxApiKeyRevealTextBox),
+            SettingsXboxStatus);
 
     private async Task SaveAndTestOpenXblAsync(object sender, string value, TextBlock statusTarget)
     {
@@ -277,10 +317,18 @@ public partial class MainWindow : Window
         statusTarget.Foreground = Brush("WarningBrush");
         try
         {
+            _settings = _settings with
+            {
+                ProtectedOpenXblApiKey = _services.WebhookProtector.ProtectOpenXblApiKey(apiKey)
+            };
+            await _services.SettingsStore.SaveAsync(_settings);
+            PopulateSecretControls();
+
             var accountResult = await _services.OpenXblClient.GetAccountAsync(apiKey);
             if (!accountResult.Success || accountResult.Account is null)
             {
-                statusTarget.Text = $"Status: {accountResult.Message}";
+                RefreshStatus();
+                statusTarget.Text = $"Status: API key saved, but {accountResult.Message}";
                 statusTarget.Foreground = Brush("ErrorBrush");
                 _services.ActivityLog.Warning(accountResult.Message);
                 return;
@@ -291,6 +339,7 @@ public partial class MainWindow : Window
                 accountResult.Account.Xuid);
             if (!titleProgressResult.Success || titleProgressResult.Titles is null)
             {
+                RefreshStatus();
                 statusTarget.Text = $"Status: account found, but {titleProgressResult.Message}";
                 statusTarget.Foreground = Brush("ErrorBrush");
                 _services.ActivityLog.Warning(titleProgressResult.Message);
@@ -327,8 +376,6 @@ public partial class MainWindow : Window
                     titleProgressResult.Titles);
             }
 
-            SetupXboxApiKeyPasswordBox.Clear();
-            SettingsXboxApiKeyPasswordBox.Clear();
             PopulateControls();
             RefreshStatus();
 
@@ -353,7 +400,7 @@ public partial class MainWindow : Window
 
     private async void SaveAndTestWebhook_Click(object sender, RoutedEventArgs e)
     {
-        var value = SetupWebhookPasswordBox.Password;
+        var value = GetSecretValue(SetupWebhookPasswordBox, SetupWebhookRevealTextBox);
         Uri? webhookUri;
         string? error = null;
         if (string.IsNullOrWhiteSpace(value) &&
@@ -374,7 +421,7 @@ public partial class MainWindow : Window
         {
             _settings = _settings with { ProtectedWebhookUrl = _services.WebhookProtector.Protect(webhookUri.ToString()) };
             await _services.SettingsStore.SaveAsync(_settings);
-            SetupWebhookPasswordBox.Clear();
+            PopulateSecretControls();
 
             var result = await _services.WebhookClient.SendAsync(
                 webhookUri,
@@ -486,7 +533,7 @@ public partial class MainWindow : Window
         {
             DiscordUsername = NormalizeWebhookName(SettingsDiscordUsernameTextBox.Text)
         };
-        var replacement = SettingsWebhookPasswordBox.Password;
+        var replacement = GetSecretValue(SettingsWebhookPasswordBox, SettingsWebhookRevealTextBox);
         if (!string.IsNullOrWhiteSpace(replacement))
         {
             if (!WebhookUrlValidator.TryNormalize(replacement, out webhookUri, out var error) || webhookUri is null)
@@ -518,7 +565,7 @@ public partial class MainWindow : Window
     private async void SaveSettings_Click(object sender, RoutedEventArgs e)
     {
         var protectedWebhook = _settings.ProtectedWebhookUrl;
-        var replacement = SettingsWebhookPasswordBox.Password;
+        var replacement = GetSecretValue(SettingsWebhookPasswordBox, SettingsWebhookRevealTextBox);
         if (!string.IsNullOrWhiteSpace(replacement))
         {
             if (!WebhookUrlValidator.TryNormalize(replacement, out var webhookUri, out var error) || webhookUri is null)
@@ -547,7 +594,6 @@ public partial class MainWindow : Window
 
             await _services.SettingsStore.SaveAsync(_settings);
             var startupApplied = await _services.StartupService.SetEnabledAsync(startWithWindows);
-            SettingsWebhookPasswordBox.Clear();
             PopulateControls();
             if (_settings.SetupCompleted && TryGetOpenXblApiKey(out _) && TryGetWebhook(out _))
             {
@@ -594,8 +640,6 @@ public partial class MainWindow : Window
             };
             await _services.SettingsStore.SaveAsync(_settings);
             await _services.SyncStateStore.ClearAsync();
-            SetupXboxApiKeyPasswordBox.Clear();
-            SettingsXboxApiKeyPasswordBox.Clear();
             _services.ActivityLog.Info("Saved OpenXBL connection removed.");
             PopulateControls();
             RefreshStatus();
@@ -626,9 +670,8 @@ public partial class MainWindow : Window
             await _services.RelayCoordinator.StopAsync();
             _settings = _settings with { ProtectedWebhookUrl = string.Empty, SetupCompleted = false };
             await _services.SettingsStore.SaveAsync(_settings);
-            SetupWebhookPasswordBox.Clear();
-            SettingsWebhookPasswordBox.Clear();
             _services.ActivityLog.Info("Saved Discord webhook removed.");
+            PopulateControls();
             RefreshStatus();
             MainTabs.SelectedIndex = 1;
         }
@@ -742,6 +785,83 @@ public partial class MainWindow : Window
     {
         var value = _services.WebhookProtector.TryUnprotectOpenXblApiKey(_settings.ProtectedOpenXblApiKey);
         return OpenXblApiKeyValidator.TryNormalize(value, out apiKey, out _);
+    }
+
+    private void PopulateSecretControls()
+    {
+        var apiKey = TryGetOpenXblApiKey(out var storedApiKey) ? storedApiKey : string.Empty;
+        var webhook = TryGetWebhook(out var storedWebhook) && storedWebhook is not null
+            ? storedWebhook.ToString()
+            : string.Empty;
+
+        SetSecretValue(
+            SetupXboxApiKeyPasswordBox,
+            SetupXboxApiKeyRevealTextBox,
+            SetupXboxApiKeyRevealButton,
+            apiKey,
+            "Reveal Key");
+        SetSecretValue(
+            SettingsXboxApiKeyPasswordBox,
+            SettingsXboxApiKeyRevealTextBox,
+            SettingsXboxApiKeyRevealButton,
+            apiKey,
+            "Reveal Key");
+        SetSecretValue(
+            SetupWebhookPasswordBox,
+            SetupWebhookRevealTextBox,
+            SetupWebhookRevealButton,
+            webhook,
+            "Reveal Webhook");
+        SetSecretValue(
+            SettingsWebhookPasswordBox,
+            SettingsWebhookRevealTextBox,
+            SettingsWebhookRevealButton,
+            webhook,
+            "Reveal Webhook");
+    }
+
+    private static string GetSecretValue(PasswordBox passwordBox, TextBox revealTextBox) =>
+        revealTextBox.Visibility == Visibility.Visible ? revealTextBox.Text : passwordBox.Password;
+
+    private static void SetSecretValue(
+        PasswordBox passwordBox,
+        TextBox revealTextBox,
+        Button revealButton,
+        string value,
+        string revealLabel)
+    {
+        revealTextBox.Clear();
+        revealTextBox.Visibility = Visibility.Collapsed;
+        passwordBox.Password = value;
+        passwordBox.Visibility = Visibility.Visible;
+        revealButton.Content = revealLabel;
+        revealButton.IsEnabled = true;
+    }
+
+    private static void ToggleSecretVisibility(
+        PasswordBox passwordBox,
+        TextBox revealTextBox,
+        Button revealButton,
+        string revealLabel,
+        string hideLabel)
+    {
+        if (revealTextBox.Visibility == Visibility.Visible)
+        {
+            passwordBox.Password = revealTextBox.Text;
+            revealTextBox.Clear();
+            revealTextBox.Visibility = Visibility.Collapsed;
+            passwordBox.Visibility = Visibility.Visible;
+            revealButton.Content = revealLabel;
+            passwordBox.Focus();
+            return;
+        }
+
+        revealTextBox.Text = passwordBox.Password;
+        passwordBox.Visibility = Visibility.Collapsed;
+        revealTextBox.Visibility = Visibility.Visible;
+        revealButton.Content = hideLabel;
+        revealTextBox.Focus();
+        revealTextBox.CaretIndex = revealTextBox.Text.Length;
     }
 
     private string NormalizePlayerName(string value) =>

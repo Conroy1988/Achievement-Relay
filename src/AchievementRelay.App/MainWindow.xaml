@@ -224,12 +224,17 @@
                       <ColumnDefinition Width="*" />
                       <ColumnDefinition Width="Auto" />
                       <ColumnDefinition Width="Auto" />
+                      <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <PasswordBox x:Name="SetupXboxApiKeyPasswordBox" PasswordChar="●" ToolTip="OpenXBL API key" />
-                    <Button Grid.Column="1" Content="Get free API key" Click="OpenOpenXbl_Click" Margin="10,0,0,0" />
-                    <Button Grid.Column="2" Content="Save and connect" Style="{StaticResource PrimaryButton}" Click="SaveAndTestOpenXbl_Click" Margin="8,0,0,0" />
+                    <Grid>
+                      <PasswordBox x:Name="SetupXboxApiKeyPasswordBox" PasswordChar="●" ToolTip="OpenXBL API key" />
+                      <TextBox x:Name="SetupXboxApiKeyRevealTextBox" Visibility="Collapsed" ToolTip="OpenXBL API key (visible)" />
+                    </Grid>
+                    <Button x:Name="SetupXboxApiKeyRevealButton" Grid.Column="1" Content="Reveal Key" Click="ToggleSetupXboxApiKeyVisibility_Click" Margin="10,0,0,0" />
+                    <Button Grid.Column="2" Content="Get free API key" Click="OpenOpenXbl_Click" Margin="8,0,0,0" />
+                    <Button Grid.Column="3" Content="Save and connect" Style="{StaticResource PrimaryButton}" Click="SaveAndTestOpenXbl_Click" Margin="8,0,0,0" />
                   </Grid>
-                  <TextBlock Text="SECURE VAULT  //  Saved keys stay hidden. Leave this field blank to reuse the stored key." Foreground="{StaticResource MutedTextBrush}" FontSize="10" Margin="0,9,0,0" />
+                  <TextBlock Text="SECURE VAULT  //  Stored keys appear masked. Reveal it to inspect it, or type a replacement and save." Foreground="{StaticResource MutedTextBrush}" FontSize="10" Margin="0,9,0,0" />
                   <TextBlock x:Name="SetupXboxStatus" Text="Status: not connected" Margin="0,10,0,0" FontWeight="SemiBold" />
                 </StackPanel>
               </Grid>
@@ -255,12 +260,17 @@
                       <ColumnDefinition Width="*" />
                       <ColumnDefinition Width="Auto" />
                       <ColumnDefinition Width="Auto" />
+                      <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <PasswordBox x:Name="SetupWebhookPasswordBox" PasswordChar="●" ToolTip="Discord webhook URL" />
-                    <Button Grid.Column="1" Content="Official guide" Click="OpenDiscordWebhookGuide_Click" Margin="10,0,0,0" />
-                    <Button Grid.Column="2" Content="Save and test" Style="{StaticResource DiscordButton}" Click="SaveAndTestWebhook_Click" Margin="8,0,0,0" />
+                    <Grid>
+                      <PasswordBox x:Name="SetupWebhookPasswordBox" PasswordChar="●" ToolTip="Discord webhook URL" />
+                      <TextBox x:Name="SetupWebhookRevealTextBox" Visibility="Collapsed" ToolTip="Discord webhook URL (visible)" />
+                    </Grid>
+                    <Button x:Name="SetupWebhookRevealButton" Grid.Column="1" Content="Reveal Webhook" Click="ToggleSetupWebhookVisibility_Click" Margin="10,0,0,0" />
+                    <Button Grid.Column="2" Content="Official guide" Click="OpenDiscordWebhookGuide_Click" Margin="8,0,0,0" />
+                    <Button Grid.Column="3" Content="Save and test" Style="{StaticResource DiscordButton}" Click="SaveAndTestWebhook_Click" Margin="8,0,0,0" />
                   </Grid>
-                  <TextBlock Text="SECURE VAULT  //  Saved webhooks stay hidden. Leave this field blank to retest the stored destination." Foreground="{StaticResource MutedTextBrush}" FontSize="10" Margin="0,9,0,0" />
+                  <TextBlock Text="SECURE VAULT  //  Stored webhooks appear masked. Reveal it to inspect it, or type a replacement and save." Foreground="{StaticResource MutedTextBrush}" FontSize="10" Margin="0,9,0,0" />
                   <TextBlock x:Name="SetupWebhookStatus" Text="Status: not connected" Margin="0,10,0,0" FontWeight="SemiBold" />
                 </StackPanel>
               </Grid>
@@ -335,9 +345,13 @@
               <StackPanel>
                 <TextBlock Text="Xbox account · OpenXBL" FontSize="18" FontWeight="SemiBold" />
                 <TextBlock x:Name="SettingsXboxStatus" Text="Not configured" Foreground="{StaticResource MutedTextBrush}" Margin="0,5,0,12" />
-                <TextBlock Text="Saved keys stay hidden. Leave this blank to retry the stored key, or paste a new key to replace it." Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,5" />
-                <PasswordBox x:Name="SettingsXboxApiKeyPasswordBox" PasswordChar="●" />
+                <TextBlock Text="The stored key appears masked. Reveal it to inspect it, or type a replacement and reconnect." Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,5" />
+                <Grid>
+                  <PasswordBox x:Name="SettingsXboxApiKeyPasswordBox" PasswordChar="●" />
+                  <TextBox x:Name="SettingsXboxApiKeyRevealTextBox" Visibility="Collapsed" />
+                </Grid>
                 <WrapPanel Margin="0,10,0,0">
+                  <Button x:Name="SettingsXboxApiKeyRevealButton" Content="Reveal Key" Click="ToggleSettingsXboxApiKeyVisibility_Click" Margin="0,0,8,0" />
                   <Button Content="Get API key" Click="OpenOpenXbl_Click" Margin="0,0,8,0" />
                   <Button Content="Retry / replace" Click="SaveAndTestSettingsOpenXbl_Click" Margin="0,0,8,0" />
                   <Button Content="Disconnect Xbox account" Click="RemoveOpenXbl_Click" />
@@ -349,9 +363,15 @@
               <StackPanel>
                 <TextBlock Text="Discord destination" FontSize="18" FontWeight="SemiBold" />
                 <TextBlock x:Name="SettingsWebhookStatus" Text="Not configured" Foreground="{StaticResource MutedTextBrush}" Margin="0,5,0,12" />
-                <TextBlock Text="Saved webhooks stay hidden. Leave this blank to keep/test the stored destination, or paste a replacement." Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,5" />
-                <PasswordBox x:Name="SettingsWebhookPasswordBox" PasswordChar="●" />
-                <Button Content="Remove saved webhook" Click="RemoveWebhook_Click" HorizontalAlignment="Left" Margin="0,10,0,0" />
+                <TextBlock Text="The stored webhook appears masked. Reveal it to inspect it, or type a replacement and save." Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,5" />
+                <Grid>
+                  <PasswordBox x:Name="SettingsWebhookPasswordBox" PasswordChar="●" />
+                  <TextBox x:Name="SettingsWebhookRevealTextBox" Visibility="Collapsed" />
+                </Grid>
+                <WrapPanel Margin="0,10,0,0">
+                  <Button x:Name="SettingsWebhookRevealButton" Content="Reveal Webhook" Click="ToggleSettingsWebhookVisibility_Click" Margin="0,0,8,0" />
+                  <Button Content="Remove saved webhook" Click="RemoveWebhook_Click" />
+                </WrapPanel>
                 <TextBlock Text="Webhook display name" Foreground="{StaticResource MutedTextBrush}" Margin="0,12,0,5" />
                 <TextBox x:Name="SettingsDiscordUsernameTextBox" MaxLength="80" />
               </StackPanel>

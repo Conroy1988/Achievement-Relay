@@ -68,9 +68,12 @@ public sealed class OpenXblClient : IDisposable
                 OpenXblResponseParser.ParseAccount(response.Content),
                 response.StatusCode);
         }
-        catch (JsonException)
+        catch (JsonException exception)
         {
-            return new OpenXblAccountResult(false, "OpenXBL returned an account response that Achievement Relay could not read.");
+            var message = exception.Message.StartsWith("OpenXBL ", StringComparison.Ordinal)
+                ? exception.Message
+                : "OpenXBL returned an account response that Achievement Relay could not read.";
+            return new OpenXblAccountResult(false, message);
         }
     }
 

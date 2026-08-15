@@ -104,9 +104,22 @@ if ($durableSaveIndex -lt 0 -or $accountRequestIndex -lt 0 -or $discordRequestIn
 }
 
 $mainWindowText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\MainWindow.xaml.cs') -Raw
-if (-not $mainWindowText.Contains('TryGetWebhook(out var storedWebhook)') -or
-    -not $mainWindowText.Contains('Leave the field blank')) {
-    throw 'Guided setup must make intentionally hidden stored secrets reusable and explicit.'
+$mainWindowXaml = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\MainWindow.xaml') -Raw
+if (-not $mainWindowText.Contains('PopulateSecretControls()') -or
+    -not $mainWindowText.Contains('ToggleSecretVisibility(') -or
+    -not $mainWindowXaml.Contains('SetupXboxApiKeyRevealTextBox') -or
+    -not $mainWindowXaml.Contains('SetupWebhookRevealTextBox') -or
+    -not $mainWindowXaml.Contains('Content="Reveal Key"') -or
+    -not $mainWindowXaml.Contains('Content="Reveal Webhook"')) {
+    throw 'Stored OpenXBL and Discord secrets must appear masked and provide explicit reveal controls.'
+}
+
+$openXblParserText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.Core\Services\OpenXblResponseParser.cs') -Raw
+if (-not $openXblParserText.Contains('"profileUsers"') -or
+    -not $openXblParserText.Contains('"people"') -or
+    -not $openXblParserText.Contains('"data"') -or
+    -not $openXblParserText.Contains('GetAccountSetting(settings, "GameDisplayName")')) {
+    throw 'The OpenXBL account parser must accept current profile envelopes and display-name fallbacks.'
 }
 
 $appProjectText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\AchievementRelay.App.csproj') -Raw

@@ -224,7 +224,7 @@ public sealed class InstallerSetupImporter(
                 nextSettings,
                 true,
                 false,
-                $"Installer settings were encrypted and saved, but verification needs attention: {string.Join(" ", details)} Complete Guided setup in the app; leave a secret field blank to reuse its stored value.");
+                $"Installer settings were encrypted and saved, but verification needs attention: {string.Join(" ", details)} Complete Guided setup in the app; the stored values will appear masked and can be retried.");
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -232,7 +232,7 @@ public sealed class InstallerSetupImporter(
                 storedSettings,
                 true,
                 false,
-                "Installer settings were encrypted and saved before verification was interrupted. Open Guided setup and leave a secret field blank to retry the stored value.");
+                "Installer settings were encrypted and saved before verification was interrupted. Open Guided setup to retry the masked stored values.");
         }
     }
 

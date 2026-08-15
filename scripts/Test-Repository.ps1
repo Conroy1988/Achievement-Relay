@@ -146,6 +146,7 @@ if (-not $openXblParserText.Contains('"profileUsers"') -or
 
 $openXblClientText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\OpenXblClient.cs') -Raw
 $openXblBudgetText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.Core\Services\OpenXblRequestBudget.cs') -Raw
+$relayCoordinatorText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\RelayCoordinator.cs') -Raw
 if (-not $openXblClientText.Contains('new("https://api.xbl.io/")') -or
     -not $openXblClientText.Contains('"api/v2/account"') -or
     -not $openXblClientText.Contains('"v2/account"') -or
@@ -172,7 +173,8 @@ if (-not $openXblClientText.Contains('"api/v2/player/titleHistory"') -or
 if (-not $openXblClientText.Contains('MaximumTitleDetailRequestsPerOperation = 12') -or
     -not $openXblClientText.Contains('X-RateLimit-Remaining') -or
     -not $openXblClientText.Contains('RateLimitFallbackRetryAfter = TimeSpan.FromHours(1)') -or
-    -not $openXblClientText.Contains('OpenXblRequestPriority.Background') -or
+    -not $openXblBudgetText.Contains('OpenXblRequestPriority.Background') -or
+    -not $relayCoordinatorText.Contains('isBackgroundWork ? OpenXblRequestPriority.Background : OpenXblRequestPriority.Essential') -or
     -not $openXblBudgetText.Contains('LocalHourlySafetyCeiling = 120') -or
     -not $openXblBudgetText.Contains('GetBackgroundReserve()') -or
     -not $openXblBudgetText.Contains('ObserveProviderWindow') -or
@@ -182,7 +184,6 @@ if (-not $openXblClientText.Contains('MaximumTitleDetailRequestsPerOperation = 1
 
 $deltaDetectorText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.Core\Services\AchievementDeltaDetector.cs') -Raw
 $syncStateText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\XboxSyncStateStore.cs') -Raw
-$relayCoordinatorText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\RelayCoordinator.cs') -Raw
 if (-not $openXblParserText.Contains('DateTimeOffset? unlockedAt = null') -or
     -not $openXblParserText.Contains('UnlockTimeEstimated = unlockedAt is null') -or
     -not $deltaDetectorText.Contains('previousAchievementIds') -or

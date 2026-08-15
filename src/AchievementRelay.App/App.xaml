@@ -29,8 +29,36 @@
     <SolidColorBrush x:Key="WarningBrush" Color="{StaticResource WarningColor}" />
     <SolidColorBrush x:Key="ErrorBrush" Color="{StaticResource ErrorColor}" />
 
+    <DrawingBrush x:Key="GamingGridBrush"
+                  TileMode="Tile"
+                  Viewport="0,0,36,36"
+                  ViewportUnits="Absolute"
+                  Viewbox="0,0,36,36"
+                  ViewboxUnits="Absolute">
+      <DrawingBrush.Drawing>
+        <DrawingGroup>
+          <GeometryDrawing Brush="#090D14">
+            <GeometryDrawing.Geometry>
+              <RectangleGeometry Rect="0,0,36,36" />
+            </GeometryDrawing.Geometry>
+          </GeometryDrawing>
+          <GeometryDrawing>
+            <GeometryDrawing.Pen>
+              <Pen Brush="#172235" Thickness="0.6" />
+            </GeometryDrawing.Pen>
+            <GeometryDrawing.Geometry>
+              <GeometryGroup>
+                <LineGeometry StartPoint="0,0" EndPoint="36,0" />
+                <LineGeometry StartPoint="0,0" EndPoint="0,36" />
+              </GeometryGroup>
+            </GeometryDrawing.Geometry>
+          </GeometryDrawing>
+        </DrawingGroup>
+      </DrawingBrush.Drawing>
+    </DrawingBrush>
+
     <Style TargetType="Window">
-      <Setter Property="Background" Value="{StaticResource BackgroundBrush}" />
+      <Setter Property="Background" Value="{StaticResource GamingGridBrush}" />
       <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
       <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI" />
       <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
@@ -54,7 +82,7 @@
     </Style>
 
     <Style x:Key="Card" TargetType="Border">
-      <Setter Property="Background" Value="{StaticResource PanelBrush}" />
+      <Setter Property="Background" Value="#F2101722" />
       <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="12" />
@@ -100,6 +128,11 @@
       <Setter Property="Background" Value="{StaticResource AccentBrush}" />
       <Setter Property="Foreground" Value="#07120D" />
       <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+      <Setter Property="Effect">
+        <Setter.Value>
+          <DropShadowEffect Color="#56E39F" BlurRadius="12" ShadowDepth="0" Opacity="0.24" />
+        </Setter.Value>
+      </Setter>
     </Style>
 
     <Style x:Key="DiscordButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">

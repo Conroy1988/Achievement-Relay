@@ -2,59 +2,84 @@
 
 Achievement Relay is a local Windows desktop app with two projects:
 
-- `AchievementRelay.Core` contains platform-neutral classification, parsing, fingerprints, webhook validation, and Discord payload construction.
-- `AchievementRelay.App` contains WPF UI, WinRT notification capture, Windows startup integration, encrypted settings, Discord delivery, activity logging, and the tray lifecycle.
+- `AchievementRelay.Core` contains platform-neutral OpenXBL response parsing, API-key/webhook validation, deterministic event identity, settings models, and Discord payload construction.
+- `AchievementRelay.App` contains the WPF/tray UI, OpenXBL and Discord HTTP clients, DPAPI secret storage, account polling, baseline/cursor state, event ledger, installer import, startup integration, and logging.
 
-The MSIX manifest supplies package identity plus the `userNotificationListener`, `internetClient`, and `runFullTrust` capabilities.
+The MSIX manifest supplies package identity, `internetClient`, `runFullTrust`, the packaged startup task, and unvirtualized per-user AppData. Disabling AppData write virtualization keeps the installer handoff, app state, upgrade behavior, diagnostics, and explicit cleanup on the same `%LOCALAPPDATA%\AchievementRelay` path. Version 0.2 intentionally has no `userNotificationListener` capability.
 
-## Event path
+## Poll and delivery path
 
 ```mermaid
 sequenceDiagram
-    participant W as Windows
-    participant L as Listener
-    participant C as Classifier
-    participant R as Relay
+    participant A as Achievement Relay
+    participant X as OpenXBL
+    participant L as Local state
     participant D as Discord
-    W->>L: Notification changed
-    L->>C: Source metadata
-    alt Known Xbox sender
-        L->>C: Xbox text elements
-        C->>R: Parsed achievement
-        R->>R: Deduplicate + apply settings
-        R->>D: HTTPS webhook embed
-    else Other sender
-        C-->>L: Discard before content read
+    loop About every 60 seconds
+        A->>X: GET per-title progress index
+        X-->>A: Counts and Gamerscore by title
+        A->>L: Compare saved title snapshots
+        alt Title progress changed
+            A->>X: GET changed title achievements
+            X-->>A: Achievement v2 JSON
+            A->>L: Baseline + cursor + dedup check
+            A->>D: HTTPS webhook embed
+            D-->>A: Delivery result
+            A->>L: Mark processed + save title snapshots
+        else No title changed
+            A->>L: Save successful-poll cursor
+        end
     end
 ```
 
-## Privacy boundary
+`OpenXblClient` sends the user-supplied key only in the `X-Authorization` header to `https://xbl.io/api/v2/`. Requests time out after 20 seconds and response buffering is capped at 20 MiB. Provider and network failures become user-safe messages; the key is never included.
 
-`UserNotificationListener` exposes notifications broadly after the user grants access. `XboxNotificationListenerService` therefore retrieves source metadata first. It only calls `GetBinding(...).GetTextElements()` after `XboxNotificationClassifier` accepts a known Xbox package family. A display name alone is deliberately insufficient. Non-Xbox text does not enter application models, logs, settings, or network code.
+## Baseline, recovery, and duplicates
 
-## Parsing strategy
+On the first verified account connection, `XboxSyncStateStore` records the complete first successful title snapshot and a baseline timestamp. Achievements already present in that response are intentionally ignored, preventing historical Discord floods. Monitoring begins from that verified snapshot.
 
-The MVP intentionally uses conservative heuristics:
+Each successful poll records `LastSuccessfulPollUtc` and a per-title snapshot of unlocked count plus current Gamerscore. The inexpensive title index is polled every minute; detailed achievement JSON is requested only for new or changed titles. Later checks examine detailed unlocks newer than the baseline and use a 24-hour overlap before the last cursor. The overlap allows failed Discord posts to retry, while `EventLedger` prevents already handled events from posting twice. The cursor/title snapshot is not advanced past a pending provider or Discord delivery.
 
-1. Require a known Xbox source.
-2. Require an achievement-unlock phrase or Gamerscore pattern.
-3. Normalize and deduplicate text elements.
-4. Remove generic unlock and score-only labels.
-5. Treat the first remaining line as the achievement name.
-6. Extract explicit `Game:`, `Title:`, or `In ...` lines when present.
-7. Preserve uncertain remaining text as the description only when the user allows it.
+The overlap does not limit offline recovery: after several days offline, the cursor still begins at the previous successful poll, so achievements earned during downtime remain candidates when returned by OpenXBL.
 
-Fixtures cover the privacy gate, common English notification shape, URL validation, mention suppression, and stable fingerprints. Real-world redacted fixtures should be added before widening heuristics.
+Event IDs are SHA-256 hashes over a version marker, account XUID, service configuration, title, and achievement identifier. Upstream corrections to an unlock timestamp therefore cannot create a duplicate post. The ledger is capped at 1,000 entries and 90 days.
 
-## Delivery and state
+## Parsing boundary
 
-- Settings live in `%LOCALAPPDATA%\AchievementRelay\settings.json`.
-- The webhook URL is DPAPI-protected with `DataProtectionScope.CurrentUser` before serialization.
-- Successful fingerprints live in `processed-events.json`, capped at 1,000 items and 90 days.
-- Operational log lines live in `achievement-relay.log`, rotate at roughly 2 MB, and never intentionally include notification contents unrelated to Xbox or webhook tokens.
-- Discord posts disable `allowed_mentions` to prevent an achievement title from pinging a role or `@everyone`.
-- Network failures and server errors use bounded retry; permanent client errors stop immediately.
+`OpenXblResponseParser` accepts the Xbox Achievement v2-style JSON returned by OpenXBL. It:
 
-## Known constraint
+1. accepts a documented `achievements` collection or root array;
+2. keeps only entries explicitly marked achieved;
+3. rejects revoked or timestamp-less entries;
+4. maps title, description, Gamerscore, rarity, and icon when available; and
+5. deduplicates by deterministic event identity.
 
-This is an event observer, not an Xbox achievement database client. It cannot enumerate historical achievements, verify ownership, or recover an unlock after Windows removes the notification. It primes notifications present at startup to avoid surprising historical spam; the explicit **Re-scan** action can process items still held in Notification Center.
+The parser never interprets response data as code and does not log raw provider responses.
+
+## Secrets and local state
+
+| File | Contents |
+|---|---|
+| `settings.json` | Preferences, XUID, gamertag, and current-user DPAPI ciphertext for OpenXBL/Discord secrets |
+| `xbox-sync-state.json` | Account ID, first-run baseline, last successful poll, and per-title achievement/Gamerscore snapshots |
+| `processed-events.json` | Bounded deterministic IDs and processed timestamps |
+| `achievement-relay.log` | Size-bounded operational messages; no intentional credentials or raw JSON |
+
+`SecureWebhookProtector` retains the original webhook DPAPI entropy for upgrade compatibility and uses separate entropy for the OpenXBL API key. Decrypted byte arrays are zeroed after conversion; managed strings remain subject to normal .NET lifetime behavior.
+
+## Installer handoff
+
+The Inno Setup UI accepts optional credentials in password-masked controls. It does not add them to a process command line. Instead:
+
+1. short-lived process environment variables are inherited by `Protect-InstallerSetup.ps1`;
+2. that process applies current-user DPAPI using the same per-secret entropy as the app;
+3. only ciphertext is written to `pending-installer-setup.json`;
+4. installer variables/fields are cleared;
+5. `InstallerSetupImporter` decrypts the file, truncates and deletes it immediately, then verifies OpenXBL and Discord; and
+6. normal settings are saved with fresh DPAPI ciphertext.
+
+If setup is skipped, no handoff file is created.
+
+## Upgrade behavior
+
+Settings schema 1 is migrated to schema 2 while retaining the existing encrypted Discord webhook and preferences. `SetupCompleted` is reset so a 0.1.x user must explicitly connect OpenXBL. Legacy notification capture classes and manifest permissions are removed.

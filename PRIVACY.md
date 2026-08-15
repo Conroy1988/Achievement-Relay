@@ -1,50 +1,72 @@
 # Privacy policy
 
-Effective: 14 August 2026
+Effective: 15 August 2026
 
-Achievement Relay is a local, open-source Windows application. It has no analytics, advertising, account system, cloud database, or developer-operated relay service.
+Achievement Relay is a local, open-source Windows application. It has no analytics, advertising, account system, cloud database, telemetry, or developer-operated relay service.
 
-## Windows notification access
+## OpenXBL account access
 
-Achievement Relay asks Windows for the **User Notification Listener** capability. Windows presents broad wording because the API can provide notifications from other applications.
+Version 0.2 uses [OpenXBL](https://xbl.io), an independent and unofficial Xbox API provider. The user supplies a personal OpenXBL API key. Achievement Relay sends that key only to `https://xbl.io/api/v2/` in an `X-Authorization` HTTPS header to request:
 
-After access is granted, Achievement Relay checks each notification's source package/display metadata. It reads text elements only when that source matches a known Xbox or Game Bar component. It discards all other senders before their notification text enters the application. Xbox notification text that does not resemble an achievement is not sent to Discord.
+- the connected Xbox profile, including XUID and gamertag; and
+- the account's achievement feed, including achievement/title identifiers, names, descriptions, Gamerscore, rarity, artwork URLs, status, and unlock timestamps when available.
 
-Access can be revoked through Windows Settings at any time.
+OpenXBL processes those requests under the user's relationship with OpenXBL. Review OpenXBL's privacy policy and terms before connecting an account. Achievement Relay cannot control OpenXBL's retention, availability, or service changes.
+
+The app does not ask for or store the Xbox/Microsoft password, Microsoft authentication token, or Discord account credentials. It does not read Windows notifications.
 
 ## Data sent to Discord
 
-For a detected achievement, the app may send these values to the Discord webhook selected by the user:
+For each new achievement, Achievement Relay may send the following to the user-selected Discord webhook:
 
-- achievement name;
-- description when available;
-- game or title name when available;
-- Gamerscore and rare status when available;
+- achievement name and description;
+- game/title name;
+- Gamerscore and rare status;
 - unlock timestamp;
-- optional player display name entered by the user; and
-- a valid Xbox-provided HTTP image URL when available.
+- player display name; and
+- an Xbox/OpenXBL-provided HTTP image URL.
 
-Discord receives this data under the user's relationship with Discord. Review Discord's privacy terms before configuring a webhook. No achievement data is sent anywhere else by the application.
+Discord receives this data under the user's relationship with Discord. The app disables Discord mention parsing so an achievement title cannot ping `@everyone` or a role.
 
 ## Local storage
 
-Achievement Relay stores the following under `%LOCALAPPDATA%\AchievementRelay`:
+Achievement Relay stores data under `%LOCALAPPDATA%\AchievementRelay`:
 
-- preferences and setup state;
-- the Discord webhook URL encrypted with Windows Data Protection API for the current user;
-- achievement fingerprints and timestamps used to prevent duplicate posts, capped at 1,000 entries and 90 days; and
-- a size-bounded operational log containing statuses, errors, and the names of Xbox achievements the app detected or attempted to post.
+- `settings.json`: preferences, setup state, XUID, gamertag, and current-user DPAPI ciphertext for the OpenXBL API key and Discord webhook;
+- `xbox-sync-state.json`: account identifier, baseline timestamp, and last successful poll timestamp;
+- `processed-events.json`: deterministic achievement identifiers and processed timestamps, capped at 1,000 entries and 90 days; and
+- `achievement-relay.log`: a size-bounded operational log with status/errors and achievement names involved in delivery.
 
-The app does not intentionally write the plaintext webhook, its token, unrelated notification text, Xbox credentials, or Discord credentials to logs.
+The XUID and gamertag are not secret credentials and are stored as ordinary local settings, but the copied support summary deliberately omits both. The app never intentionally writes the plaintext API key, webhook URL/token, Xbox password, Microsoft token, or Discord credentials to its log.
 
-## Retention and deletion
+## Optional installer setup
 
-Users can uninstall the app and remove all local state by running `Uninstall.ps1 -RemoveLocalData`, or by deleting `%LOCALAPPDATA%\AchievementRelay` after exiting the app. Deleting a webhook in Discord immediately prevents further use of that URL.
+If the user selects **Connect OpenXBL and Discord now** in `AchievementRelay_Setup.exe`:
+
+1. the masked fields exist in installer process memory;
+2. Setup passes them to a child protection step using short-lived process environment variables—not command-line arguments;
+3. that step encrypts each value with Windows DPAPI scoped to the current user before writing `pending-installer-setup.json`;
+4. Setup clears the environment variables and input fields;
+5. the app reads, truncates, and deletes the one-time encrypted file on first launch; and
+6. the app live-tests the connections and saves normal DPAPI-protected settings.
+
+If installation or first launch is interrupted, the one-time file can remain, but its values are still encrypted for that Windows user. The next launch retries cleanup. Selecting **Skip — I will do this later** creates no credential handoff.
 
 ## Network access
 
-The app makes outbound HTTPS requests only to the configured Discord webhook host during connection tests and achievement delivery. Documentation and GitHub links open in the user's default browser only when selected.
+The app makes outbound HTTPS requests to:
 
-## Changes
+- `xbl.io` for account and achievement polling; and
+- the validated Discord-owned webhook host for connection tests and achievement delivery.
 
-Material changes to this policy will be recorded in the repository history and release notes. Questions and privacy reports can be opened in the project's GitHub issue tracker, but webhook URLs and other secrets must never be included.
+Documentation, GitHub, OpenXBL, Discord help, and Ko-fi links open in the default browser only when selected. Achievement Relay does not send data to Ko-fi.
+
+## Retention and deletion
+
+Disconnecting the Xbox account or removing the Discord webhook deletes the corresponding saved ciphertext from settings. Uninstall the app and run `Uninstall.ps1 -RemoveLocalData`, or exit the app and delete `%LOCALAPPDATA%\AchievementRelay`, to remove all local state.
+
+Revoking the OpenXBL API key stops future account requests. Deleting/rotating the Discord webhook immediately prevents future use of that URL.
+
+## Changes and contact
+
+Material policy changes are recorded in repository history and release notes. Privacy reports can be opened in the project's GitHub tracker, but never include API keys, webhook URLs/tokens, XUIDs, gamertags, or other private data.

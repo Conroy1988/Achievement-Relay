@@ -5,7 +5,6 @@ using System.IO;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
 using AchievementRelay.App.Services;
 using AchievementRelay.Core.Models;
 using AchievementRelay.Core.Services;
@@ -19,6 +18,7 @@ public partial class MainWindow : Window
 {
     private const string GitHubUrl = "https://github.com/Conroy1988/Achievement-Relay";
     private const string KoFiUrl = "https://ko-fi.com/D4P124RWI9";
+    private const string OpenXblProfileUrl = "https://xbl.io/profile";
     private const string DiscordWebhookGuideUrl = "https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks";
 
     private readonly AppServices _services;
@@ -37,6 +37,7 @@ public partial class MainWindow : Window
         DashboardActivityList.ItemsSource = _activity;
         ActivityList.ItemsSource = _activity;
         _services.ActivityLog.EntryAdded += OnActivityEntryAdded;
+        _services.RelayCoordinator.StatusChanged += OnRelayStatusChanged;
 
         PopulateControls();
         InitializeTrayIcon();
@@ -51,36 +52,39 @@ public partial class MainWindow : Window
 
     public void RefreshStatus()
     {
-        var access = _services.NotificationListener.GetAccessState();
+        var apiKeyConfigured = TryGetOpenXblApiKey(out _);
+        var accountConfigured = apiKeyConfigured && !string.IsNullOrWhiteSpace(_settings.XboxUserId);
         var webhookConfigured = TryGetWebhook(out _);
-        var relayRunning = _services.RelayCoordinator.IsRunning && access == NotificationAccessState.Allowed;
+        var relayRunning = _services.RelayCoordinator.IsRunning;
+        var lastError = _services.RelayCoordinator.LastSyncError;
+        var lastSync = _services.RelayCoordinator.LastSuccessfulSync;
 
-        switch (access)
+        if (accountConfigured)
         {
-            case NotificationAccessState.Allowed:
-                SetStatus(ListenerStatusText, "Allowed", StatusTone.Success);
-                ListenerStatusDetail.Text = "Xbox notifications can be read";
-                SetupAccessStatus.Text = "Status: access granted";
-                SetupAccessStatus.Foreground = Brush("AccentBrush");
-                break;
-            case NotificationAccessState.Denied:
-                SetStatus(ListenerStatusText, "Blocked", StatusTone.Error);
-                ListenerStatusDetail.Text = "Enable access in Windows Settings";
-                SetupAccessStatus.Text = "Status: blocked by Windows";
-                SetupAccessStatus.Foreground = Brush("ErrorBrush");
-                break;
-            case NotificationAccessState.Unspecified:
-                SetStatus(ListenerStatusText, "Action needed", StatusTone.Warning);
-                ListenerStatusDetail.Text = "Complete step 1 in Guided setup";
-                SetupAccessStatus.Text = "Status: permission not requested";
-                SetupAccessStatus.Foreground = Brush("WarningBrush");
-                break;
-            default:
-                SetStatus(ListenerStatusText, "Unavailable", StatusTone.Error);
-                ListenerStatusDetail.Text = "Install the packaged app to enable access";
-                SetupAccessStatus.Text = "Status: unavailable in this app context";
-                SetupAccessStatus.Foreground = Brush("ErrorBrush");
-                break;
+            var accountLabel = string.IsNullOrWhiteSpace(_settings.XboxGamertag)
+                ? "Xbox account connected"
+                : $"Connected as {_settings.XboxGamertag}";
+            SetStatus(XboxStatusText, "Connected", StatusTone.Success);
+            XboxStatusDetail.Text = accountLabel;
+            SetupXboxStatus.Text = $"Status: {accountLabel}";
+            SetupXboxStatus.Foreground = Brush("AccentBrush");
+            SettingsXboxStatus.Text = $"{accountLabel}. The API key is encrypted for this Windows account.";
+        }
+        else if (apiKeyConfigured)
+        {
+            SetStatus(XboxStatusText, "Reconnect", StatusTone.Warning);
+            XboxStatusDetail.Text = "The saved key needs to be verified";
+            SetupXboxStatus.Text = "Status: select Save and connect to retry the encrypted key, or paste a replacement";
+            SetupXboxStatus.Foreground = Brush("WarningBrush");
+            SettingsXboxStatus.Text = "An API key is stored, but no Xbox account has been verified.";
+        }
+        else
+        {
+            SetStatus(XboxStatusText, "Not connected", StatusTone.Warning);
+            XboxStatusDetail.Text = "Complete step 1 in Guided setup";
+            SetupXboxStatus.Text = "Status: not connected";
+            SetupXboxStatus.Foreground = Brush("WarningBrush");
+            SettingsXboxStatus.Text = "No OpenXBL API key or Xbox account is configured.";
         }
 
         if (webhookConfigured)
@@ -94,25 +98,42 @@ public partial class MainWindow : Window
         else
         {
             SetStatus(DiscordStatusText, "Not connected", StatusTone.Warning);
-            DiscordStatusDetail.Text = "Complete step 3 in Guided setup";
+            DiscordStatusDetail.Text = "Complete step 2 in Guided setup";
             SetupWebhookStatus.Text = "Status: not connected";
             SetupWebhookStatus.Foreground = Brush("WarningBrush");
             SettingsWebhookStatus.Text = "No usable Discord webhook is configured.";
         }
 
+        var relayLabel = relayRunning
+            ? string.IsNullOrWhiteSpace(lastError) ? "Monitoring" : "Retrying"
+            : "Stopped";
         SetStatus(
             RelayStatusText,
-            relayRunning ? "Monitoring" : "Stopped",
-            relayRunning ? StatusTone.Success : StatusTone.Warning);
-        SidebarMonitorStatus.Text = relayRunning ? "● Monitoring Xbox" : "○ Setup required";
-        SidebarMonitorStatus.Foreground = Brush(relayRunning ? "AccentBrush" : "WarningBrush");
+            relayLabel,
+            relayRunning && string.IsNullOrWhiteSpace(lastError) ? StatusTone.Success : StatusTone.Warning);
 
+        SidebarMonitorStatus.Text = relayRunning
+            ? string.IsNullOrWhiteSpace(lastError) ? "● Monitoring Xbox" : "● Retrying sync"
+            : "○ Setup required";
+        SidebarMonitorStatus.Foreground = Brush(
+            relayRunning && string.IsNullOrWhiteSpace(lastError) ? "AccentBrush" : "WarningBrush");
+
+        var accountDiagnostic = accountConfigured
+            ? string.IsNullOrWhiteSpace(_settings.XboxGamertag) ? "connected" : $"connected as {_settings.XboxGamertag}"
+            : "not connected";
+        var lastSyncDiagnostic = lastSync is null
+            ? "not yet"
+            : lastSync.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss zzz");
         DiagnosticsStatusText.Text = string.Join(
             Environment.NewLine,
-            $"Notification access: {access}",
-            $"Listener: {(relayRunning ? "running" : "not running")}",
+            $"Xbox account: {accountDiagnostic}",
+            $"OpenXBL key: {(apiKeyConfigured ? "encrypted and stored" : "not configured")}",
+            $"Account monitor: {(relayRunning ? "running" : "not running")}",
+            $"Last successful sync: {lastSyncDiagnostic}",
+            $"Last sync error: {(string.IsNullOrWhiteSpace(lastError) ? "none" : lastError)}",
             $"Discord: {(webhookConfigured ? "configured" : "not configured")}",
-            $"Install context: {(StartupService.IsPackaged() ? "MSIX packaged" : "unpackaged development build")}",
+            $"Polling interval: {Math.Clamp(_settings.PollIntervalSeconds, 60, 3600)} seconds",
+            $"Install context: {(StartupService.IsPackaged() ? "MSIX packaged" : "classic Windows app")}",
             $"Local data: {_services.Paths.DataDirectory}");
     }
 
@@ -120,6 +141,7 @@ public partial class MainWindow : Window
     {
         _isExiting = true;
         _services.ActivityLog.EntryAdded -= OnActivityEntryAdded;
+        _services.RelayCoordinator.StatusChanged -= OnRelayStatusChanged;
         if (_trayIcon is not null)
         {
             _trayIcon.Visible = false;
@@ -144,7 +166,7 @@ public partial class MainWindow : Window
             _trayIcon.ShowBalloonTip(
                 2500,
                 "Achievement Relay is still running",
-                "Xbox achievements will continue to be relayed. Use the tray icon to reopen or exit.",
+                "Xbox account sync continues in the notification area. Use the tray icon to reopen or exit.",
                 Forms.ToolTipIcon.Info);
             _hasShownTrayHint = true;
         }
@@ -165,11 +187,9 @@ public partial class MainWindow : Window
             extractedIcon = System.Drawing.Icon.ExtractAssociatedIcon(executablePath);
         }
 
-        var icon = extractedIcon ?? System.Drawing.SystemIcons.Application;
-
         _trayIcon = new Forms.NotifyIcon
         {
-            Icon = icon,
+            Icon = extractedIcon ?? System.Drawing.SystemIcons.Application,
             Text = "Achievement Relay",
             ContextMenuStrip = menu,
             Visible = true
@@ -179,8 +199,8 @@ public partial class MainWindow : Window
 
     private void PopulateControls()
     {
-        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.1.1";
-        AboutVersionText.Text = $"Version {version} alpha";
+        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.2.0";
+        AboutVersionText.Text = $"Version {version} beta";
 
         SetupDisplayNameTextBox.Text = _settings.DisplayName;
         SetupStartWithWindowsCheckBox.IsChecked = _settings.StartWithWindows;
@@ -224,37 +244,110 @@ public partial class MainWindow : Window
 
     private void ShowAbout_Click(object sender, RoutedEventArgs e) => MainTabs.SelectedIndex = 5;
 
-    private async void GrantNotificationAccess_Click(object sender, RoutedEventArgs e)
+    private void OpenOpenXbl_Click(object sender, RoutedEventArgs e) => OpenExternal(OpenXblProfileUrl);
+
+    private void OpenDiscordWebhookGuide_Click(object sender, RoutedEventArgs e) =>
+        OpenExternal(DiscordWebhookGuideUrl);
+
+    private async void SaveAndTestOpenXbl_Click(object sender, RoutedEventArgs e) =>
+        await SaveAndTestOpenXblAsync(sender, SetupXboxApiKeyPasswordBox.Password, SetupXboxStatus);
+
+    private async void SaveAndTestSettingsOpenXbl_Click(object sender, RoutedEventArgs e) =>
+        await SaveAndTestOpenXblAsync(sender, SettingsXboxApiKeyPasswordBox.Password, SettingsXboxStatus);
+
+    private async Task SaveAndTestOpenXblAsync(object sender, string value, TextBlock statusTarget)
     {
+        var candidate = value;
+        if (string.IsNullOrWhiteSpace(candidate) && TryGetOpenXblApiKey(out var storedApiKey))
+        {
+            candidate = storedApiKey;
+        }
+
+        if (!OpenXblApiKeyValidator.TryNormalize(candidate, out var apiKey, out var error))
+        {
+            statusTarget.Text = $"Status: {error}";
+            statusTarget.Foreground = Brush("ErrorBrush");
+            return;
+        }
+
         SetButtonBusy(sender, true);
+        statusTarget.Text = "Status: checking the Xbox account and achievement feed…";
+        statusTarget.Foreground = Brush("WarningBrush");
         try
         {
-            var access = await _services.NotificationListener.RequestAccessAsync();
-            if (access == NotificationAccessState.Allowed)
+            var accountResult = await _services.OpenXblClient.GetAccountAsync(apiKey);
+            if (!accountResult.Success || accountResult.Account is null)
             {
-                await _services.RelayCoordinator.StartAsync();
-            }
-            else if (access == NotificationAccessState.Denied)
-            {
-                ShowMessage(
-                    "Windows did not grant notification access. Open Windows Settings, allow Achievement Relay under notification access, then return and try again.",
-                    MessageBoxImage.Warning);
-                OpenExternal("ms-settings:privacy-notifications");
+                statusTarget.Text = $"Status: {accountResult.Message}";
+                statusTarget.Foreground = Brush("ErrorBrush");
+                _services.ActivityLog.Warning(accountResult.Message);
+                return;
             }
 
+            var titleProgressResult = await _services.OpenXblClient.GetTitleProgressAsync(
+                apiKey,
+                accountResult.Account.Xuid);
+            if (!titleProgressResult.Success || titleProgressResult.Titles is null)
+            {
+                statusTarget.Text = $"Status: account found, but {titleProgressResult.Message}";
+                statusTarget.Foreground = Brush("ErrorBrush");
+                _services.ActivityLog.Warning(titleProgressResult.Message);
+                return;
+            }
+
+            await _services.RelayCoordinator.StopAsync();
+            var previousAccount = _settings.XboxUserId;
+            var accountChanged = !string.Equals(
+                previousAccount,
+                accountResult.Account.Xuid,
+                StringComparison.Ordinal);
+            var displayName = string.IsNullOrWhiteSpace(_settings.DisplayName)
+                ? accountResult.Account.Gamertag
+                : _settings.DisplayName;
+            _settings = _settings with
+            {
+                ProtectedOpenXblApiKey = _services.WebhookProtector.ProtectOpenXblApiKey(apiKey),
+                XboxUserId = accountResult.Account.Xuid,
+                XboxGamertag = accountResult.Account.Gamertag,
+                DisplayName = displayName
+            };
+            await _services.SettingsStore.SaveAsync(_settings);
+
+            var state = await _services.SyncStateStore.LoadAsync();
+            var needsBaseline = accountChanged ||
+                                state.BaselineUtc is null ||
+                                !string.Equals(state.AccountXuid, accountResult.Account.Xuid, StringComparison.Ordinal);
+            if (needsBaseline)
+            {
+                await _services.SyncStateStore.ResetAsync(
+                    accountResult.Account.Xuid,
+                    DateTimeOffset.UtcNow,
+                    titleProgressResult.Titles);
+            }
+
+            SetupXboxApiKeyPasswordBox.Clear();
+            SettingsXboxApiKeyPasswordBox.Clear();
+            PopulateControls();
             RefreshStatus();
+
+            var baselineNote = needsBaseline
+                ? " Earlier unlocks were baselined and will not be posted."
+                : " The existing sync position was preserved.";
+            statusTarget.Text = $"Status: connected as {accountResult.Account.Gamertag}.{baselineNote}";
+            statusTarget.Foreground = Brush("AccentBrush");
+            _services.ActivityLog.Success("OpenXBL account connection verified. Existing achievements will not be reposted.");
+
+            if (_settings.SetupCompleted && TryGetWebhook(out _))
+            {
+                await _services.RelayCoordinator.StartAsync();
+                RefreshStatus();
+            }
         }
         finally
         {
             SetButtonBusy(sender, false);
         }
     }
-
-    private void OpenNotificationSettings_Click(object sender, RoutedEventArgs e) =>
-        OpenExternal("ms-settings:notifications");
-
-    private void OpenDiscordWebhookGuide_Click(object sender, RoutedEventArgs e) =>
-        OpenExternal(DiscordWebhookGuideUrl);
 
     private async void SaveAndTestWebhook_Click(object sender, RoutedEventArgs e)
     {
@@ -294,15 +387,15 @@ public partial class MainWindow : Window
 
     private async void FinishSetup_Click(object sender, RoutedEventArgs e)
     {
-        if (_services.NotificationListener.GetAccessState() != NotificationAccessState.Allowed)
+        if (!TryGetOpenXblApiKey(out _) || string.IsNullOrWhiteSpace(_settings.XboxUserId))
         {
-            ShowMessage("Complete step 1 and grant Windows notification access before finishing setup.", MessageBoxImage.Warning);
+            ShowMessage("Complete step 1 and connect an Xbox account through OpenXBL before finishing setup.", MessageBoxImage.Warning);
             return;
         }
 
         if (!TryGetWebhook(out _))
         {
-            ShowMessage("Complete step 3 and save a valid Discord webhook before finishing setup.", MessageBoxImage.Warning);
+            ShowMessage("Complete step 2 and save a valid Discord webhook before finishing setup.", MessageBoxImage.Warning);
             return;
         }
 
@@ -312,7 +405,7 @@ public partial class MainWindow : Window
             var startWithWindows = SetupStartWithWindowsCheckBox.IsChecked == true;
             _settings = _settings with
             {
-                DisplayName = SetupDisplayNameTextBox.Text.Trim(),
+                DisplayName = NormalizePlayerName(SetupDisplayNameTextBox.Text),
                 StartWithWindows = startWithWindows,
                 StartMinimized = SetupStartMinimizedCheckBox.IsChecked == true,
                 SetupCompleted = true
@@ -324,12 +417,14 @@ public partial class MainWindow : Window
             PopulateControls();
             RefreshStatus();
             MainTabs.SelectedIndex = 0;
-            _services.ActivityLog.Success("Guided setup completed.");
+            _services.ActivityLog.Success("Guided setup completed. Xbox account monitoring is active.");
 
             var startupNote = startWithWindows && !startupApplied
                 ? Environment.NewLine + Environment.NewLine + "Windows did not enable startup automatically. You can enable Achievement Relay in Settings > Apps > Startup."
                 : string.Empty;
-            ShowMessage("Setup is complete. Keep Achievement Relay running in the notification area while you play." + startupNote, MessageBoxImage.Information);
+            ShowMessage(
+                "Setup is complete. Achievement Relay checks the connected Xbox account about once a minute while it runs." + startupNote,
+                MessageBoxImage.Information);
         }
         finally
         {
@@ -357,8 +452,7 @@ public partial class MainWindow : Window
                 GameName = "Achievement Relay Setup",
                 Gamerscore = 10,
                 IsRare = true,
-                SourceApplication = "Achievement Relay",
-                SourcePackageFamilyName = "local.sample",
+                SourceProvider = "Achievement Relay",
                 UnlockedAt = DateTimeOffset.UtcNow
             };
             var result = await _services.WebhookClient.SendAsync(
@@ -378,7 +472,10 @@ public partial class MainWindow : Window
     private async void TestSettingsWebhook_Click(object sender, RoutedEventArgs e)
     {
         Uri? webhookUri;
-        AppSettings settingsForTest;
+        var settingsForTest = _settings with
+        {
+            DiscordUsername = NormalizeWebhookName(SettingsDiscordUsernameTextBox.Text)
+        };
         var replacement = SettingsWebhookPasswordBox.Password;
         if (!string.IsNullOrWhiteSpace(replacement))
         {
@@ -387,23 +484,11 @@ public partial class MainWindow : Window
                 ShowMessage(error ?? "The webhook URL is invalid.", MessageBoxImage.Warning);
                 return;
             }
-
-            settingsForTest = _settings with
-            {
-                DiscordUsername = NormalizeWebhookName(SettingsDiscordUsernameTextBox.Text)
-            };
         }
-        else
+        else if (!TryGetWebhook(out webhookUri) || webhookUri is null)
         {
-            settingsForTest = _settings with
-            {
-                DiscordUsername = NormalizeWebhookName(SettingsDiscordUsernameTextBox.Text)
-            };
-            if (!TryGetWebhook(out webhookUri) || webhookUri is null)
-            {
-                ShowMessage("Paste a Discord webhook URL first.", MessageBoxImage.Warning);
-                return;
-            }
+            ShowMessage("Paste a Discord webhook URL first.", MessageBoxImage.Warning);
+            return;
         }
 
         SetButtonBusy(sender, true);
@@ -443,7 +528,7 @@ public partial class MainWindow : Window
             {
                 ProtectedWebhookUrl = protectedWebhook,
                 DiscordUsername = NormalizeWebhookName(SettingsDiscordUsernameTextBox.Text),
-                DisplayName = SettingsDisplayNameTextBox.Text.Trim(),
+                DisplayName = NormalizePlayerName(SettingsDisplayNameTextBox.Text),
                 PostRareOnly = SettingsRareOnlyCheckBox.IsChecked == true,
                 IncludeRawDetailsWhenUncertain = SettingsRawDetailsCheckBox.IsChecked == true,
                 StartWithWindows = startWithWindows,
@@ -454,6 +539,11 @@ public partial class MainWindow : Window
             var startupApplied = await _services.StartupService.SetEnabledAsync(startWithWindows);
             SettingsWebhookPasswordBox.Clear();
             PopulateControls();
+            if (_settings.SetupCompleted && TryGetOpenXblApiKey(out _) && TryGetWebhook(out _))
+            {
+                await _services.RelayCoordinator.StartAsync();
+            }
+
             RefreshStatus();
             _services.ActivityLog.Success("Settings saved.");
 
@@ -461,6 +551,45 @@ public partial class MainWindow : Window
                 ? "Settings were saved, but Windows did not enable automatic startup. Enable Achievement Relay in Windows Startup Apps."
                 : "Settings saved.";
             ShowMessage(message, startWithWindows && !startupApplied ? MessageBoxImage.Warning : MessageBoxImage.Information);
+        }
+        finally
+        {
+            SetButtonBusy(sender, false);
+        }
+    }
+
+    private async void RemoveOpenXbl_Click(object sender, RoutedEventArgs e)
+    {
+        var confirmation = MessageBox.Show(
+            this,
+            "Disconnect the saved Xbox account and remove its OpenXBL API key from this PC? The Discord webhook will be kept.",
+            "Achievement Relay",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+        if (confirmation != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        SetButtonBusy(sender, true);
+        try
+        {
+            await _services.RelayCoordinator.StopAsync();
+            _settings = _settings with
+            {
+                ProtectedOpenXblApiKey = string.Empty,
+                XboxUserId = string.Empty,
+                XboxGamertag = string.Empty,
+                SetupCompleted = false
+            };
+            await _services.SettingsStore.SaveAsync(_settings);
+            await _services.SyncStateStore.ClearAsync();
+            SetupXboxApiKeyPasswordBox.Clear();
+            SettingsXboxApiKeyPasswordBox.Clear();
+            _services.ActivityLog.Info("Saved OpenXBL connection removed.");
+            PopulateControls();
+            RefreshStatus();
+            MainTabs.SelectedIndex = 1;
         }
         finally
         {
@@ -484,12 +613,14 @@ public partial class MainWindow : Window
         SetButtonBusy(sender, true);
         try
         {
-            _settings = _settings with { ProtectedWebhookUrl = string.Empty };
+            await _services.RelayCoordinator.StopAsync();
+            _settings = _settings with { ProtectedWebhookUrl = string.Empty, SetupCompleted = false };
             await _services.SettingsStore.SaveAsync(_settings);
             SetupWebhookPasswordBox.Clear();
             SettingsWebhookPasswordBox.Clear();
             _services.ActivityLog.Info("Saved Discord webhook removed.");
             RefreshStatus();
+            MainTabs.SelectedIndex = 1;
         }
         finally
         {
@@ -497,11 +628,18 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void Rescan_Click(object sender, RoutedEventArgs e)
+    private async void SyncNow_Click(object sender, RoutedEventArgs e)
     {
-        if (_services.NotificationListener.GetAccessState() != NotificationAccessState.Allowed)
+        if (!TryGetOpenXblApiKey(out _) || string.IsNullOrWhiteSpace(_settings.XboxUserId))
         {
-            ShowMessage("Grant notification access in Guided setup before scanning.", MessageBoxImage.Warning);
+            ShowMessage("Connect the Xbox account in Guided setup before syncing.", MessageBoxImage.Warning);
+            MainTabs.SelectedIndex = 1;
+            return;
+        }
+
+        if (!TryGetWebhook(out _))
+        {
+            ShowMessage("Connect the Discord webhook before syncing so new achievements have a destination.", MessageBoxImage.Warning);
             MainTabs.SelectedIndex = 1;
             return;
         }
@@ -509,10 +647,14 @@ public partial class MainWindow : Window
         SetButtonBusy(sender, true);
         try
         {
-            await _services.RelayCoordinator.StartAsync();
-            var count = await _services.RelayCoordinator.RescanAsync();
-            _services.ActivityLog.Info($"Re-scan found {count} Xbox notification{(count == 1 ? string.Empty : "s")} in Notification Center.");
+            if (_settings.SetupCompleted)
+            {
+                await _services.RelayCoordinator.StartAsync();
+            }
+
+            var outcome = await _services.RelayCoordinator.SyncNowAsync();
             RefreshStatus();
+            ShowMessage(outcome.Message, outcome.Success ? MessageBoxImage.Information : MessageBoxImage.Warning);
         }
         finally
         {
@@ -526,6 +668,7 @@ public partial class MainWindow : Window
     private void CopySupportSummary_Click(object sender, RoutedEventArgs e)
     {
         var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "unknown";
+        var lastSync = _services.RelayCoordinator.LastSuccessfulSync;
         var summary = string.Join(
             Environment.NewLine,
             "Achievement Relay support summary",
@@ -533,14 +676,19 @@ public partial class MainWindow : Window
             $"Generated: {DateTimeOffset.Now:O}",
             $"Windows: {Environment.OSVersion}",
             $"Packaged: {StartupService.IsPackaged()}",
-            $"Notification access: {_services.NotificationListener.GetAccessState()}",
-            $"Listener running: {_services.RelayCoordinator.IsRunning}",
+            $"OpenXBL configured: {TryGetOpenXblApiKey(out _)}",
+            $"Xbox account verified: {!string.IsNullOrWhiteSpace(_settings.XboxUserId)}",
+            $"Account monitor running: {_services.RelayCoordinator.IsRunning}",
+            $"Last successful sync: {(lastSync is null ? "not yet" : lastSync.Value.ToString("O"))}",
+            $"Last sync error: {_services.RelayCoordinator.LastSyncError ?? "none"}",
             $"Discord configured: {TryGetWebhook(out _)}",
             $"Setup completed: {_settings.SetupCompleted}",
             $"Data folder: {_services.Paths.DataDirectory}");
 
         System.Windows.Clipboard.SetText(summary);
-        ShowMessage("Support summary copied. It does not contain your webhook URL or token.", MessageBoxImage.Information);
+        ShowMessage(
+            "Support summary copied. It does not contain the API key, Xbox user ID, gamertag, webhook URL or token.",
+            MessageBoxImage.Information);
     }
 
     private void OpenPrivacyPolicy_Click(object sender, RoutedEventArgs e)
@@ -553,6 +701,9 @@ public partial class MainWindow : Window
 
     private void OpenKoFi_Click(object sender, RoutedEventArgs e) => OpenExternal(KoFiUrl);
 
+    private void OnRelayStatusChanged(object? sender, EventArgs e) =>
+        Dispatcher.InvokeAsync(RefreshStatus);
+
     private void OnActivityEntryAdded(object? sender, ActivityEntry entry)
     {
         Dispatcher.InvokeAsync(() =>
@@ -562,7 +713,6 @@ public partial class MainWindow : Window
             {
                 _activity.RemoveAt(_activity.Count - 1);
             }
-
         });
     }
 
@@ -571,6 +721,15 @@ public partial class MainWindow : Window
         var value = _services.WebhookProtector.TryUnprotect(_settings.ProtectedWebhookUrl);
         return WebhookUrlValidator.TryNormalize(value, out webhookUri, out _);
     }
+
+    private bool TryGetOpenXblApiKey(out string apiKey)
+    {
+        var value = _services.WebhookProtector.TryUnprotectOpenXblApiKey(_settings.ProtectedOpenXblApiKey);
+        return OpenXblApiKeyValidator.TryNormalize(value, out apiKey, out _);
+    }
+
+    private string NormalizePlayerName(string value) =>
+        string.IsNullOrWhiteSpace(value) ? _settings.XboxGamertag : value.Trim();
 
     private static string NormalizeWebhookName(string value) =>
         string.IsNullOrWhiteSpace(value) ? "Achievement Relay" : value.Trim();

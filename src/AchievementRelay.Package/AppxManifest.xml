@@ -2,11 +2,11 @@
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
-  xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
   xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
   xmlns:uap11="http://schemas.microsoft.com/appx/manifest/uap/windows10/11"
+  xmlns:desktop6="http://schemas.microsoft.com/appx/manifest/desktop/windows10/6"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-  IgnorableNamespaces="uap uap3 uap5 uap11 rescap">
+  IgnorableNamespaces="uap uap5 uap11 desktop6 rescap">
 
   <Identity
     Name="Conroy.AchievementRelay"
@@ -17,8 +17,9 @@
   <Properties>
     <DisplayName>Achievement Relay</DisplayName>
     <PublisherDisplayName>Achievement Relay Open Source</PublisherDisplayName>
-    <Description>Automatically relay Xbox achievement notifications from Windows to Discord.</Description>
+    <Description>Automatically relay Xbox account achievements to Discord.</Description>
     <Logo>Assets\StoreLogo.png</Logo>
+    <desktop6:FileSystemWriteVirtualization>disabled</desktop6:FileSystemWriteVirtualization>
   </Properties>
 
   <Dependencies>
@@ -40,7 +41,7 @@
       <uap:VisualElements
         AppListEntry="default"
         DisplayName="Achievement Relay"
-        Description="Xbox achievement notifications for Discord"
+        Description="Xbox account achievements for Discord"
         BackgroundColor="#090D14"
         Square44x44Logo="Assets\Square44x44Logo.png"
         Square150x150Logo="Assets\Square150x150Logo.png">
@@ -69,7 +70,7 @@
 
   <Capabilities>
     <Capability Name="internetClient" />
-    <uap3:Capability Name="userNotificationListener" />
     <rescap:Capability Name="runFullTrust" />
+    <rescap:Capability Name="unvirtualizedResources" />
   </Capabilities>
 </Package>

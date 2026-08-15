@@ -2,11 +2,17 @@ namespace AchievementRelay.Core.Models;
 
 public sealed record AppSettings
 {
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
 
     public string ProtectedWebhookUrl { get; init; } = string.Empty;
+
+    public string ProtectedOpenXblApiKey { get; init; } = string.Empty;
+
+    public string XboxUserId { get; init; } = string.Empty;
+
+    public string XboxGamertag { get; init; } = string.Empty;
 
     public string DisplayName { get; init; } = string.Empty;
 
@@ -21,4 +27,6 @@ public sealed record AppSettings
     public bool SetupCompleted { get; init; }
 
     public string DiscordUsername { get; init; } = "Achievement Relay";
+
+    public int PollIntervalSeconds { get; init; } = 60;
 }

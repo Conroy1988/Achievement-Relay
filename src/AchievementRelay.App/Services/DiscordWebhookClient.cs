@@ -26,7 +26,7 @@ public sealed class DiscordWebhookClient : IDisposable
             try
             {
                 using var request = new HttpRequestMessage(HttpMethod.Post, AddWaitParameter(webhookUri));
-                request.Headers.UserAgent.Add(new ProductInfoHeaderValue("AchievementRelay", "0.1.1"));
+                request.Headers.UserAgent.Add(new ProductInfoHeaderValue("AchievementRelay", "0.2.0"));
                 request.Content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
 
                 using var response = await _httpClient.SendAsync(request, cancellationToken);

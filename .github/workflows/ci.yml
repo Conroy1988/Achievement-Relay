@@ -38,6 +38,6 @@ jobs:
       - name: Create unsigned installer smoke artifacts
         shell: pwsh
         run: |
-          .\scripts\Build-Msix.ps1 -Architecture x64 -Version 0.1.1.0 -OutputDirectory .\artifacts\ci
-          .\scripts\Build-Msix.ps1 -Architecture arm64 -Version 0.1.1.0 -OutputDirectory .\artifacts\ci
-          .\scripts\Build-Installer.ps1 -Version 0.1.1 -MsixVersion 0.1.1.0 -PackageDirectory .\artifacts\ci -OutputDirectory .\artifacts\ci
+          .\scripts\Build-Msix.ps1 -Architecture x64 -Version 0.2.0.0 -OutputDirectory .\artifacts\ci
+          .\scripts\Build-Msix.ps1 -Architecture arm64 -Version 0.2.0.0 -OutputDirectory .\artifacts\ci
+          .\scripts\Build-Installer.ps1 -Version 0.2.0 -MsixVersion 0.2.0.0 -PackageDirectory .\artifacts\ci -OutputDirectory .\artifacts\ci

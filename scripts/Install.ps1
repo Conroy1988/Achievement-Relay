@@ -1,6 +1,8 @@
 [CmdletBinding()]
 param(
-    [string] $ErrorFile
+    [string] $ErrorFile,
+
+    [switch] $CreateDesktopShortcut
 )
 
 $ErrorActionPreference = 'Stop'
@@ -67,9 +69,25 @@ try {
         throw 'Windows reported success, but the Achievement Relay package could not be located.'
     }
 
+    $desktopDirectory = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::DesktopDirectory)
+    $desktopShortcut = Join-Path $desktopDirectory 'Achievement Relay.lnk'
+    if ($CreateDesktopShortcut) {
+        $shell = New-Object -ComObject WScript.Shell
+        $shortcut = $shell.CreateShortcut($desktopShortcut)
+        $shortcut.TargetPath = Join-Path $env:WINDIR 'explorer.exe'
+        $shortcut.Arguments = "shell:AppsFolder\$($installedPackage.PackageFamilyName)!AchievementRelay"
+        $shortcut.Description = 'Relay Xbox achievements to Discord'
+        $shortcut.IconLocation = "$(Join-Path $installedPackage.InstallLocation 'AchievementRelay.App.exe'),0"
+        $shortcut.Save()
+        Write-Host 'Desktop shortcut created.'
+    }
+    elseif (Test-Path -LiteralPath $desktopShortcut) {
+        Remove-Item -LiteralPath $desktopShortcut -Force
+    }
+
     Write-Host 'Installation complete. Launching Achievement Relay...'
     Start-Process explorer.exe "shell:AppsFolder\$($installedPackage.PackageFamilyName)!AchievementRelay"
-    Write-Host 'Follow the four steps shown in Guided setup.' -ForegroundColor Green
+    Write-Host 'Account setup will be imported, or Guided setup will open if it was skipped.' -ForegroundColor Green
 }
 catch {
     if ($ErrorFile) {

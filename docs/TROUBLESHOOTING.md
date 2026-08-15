@@ -15,7 +15,7 @@ If the key saves but setup says that no usable Xbox profile was returned, confir
 
 ## OpenXBL is rate-limiting requests
 
-Achievement Relay's default one-minute interval normally uses about 60 achievement requests per hour plus occasional account/setup checks. If the same key is used by other software, or OpenXBL changes the plan limit, the provider can return HTTP 429. The app respects `Retry-After` when supplied and waits up to 15 minutes before retrying.
+Achievement Relay's default one-minute interval normally makes about 60 title-index checks per hour plus changed-title and occasional account/setup checks. If the same key is used by other software, or the account's OpenXBL allowance is reached, the provider can return HTTP 429. The app respects `Retry-After` when supplied and waits up to 15 minutes before retrying. OpenXBL's published OpenAPI file does not state a numeric allowance, so the app does not hard-code one.
 
 Check [OpenXBL pricing](https://xbl.io/pricing) and provider status. Do not launch multiple copies or reuse one key across many polling tools.
 
@@ -51,6 +51,12 @@ No Windows Notification Center entry is required. Xbox can take time to add an o
 - Wait a few minutes and sync again; Xbox/OpenXBL can lag.
 - Confirm **Only post rare achievements** is disabled unless intended.
 - Remember that achievements older than the first connection baseline are intentionally not posted.
+
+## Xbox 360 unlock has no timestamp
+
+Current builds do not require an OpenXBL timestamp to detect an achievement. Xbox 360/backward-compatible responses can report an achieved identity with a missing or `0001-01-01` time. Achievement Relay compares stable achievement IDs, posts the new identity with the detection time, and labels that time as estimated in Discord.
+
+When upgrading from a count-only test build, the first changed-title check also creates the identity baseline. If exactly one untimestamped identity explains the count increase, it is posted. If several historical untimestamped entries are indistinguishable, the app baselines them once to avoid an old-achievement flood; later unlocks for that title are exact and timestamp-independent. A repeating “no new timestamped achievement” warning indicates an obsolete build.
 
 ## Installer-provided credentials need attention
 

@@ -8,7 +8,13 @@ namespace AchievementRelay.App.Services;
 
 public sealed class DiscordWebhookClient : IDisposable
 {
-    private readonly HttpClient _httpClient = new()
+    private readonly HttpClient _httpClient = new(new HttpClientHandler
+    {
+        // A webhook token is embedded in the request URI and the JSON can
+        // contain account activity. Discord delivery must stay on the
+        // validated origin instead of following provider-controlled redirects.
+        AllowAutoRedirect = false
+    })
     {
         Timeout = TimeSpan.FromSeconds(15)
     };
@@ -37,7 +43,7 @@ public sealed class DiscordWebhookClient : IDisposable
 
                 if (response.StatusCode == HttpStatusCode.TooManyRequests && attempt == 0)
                 {
-                    var delay = response.Headers.RetryAfter?.Delta ?? TimeSpan.FromSeconds(2);
+                    var delay = GetRetryAfter(response.Headers.RetryAfter) ?? TimeSpan.FromSeconds(2);
                     await Task.Delay(delay > TimeSpan.FromSeconds(10) ? TimeSpan.FromSeconds(10) : delay, cancellationToken);
                     continue;
                 }
@@ -50,9 +56,12 @@ public sealed class DiscordWebhookClient : IDisposable
             {
                 return RelayResult.Fail("Discord did not respond before the request timed out.");
             }
-            catch (HttpRequestException exception)
+            catch (HttpRequestException)
             {
-                return RelayResult.Fail($"Could not reach Discord: {exception.Message}");
+                // Exception text can include the request URI, whose final path
+                // segment is the webhook secret. Keep diagnostics actionable
+                // without ever returning or logging transport exception text.
+                return RelayResult.Fail("Could not reach Discord. Check the internet connection and try again.");
             }
         }
 
@@ -64,13 +73,29 @@ public sealed class DiscordWebhookClient : IDisposable
     private static Uri AddWaitParameter(Uri webhookUri)
     {
         var builder = new UriBuilder(webhookUri);
-        var query = builder.Query.TrimStart('?');
-        if (!query.Split('&', StringSplitOptions.RemoveEmptyEntries)
-            .Any(item => item.StartsWith("wait=", StringComparison.OrdinalIgnoreCase)))
-        {
-            builder.Query = string.IsNullOrWhiteSpace(query) ? "wait=true" : $"{query}&wait=true";
-        }
+        var queryParts = builder.Query
+            .TrimStart('?')
+            .Split('&', StringSplitOptions.RemoveEmptyEntries)
+            .Where(item => !item.StartsWith("wait=", StringComparison.OrdinalIgnoreCase))
+            .Append("wait=true");
+        builder.Query = string.Join('&', queryParts);
 
         return builder.Uri;
+    }
+
+    private static TimeSpan? GetRetryAfter(RetryConditionHeaderValue? retryAfter)
+    {
+        if (retryAfter?.Delta is { } delta)
+        {
+            return delta > TimeSpan.Zero ? delta : TimeSpan.FromMilliseconds(250);
+        }
+
+        if (retryAfter?.Date is { } date)
+        {
+            var delay = date - DateTimeOffset.UtcNow;
+            return delay > TimeSpan.Zero ? delay : TimeSpan.FromMilliseconds(250);
+        }
+
+        return null;
     }
 }

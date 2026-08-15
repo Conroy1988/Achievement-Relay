@@ -44,13 +44,19 @@ public static class DiscordWebhookPayloadFactory
         var description = settings.IncludeRawDetailsWhenUncertain
             ? achievement.Description
             : null;
+        var unlockTimeEstimated = achievement.UnlockTimeEstimated || achievement.UnlockedAt is null;
 
         var embed = new Dictionary<string, object?>
         {
             ["title"] = Truncate($"🏆 {achievement.Name}", 256),
             ["color"] = achievement.IsRare ? RareGold : XboxGreen,
-            ["timestamp"] = achievement.UnlockedAt.ToUniversalTime().ToString("O"),
-            ["footer"] = new { text = "Relayed by Achievement Relay" }
+            ["timestamp"] = (achievement.UnlockedAt ?? DateTimeOffset.UtcNow).ToUniversalTime().ToString("O"),
+            ["footer"] = new
+            {
+                text = unlockTimeEstimated
+                    ? "Relayed by Achievement Relay • detected time shown (Xbox supplied no unlock time)"
+                    : "Relayed by Achievement Relay"
+            }
         };
 
         if (!string.IsNullOrWhiteSpace(description))

@@ -22,7 +22,7 @@ sequenceDiagram
         alt Title progress changed
             A->>X: GET changed title achievements
             X-->>A: Achievement v2 JSON
-            A->>L: Baseline + cursor + dedup check
+            A->>L: Stable-ID set difference + dedup check
             A->>D: HTTPS webhook embed
             D-->>A: Delivery result
             A->>L: Mark processed + save title snapshots
@@ -36,11 +36,15 @@ sequenceDiagram
 
 ## Baseline, recovery, and duplicates
 
-On the first verified account connection, `XboxSyncStateStore` records the complete first successful title snapshot and a baseline timestamp. Achievements already present in that response are intentionally ignored, preventing historical Discord floods. Monitoring begins from that verified snapshot.
+On the first verified account connection, `XboxSyncStateStore` records the first successful title-progress snapshot and a baseline timestamp. Achievements already represented by those counts are intentionally ignored, preventing historical Discord floods. Detailed stable identities are established gradually in the background or when each title first changes.
 
-Each successful poll records `LastSuccessfulPollUtc` and a per-title snapshot of unlocked count plus current Gamerscore. The inexpensive current-account `player/titleHistory` index is preferred for the one-minute poll; compatible title-index routes are probed only until one succeeds. A title-specific achievement route is requested only for new or changed titles. A readable but incomplete result does not end route negotiation: the client also tries OpenXBL's canonical player/title and dedicated Xbox 360 operations until the parsed unlocked count reaches the title-history count, then caches that complete route for the individual title. If no compatible route is available, automatic probes back off for five minutes to remain below OpenXBL's free-tier request budget. Later checks examine detailed unlocks newer than the baseline and use a 24-hour overlap before the last cursor. The overlap allows failed Discord posts to retry, while `EventLedger` prevents already handled events from posting twice. The cursor/title snapshot is not advanced past a pending provider or Discord delivery.
+Each successful poll records `LastSuccessfulPollUtc` and per-title unlocked count/current Gamerscore; after a title's first complete detail response, its snapshot also holds the complete set of stable unlocked achievement identities. The inexpensive current-account `player/titleHistory` index is preferred for the one-minute poll; compatible title-index routes are probed only until one succeeds. A title-specific achievement route is requested only for new or changed titles. A readable but count-mismatched result does not end route negotiation: the client also tries OpenXBL's canonical player/title and dedicated Xbox 360 operations until the parsed unlocked count exactly matches the title-history count, follows documented per-title continuation tokens when required, then caches that complete route for the individual title. If no compatible route is available, automatic probes back off for five minutes. Titles omitted from a later provider page remain in local state so they cannot reappear as false new games.
 
-The overlap does not limit offline recovery: after several days offline, the cursor still begins at the previous successful poll, so achievements earned during downtime remain candidates when returned by OpenXBL.
+New events are the set difference between the current complete identity set and the saved set. Unlock timestamps are display metadata only. Xbox 360 responses with a missing or `0001-01-01` time remain valid achieved entries; the observation time is used in Discord with an explicit estimated-time footer. Schema-v2 count-only state is upgraded conservatively on a changed title, then all later checks for that title are timestamp-independent. `EventLedger` prevents already handled deterministic identities from posting twice. The cursor/title snapshot is not advanced past a pending provider or Discord delivery.
+
+Zero-achievement titles begin with a complete empty identity baseline. After each otherwise-successful poll, at most one unchanged recent title that still has a legacy count-only baseline is hydrated without posting. This bounded background work makes the most recently played titles timestamp-independent first without issuing a setup-time burst. Durable counts, Gamerscore, and IDs never shrink on a regressive provider response, and an unexplained provider identity-shape change is baselined instead of emitted as a historical flood.
+
+Identity differences do not impose a time window on offline recovery: after several days offline, every newly returned stable ID remains a candidate even when its provider timestamp is old or missing.
 
 Event IDs are SHA-256 hashes over a version marker, account XUID, service configuration, title, and achievement identifier. Upstream corrections to an unlock timestamp therefore cannot create a duplicate post. The ledger is capped at 1,000 entries and 90 days.
 
@@ -50,7 +54,7 @@ Event IDs are SHA-256 hashes over a version marker, account XUID, service config
 
 1. accepts a documented `achievements` collection or root array;
 2. keeps only entries explicitly marked achieved, including the Xbox 360 `unlocked` boolean;
-3. rejects revoked or timestamp-less entries;
+3. rejects revoked entries while retaining achieved entries with missing or sentinel legacy times;
 4. maps title, description, Gamerscore, rarity, and icon when available; and
 5. deduplicates by deterministic event identity.
 
@@ -61,7 +65,7 @@ The parser never interprets response data as code and does not log raw provider 
 | File | Contents |
 |---|---|
 | `settings.json` | Preferences, XUID, gamertag, and current-user DPAPI ciphertext for OpenXBL/Discord secrets |
-| `xbox-sync-state.json` | Account ID, first-run baseline, last successful poll, and per-title achievement/Gamerscore snapshots |
+| `xbox-sync-state.json` | Account ID, first-run baseline, last successful poll, and per-title count/Gamerscore/stable-ID snapshots |
 | `processed-events.json` | Bounded deterministic IDs and processed timestamps |
 | `achievement-relay.log` | Size-bounded operational messages; no intentional credentials or raw JSON |
 
@@ -85,3 +89,7 @@ If durable settings storage fails, the encrypted handoff is retained for the nex
 ## Upgrade behavior
 
 Settings schema 1 is migrated to schema 2 while retaining the existing encrypted Discord webhook and preferences. `SetupCompleted` is reset so a 0.1.x user must explicitly connect OpenXBL. Legacy notification capture classes and manifest permissions are removed.
+
+Xbox sync-state schema 2 is migrated to schema 3 without discarding the saved count/Gamerscore/cursor. The first changed-title response establishes its full identity set, using timestamp, count, and Gamerscore deltas to identify a unique untimestamped increase when possible and otherwise preferring a conservative one-time baseline over an old-achievement flood.
+
+The full provider research, failure matrix, and Windows release gates are maintained in [OpenXBL reliability research](OPENXBL-RELIABILITY.md).

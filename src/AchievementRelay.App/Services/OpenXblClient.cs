@@ -57,13 +57,19 @@ public sealed class OpenXblClient : IDisposable
         "v2/achievements/title/{titleId}"
     ];
     private const int MaximumResponseCharacters = 20 * 1024 * 1024;
+    private const int MaximumContinuationPages = 20;
 
     private string? _preferredAccountRoute;
     private string? _preferredTitleProgressRouteTemplate;
     private readonly Dictionary<string, string> _preferredTitleAchievementRouteTemplates =
         new(StringComparer.Ordinal);
 
-    private readonly HttpClient _httpClient = new()
+    private readonly HttpClient _httpClient = new(new HttpClientHandler
+    {
+        // X-Authorization is a custom credential header. Never allow a
+        // provider redirect to forward it to another origin.
+        AllowAutoRedirect = false
+    })
     {
         BaseAddress = BaseAddress,
         Timeout = TimeSpan.FromSeconds(20),
@@ -220,6 +226,7 @@ public sealed class OpenXblClient : IDisposable
         ApiResponse? lastResponse = null;
         var receivedUnreadableResponse = false;
         IReadOnlyList<AchievementEvent>? bestAchievements = null;
+        var bestCountDistance = int.MaxValue;
         foreach (var routeTemplate in PreferTitleAchievementRoute(titleId))
         {
             var route = routeTemplate
@@ -244,18 +251,69 @@ public sealed class OpenXblClient : IDisposable
 
             try
             {
-                var achievements = OpenXblResponseParser.ParseAchievements(response.Content, accountId, titleId);
-                if (bestAchievements is null || achievements.Count > bestAchievements.Count)
+                var achievementsById = OpenXblResponseParser
+                    .ParseAchievements(response.Content, accountId, titleId)
+                    .ToDictionary(achievement => achievement.Id, StringComparer.Ordinal);
+                var continuationToken = OpenXblResponseParser.ParseContinuationToken(response.Content);
+                var seenContinuationTokens = new HashSet<string>(StringComparer.Ordinal);
+                var continuationPages = 0;
+                var routePrefix = routeTemplate.StartsWith("v2/", StringComparison.Ordinal)
+                    ? "v2/"
+                    : "api/v2/";
+
+                while (achievementsById.Count < Math.Max(0, expectedUnlockedCount) &&
+                       !string.IsNullOrWhiteSpace(continuationToken) &&
+                       seenContinuationTokens.Add(continuationToken) &&
+                       continuationPages++ < MaximumContinuationPages)
                 {
-                    bestAchievements = achievements;
+                    var continuationRoute = $"{routePrefix}achievements/title/{escapedTitleId}/{Uri.EscapeDataString(continuationToken)}";
+                    var continuationResponse = await SendAsync(continuationRoute, normalized, cancellationToken);
+                    lastResponse = continuationResponse;
+                    if (!continuationResponse.Success || continuationResponse.Content is null)
+                    {
+                        if (continuationResponse.StatusCode != (int)HttpStatusCode.NotFound &&
+                            continuationResponse.StatusCode != (int)HttpStatusCode.BadRequest)
+                        {
+                            return new OpenXblAchievementsResult(
+                                false,
+                                continuationResponse.Message,
+                                StatusCode: continuationResponse.StatusCode,
+                                RetryAfter: continuationResponse.RetryAfter);
+                        }
+
+                        break;
+                    }
+
+                    foreach (var achievement in OpenXblResponseParser.ParseAchievements(
+                                 continuationResponse.Content,
+                                 accountId,
+                                 titleId))
+                    {
+                        achievementsById.TryAdd(achievement.Id, achievement);
+                    }
+
+                    continuationToken = OpenXblResponseParser.ParseContinuationToken(continuationResponse.Content);
                 }
 
-                if (achievements.Count >= Math.Max(0, expectedUnlockedCount))
+                var achievements = achievementsById.Values
+                    .OrderBy(achievement => achievement.UnlockedAt ?? DateTimeOffset.MaxValue)
+                    .ThenBy(achievement => achievement.Id, StringComparer.Ordinal)
+                    .ToArray();
+                var countDistance = Math.Abs(achievements.Length - Math.Max(0, expectedUnlockedCount));
+                if (bestAchievements is null ||
+                    countDistance < bestCountDistance ||
+                    (countDistance == bestCountDistance && achievements.Length > bestAchievements.Count))
+                {
+                    bestAchievements = achievements;
+                    bestCountDistance = countDistance;
+                }
+
+                if (achievements.Length == Math.Max(0, expectedUnlockedCount))
                 {
                     _preferredTitleAchievementRouteTemplates[titleId] = routeTemplate;
                     return new OpenXblAchievementsResult(
                         true,
-                        $"OpenXBL returned {achievements.Count} unlocked achievement{(achievements.Count == 1 ? string.Empty : "s")} for the changed title.",
+                        $"OpenXBL returned {achievements.Length} unlocked achievement{(achievements.Length == 1 ? string.Empty : "s")} for the changed title.",
                         achievements,
                         response.StatusCode);
                 }
@@ -274,7 +332,7 @@ public sealed class OpenXblClient : IDisposable
         {
             return new OpenXblAchievementsResult(
                 true,
-                $"OpenXBL returned {bestAchievements.Count} unlocked achievement{(bestAchievements.Count == 1 ? string.Empty : "s")}, fewer than the changed title reports.",
+                $"OpenXBL returned {bestAchievements.Count} unlocked achievement{(bestAchievements.Count == 1 ? string.Empty : "s")}, but the title index reports {Math.Max(0, expectedUnlockedCount)}.",
                 bestAchievements,
                 lastResponse?.StatusCode,
                 EndpointProbeRetryAfter);
@@ -344,11 +402,17 @@ public sealed class OpenXblClient : IDisposable
             var statusCode = (int)response.StatusCode;
             if (!response.IsSuccessStatusCode)
             {
+                var retryAfter = GetRetryAfter(response.Headers.RetryAfter);
+                if (response.StatusCode == HttpStatusCode.TooManyRequests && retryAfter is null)
+                {
+                    retryAfter = EndpointProbeRetryAfter;
+                }
+
                 return new ApiResponse(
                     false,
                     MapError(response.StatusCode),
                     StatusCode: statusCode,
-                    RetryAfter: response.Headers.RetryAfter?.Delta);
+                    RetryAfter: retryAfter);
             }
 
             var content = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -379,6 +443,22 @@ public sealed class OpenXblClient : IDisposable
             "The OpenXBL achievement service was not found. Check OpenXBL's service status.",
         _ => $"OpenXBL rejected the request ({(int)statusCode} {statusCode})."
     };
+
+    private static TimeSpan? GetRetryAfter(RetryConditionHeaderValue? retryAfter)
+    {
+        if (retryAfter?.Delta is { } delta)
+        {
+            return delta > TimeSpan.Zero ? delta : TimeSpan.FromSeconds(1);
+        }
+
+        if (retryAfter?.Date is { } date)
+        {
+            var delay = date - DateTimeOffset.UtcNow;
+            return delay > TimeSpan.Zero ? delay : TimeSpan.FromSeconds(1);
+        }
+
+        return null;
+    }
 
     private sealed record ApiResponse(
         bool Success,

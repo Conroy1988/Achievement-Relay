@@ -19,7 +19,6 @@ public sealed class RelayCoordinator(
     DiscordWebhookClient webhookClient,
     ActivityLog activityLog) : IDisposable
 {
-    private static readonly TimeSpan DeliveryRetryOverlap = TimeSpan.FromHours(24);
     private static readonly TimeSpan FutureClockTolerance = TimeSpan.FromMinutes(5);
 
     private readonly SemaphoreSlim _syncGate = new(1, 1);
@@ -246,17 +245,17 @@ public sealed class RelayCoordinator(
 
             var now = DateTimeOffset.UtcNow;
             var state = await syncStateStore.LoadAsync(cancellationToken);
-            var currentSnapshots = XboxSyncStateStore.CreateTitleSnapshots(progressFetch.Titles);
             if (!string.Equals(state.AccountXuid, accountXuid, StringComparison.Ordinal) ||
                 state.BaselineUtc is null ||
                 state.LastSuccessfulPollUtc is null)
             {
+                var baselineSnapshots = XboxSyncStateStore.CreateTitleSnapshots(progressFetch.Titles);
                 await syncStateStore.SaveAsync(new XboxSyncState
                 {
                     AccountXuid = accountXuid,
                     BaselineUtc = now,
                     LastSuccessfulPollUtc = now,
-                    Titles = currentSnapshots
+                    Titles = baselineSnapshots
                 }, cancellationToken);
                 const string baselineMessage = "Xbox baseline established. Achievements earned before setup will not be reposted.";
                 SetSuccess(now);
@@ -268,15 +267,24 @@ public sealed class RelayCoordinator(
                 return new XboxSyncOutcome(true, baselineMessage, BaselineEstablished: true);
             }
 
-            var overlapStart = state.LastSuccessfulPollUtc.Value - DeliveryRetryOverlap;
-            var cutoff = overlapStart > state.BaselineUtc.Value ? overlapStart : state.BaselineUtc.Value;
+            // Keep snapshots for titles omitted from a provider page. A partial
+            // title-history response must never make an old game look new when
+            // it later reappears.
+            var currentSnapshots = XboxSyncStateStore.CreateTitleSnapshots(
+                progressFetch.Titles,
+                state.Titles,
+                retainMissingTitles: true);
             var changedTitles = progressFetch.Titles
                 .Where(title => HasProgressChanged(title, state.Titles))
                 .OrderByDescending(title => title.LastPlayedAt)
                 .ThenBy(title => title.Name ?? string.Empty, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
+            var changedTitleIds = changedTitles
+                .Select(title => title.TitleId)
+                .ToHashSet(StringComparer.Ordinal);
 
             var posted = 0;
+            var safelyBaselined = 0;
             foreach (var title in changedTitles)
             {
                 var detailFetch = await openXblClient.GetTitleAchievementsAsync(
@@ -290,11 +298,19 @@ public sealed class RelayCoordinator(
                     return SetError(detailFetch.Message, manual, detailFetch.RetryAfter);
                 }
 
-                var previousCount = state.Titles.TryGetValue(title.TitleId, out var previous)
-                    ? previous.CurrentAchievements
-                    : 0;
-                if (title.CurrentAchievements > previousCount &&
-                    detailFetch.Achievements.Count < title.CurrentAchievements)
+                var hadPreviousSnapshot = state.Titles.TryGetValue(title.TitleId, out var previous);
+                var previousCount = hadPreviousSnapshot ? previous!.CurrentAchievements : 0;
+                var delta = AchievementDeltaDetector.Detect(
+                    previousCount,
+                    hadPreviousSnapshot ? previous!.UnlockedAchievementIds : null,
+                    hadPreviousSnapshot ? previous!.CurrentGamerscore : 0,
+                    title.CurrentAchievements,
+                    title.CurrentGamerscore,
+                    detailFetch.Achievements,
+                    state.LastSuccessfulPollUtc.Value,
+                    now,
+                    FutureClockTolerance);
+                if (!delta.IsComplete)
                 {
                     return SetError(
                         $"OpenXBL reported new progress for {title.Name ?? "an Xbox title"}, but its achievement details have not caught up yet. Achievement Relay will retry without advancing the sync position.",
@@ -302,25 +318,23 @@ public sealed class RelayCoordinator(
                         detailFetch.RetryAfter);
                 }
 
-                var candidates = detailFetch.Achievements
-                    .Where(achievement =>
-                        achievement.UnlockedAt > cutoff &&
-                        achievement.UnlockedAt <= now + FutureClockTolerance)
-                    .Select(achievement => string.IsNullOrWhiteSpace(achievement.GameName)
-                        ? achievement with { GameName = title.Name }
-                        : achievement)
-                    .OrderBy(achievement => achievement.UnlockedAt)
-                    .ToArray();
-
-                if (title.CurrentAchievements > previousCount && candidates.Length == 0)
+                if (delta.UnidentifiedIncrease > 0)
                 {
-                    return SetError(
-                        $"OpenXBL reported a new unlock for {title.Name ?? "an Xbox title"}, but no new timestamped achievement is available yet. Achievement Relay will retry without advancing the sync position.",
-                        manual,
-                        detailFetch.RetryAfter);
+                    safelyBaselined += delta.UnidentifiedIncrease;
+                    activityLog.Warning(
+                        $"OpenXBL's detail identities could not safely isolate {delta.UnidentifiedIncrease} reported change{(delta.UnidentifiedIncrease == 1 ? "" : "s")} for {title.Name ?? "an Xbox title"} without risking an old post. The current identities were safely baselined; future unlocks for this title are timestamp-independent.");
                 }
 
-                foreach (var achievement in candidates)
+                currentSnapshots[title.TitleId] = new XboxTitleSnapshot
+                {
+                    CurrentAchievements = Math.Max(title.CurrentAchievements, previousCount),
+                    CurrentGamerscore = Math.Max(
+                        title.CurrentGamerscore,
+                        hadPreviousSnapshot ? previous!.CurrentGamerscore : 0),
+                    UnlockedAchievementIds = delta.CurrentAchievementIds.ToArray()
+                };
+
+                foreach (var achievement in delta.NewAchievements.Select(item => PrepareForDelivery(item, title.Name, now)))
                 {
                     var handling = await ProcessAsync(achievement, settings, cancellationToken);
                     if (handling == AchievementHandlingResult.RetryRequired)
@@ -337,6 +351,50 @@ public sealed class RelayCoordinator(
                 }
             }
 
+            // Count-only baselines from older builds cannot identify a future
+            // untimestamped Xbox 360 unlock with certainty. Hydrate one recent
+            // unchanged title per successful poll, without posting anything,
+            // so installs converge to exact identity tracking at a bounded
+            // rate and the actively played title is normally ready first.
+            var hydrationTitle = progressFetch.Titles
+                .Where(title => !changedTitleIds.Contains(title.TitleId) &&
+                                currentSnapshots.TryGetValue(title.TitleId, out var snapshot) &&
+                                !snapshot.HasAchievementIdentityBaseline)
+                .OrderByDescending(title => title.LastPlayedAt)
+                .ThenBy(title => title.Name ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault();
+            TimeSpan? hydrationRetryAfter = null;
+            if (!manual && hydrationTitle is not null)
+            {
+                var hydrationFetch = await openXblClient.GetTitleAchievementsAsync(
+                    normalizedApiKey,
+                    accountXuid,
+                    hydrationTitle.TitleId,
+                    hydrationTitle.CurrentAchievements,
+                    cancellationToken);
+                hydrationRetryAfter = hydrationFetch.RetryAfter;
+                if (hydrationFetch.Success && hydrationFetch.Achievements is not null)
+                {
+                    var hydrationDelta = AchievementDeltaDetector.Detect(
+                        hydrationTitle.CurrentAchievements,
+                        null,
+                        hydrationTitle.CurrentGamerscore,
+                        hydrationTitle.CurrentAchievements,
+                        hydrationTitle.CurrentGamerscore,
+                        hydrationFetch.Achievements,
+                        state.LastSuccessfulPollUtc.Value,
+                        now,
+                        FutureClockTolerance);
+                    if (hydrationDelta.IsComplete)
+                    {
+                        currentSnapshots[hydrationTitle.TitleId] = currentSnapshots[hydrationTitle.TitleId] with
+                        {
+                            UnlockedAchievementIds = hydrationDelta.CurrentAchievementIds.ToArray()
+                        };
+                    }
+                }
+            }
+
             await syncStateStore.SaveAsync(state with
             {
                 LastSuccessfulPollUtc = now,
@@ -344,15 +402,17 @@ public sealed class RelayCoordinator(
             }, cancellationToken);
             SetSuccess(now);
 
-            var message = posted == 0
-                ? "Xbox account is up to date. No new achievements were found."
-                : $"Posted {posted} new Xbox achievement{(posted == 1 ? string.Empty : "s")} to Discord.";
+            var message = posted > 0
+                ? $"Posted {posted} new Xbox achievement{(posted == 1 ? string.Empty : "s")} to Discord."
+                : safelyBaselined > 0
+                    ? "Xbox identity tracking was upgraded safely. Future unlocks no longer require an OpenXBL timestamp."
+                    : "Xbox account is up to date. No new achievements were found.";
             if (manual)
             {
                 activityLog.Success(message);
             }
 
-            return new XboxSyncOutcome(true, message, posted);
+            return new XboxSyncOutcome(true, message, posted, RetryAfter: hydrationRetryAfter);
         }
         finally
         {
@@ -471,8 +531,25 @@ public sealed class RelayCoordinator(
             return title.CurrentAchievements > 0 || title.CurrentGamerscore > 0;
         }
 
-        return title.CurrentAchievements != previous.CurrentAchievements ||
-               title.CurrentGamerscore != previous.CurrentGamerscore;
+        return title.CurrentAchievements > previous.CurrentAchievements ||
+               title.CurrentGamerscore > previous.CurrentGamerscore;
+    }
+
+    private static AchievementEvent PrepareForDelivery(
+        AchievementEvent achievement,
+        string? fallbackGameName,
+        DateTimeOffset observedAt)
+    {
+        var reportedTimeIsUsable = achievement.UnlockedAt is { } unlockedAt &&
+                                   unlockedAt <= observedAt + FutureClockTolerance;
+        return achievement with
+        {
+            GameName = string.IsNullOrWhiteSpace(achievement.GameName)
+                ? fallbackGameName
+                : achievement.GameName,
+            UnlockedAt = reportedTimeIsUsable ? achievement.UnlockedAt : observedAt,
+            UnlockTimeEstimated = achievement.UnlockTimeEstimated || !reportedTimeIsUsable
+        };
     }
 
     private enum AchievementHandlingResult

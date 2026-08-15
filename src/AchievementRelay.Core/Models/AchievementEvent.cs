@@ -18,6 +18,18 @@ public sealed record AchievementEvent
 
     public required string SourceProvider { get; init; }
 
-    public required DateTimeOffset UnlockedAt { get; init; }
+    /// <summary>
+    /// The unlock time reported by Xbox/OpenXBL. Legacy Xbox 360 responses can
+    /// legitimately omit this value or return the .NET sentinel date, so event
+    /// identity and delivery must never depend on this property being present.
+    /// </summary>
+    public DateTimeOffset? UnlockedAt { get; init; }
+
+    /// <summary>
+    /// True when Achievement Relay had to use its observation time for the
+    /// Discord timestamp because the provider did not supply a usable unlock
+    /// time.
+    /// </summary>
+    public bool UnlockTimeEstimated { get; init; }
 
 }

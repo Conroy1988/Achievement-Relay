@@ -61,7 +61,7 @@ Important limits:
 - Xbox may delay achievements earned offline before syncing them to the profile.
 - The account feed can include console or cloud-gaming unlocks on the same Xbox account; version 0.2 does not reliably filter by device platform.
 - Delivery is account polling, not instant push. The normal delay is approximately 0–60 seconds plus any Xbox/OpenXBL delay.
-- OpenXBL currently advertises a free allowance sufficient for the default one-minute polling interval, but its plans and limits can change. Check [OpenXBL pricing](https://xbl.io/pricing).
+- OpenXBL plans and request allowances can change. Verify the current [OpenXBL pricing/allowance](https://xbl.io/pricing); the app honors provider rate-limit responses rather than assuming a fixed quota.
 
 ## Privacy and security
 
@@ -92,6 +92,7 @@ Create x64 and Arm64 packages plus the setup executable:
 ```
 
 Maintainer instructions are in [Release Process](docs/RELEASING.md).
+The provider payload matrix, detection invariants, retry policy, and live Windows gates are in [OpenXBL reliability research](docs/OPENXBL-RELIABILITY.md).
 
 ## Roadmap
 

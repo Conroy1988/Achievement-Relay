@@ -13,14 +13,26 @@ var tests = new (string Name, Action Run)[]
     ("OpenXBL title progress index is parsed", ParsesTitleProgress),
     ("OpenXBL title progress envelopes are supported", ParsesWrappedTitleProgress),
     ("OpenXBL title-history envelopes and userTitles are supported", ParsesTitleHistoryEnvelope),
+    ("Modern recent-progress title fields are supported", ParsesModernRecentTitleProgress),
     ("OpenXBL string-wrapped title history is supported", ParsesStringWrappedTitleHistory),
     ("Only unlocked, non-revoked achievements are parsed", ParsesUnlockedAchievements),
     ("Achievement identities are stable and account-specific", AchievementIdentityIsStable),
     ("OpenXBL root arrays and alternate fields are supported", ParsesAlternateAchievementShape),
     ("OpenXBL string-wrapped achievements are supported", ParsesStringWrappedAchievements),
+    ("OpenXBL achievement continuation tokens are discovered", ParsesAchievementContinuationToken),
     ("OpenXBL Xbox 360 achievements are supported", ParsesXbox360Achievements),
+    ("Xbox 360 sentinel and missing unlock times remain parseable", ParsesUntimestampedXbox360Achievements),
+    ("Durable identities detect untimestamped achievements", DetectsUntimestampedAchievementByIdentity),
+    ("Unchanged count-only state hydrates identities without posting", HydratesIdentityBaselineWithoutPosting),
+    ("Provider identity churn cannot flood historical achievements", SafelyBaselinesProviderIdentityChurn),
+    ("Count-only state safely attributes one untimestamped migration unlock", AttributesUniqueUntimestampedMigrationUnlock),
+    ("Gamerscore uniquely attributes an untimestamped migration unlock", AttributesUntimestampedMigrationUnlockByGamerscore),
+    ("Ambiguous count-only migration baselines without flooding Discord", SafelyBaselinesAmbiguousMigrationUnlock),
+    ("Incomplete achievement detail is retried without advancing state", RejectsIncompleteAchievementDetail),
+    ("Ahead-of-summary achievement detail is retried without advancing state", RejectsOvercompleteAchievementDetail),
     ("Webhook URL validation is strict", ValidatesWebhookUrls),
     ("Discord payload suppresses mentions", PayloadSuppressesMentions),
+    ("Discord identifies estimated provider timestamps", PayloadLabelsEstimatedTimestamp),
     ("Description sharing setting is respected", DescriptionSettingIsRespected),
     ("Connection test suppresses mentions", ConnectionTestSuppressesMentions)
 };
@@ -257,6 +269,30 @@ static void ParsesStringWrappedTitleHistory()
     Assert(titles[0].CurrentGamerscore == 40, "String-wrapped Gamerscore was not parsed.");
 }
 
+static void ParsesModernRecentTitleProgress()
+{
+    const string json = """
+        {
+          "titles": [
+            {
+              "titleId": 12345,
+              "name": "Modern Recent Game",
+              "earnedAchievements": 12,
+              "currentGamerscore": 240,
+              "lastUnlock": "2026-08-15T18:30:00Z",
+              "platforms": ["XboxOne", "Scarlett"]
+            }
+          ]
+        }
+        """;
+
+    var title = OpenXblResponseParser.ParseTitleProgress(json).Single();
+    Assert(title.CurrentAchievements == 12, "Modern earnedAchievements was not parsed.");
+    Assert(title.CurrentGamerscore == 240, "Modern currentGamerscore was not parsed.");
+    Assert(title.Devices.SequenceEqual(new[] { "XboxOne", "Scarlett" }), "Modern platforms were not parsed.");
+    Assert(title.LastPlayedAt == new DateTimeOffset(2026, 8, 15, 18, 30, 0, TimeSpan.Zero), "Modern lastUnlock was not parsed.");
+}
+
 static void ParsesUnlockedAchievements()
 {
     var achievements = OpenXblResponseParser.ParseAchievements(StandardAchievementResponse(), "2533274999999999");
@@ -272,7 +308,7 @@ static void ParsesUnlockedAchievements()
     Assert(achievement.SourceProvider == "OpenXBL", "Provider metadata was not set.");
     Assert(
         achievement.UnlockedAt == new DateTimeOffset(2026, 8, 14, 12, 0, 0, TimeSpan.Zero),
-        $"Unexpected unlock time: {achievement.UnlockedAt:O}");
+        $"Unexpected unlock time: {achievement.UnlockedAt}");
     Assert(achievement.Id.Length == 64, "Achievement identity is not a SHA-256 hex value.");
 }
 
@@ -369,7 +405,231 @@ static void ParsesXbox360Achievements()
     Assert(achievements[0].Gamerscore == 15, "Xbox 360 Gamerscore was not parsed.");
     Assert(
         achievements[0].UnlockedAt == new DateTimeOffset(2026, 8, 15, 19, 45, 0, TimeSpan.Zero),
-        $"Unexpected Xbox 360 unlock time: {achievements[0].UnlockedAt:O}");
+        $"Unexpected Xbox 360 unlock time: {achievements[0].UnlockedAt}");
+}
+
+static void ParsesAchievementContinuationToken()
+{
+    const string json = """
+        {
+          "data": {
+            "pagingInfo": {
+              "continuationToken": "next/page+token="
+            }
+          }
+        }
+        """;
+
+    Assert(
+        OpenXblResponseParser.ParseContinuationToken(json) == "next/page+token=",
+        "The nested continuation token was not found.");
+    Assert(
+        OpenXblResponseParser.ParseContinuationToken("\"{\\\"pagingInfo\\\":{\\\"continuationToken\\\":\\\"wrapped-token\\\"}}\"") == "wrapped-token",
+        "The string-wrapped continuation token was not found.");
+}
+
+static void ParsesUntimestampedXbox360Achievements()
+{
+    const string json = """
+        {
+          "achievements": [
+            {
+              "id": 40,
+              "titleId": 41560855,
+              "name": "Offline Legacy Unlock",
+              "unlocked": true,
+              "isRevoked": false,
+              "timeUnlocked": "0001-01-01T00:00:00Z"
+            },
+            {
+              "id": 41,
+              "titleId": 41560855,
+              "name": "Missing-Time Legacy Unlock",
+              "unlocked": true,
+              "isRevoked": false
+            }
+          ]
+        }
+        """;
+
+    var achievements = OpenXblResponseParser.ParseAchievements(json, "account-a");
+    Assert(achievements.Count == 2, $"Expected both untimestamped achievements, found {achievements.Count}.");
+    Assert(achievements.All(item => item.UnlockedAt is null), "A sentinel or missing time was treated as a real date.");
+    Assert(achievements.All(item => item.UnlockTimeEstimated), "Untimestamped achievements were not marked for an estimated display time.");
+}
+
+static void DetectsUntimestampedAchievementByIdentity()
+{
+    var observedAt = new DateTimeOffset(2026, 8, 15, 20, 0, 0, TimeSpan.Zero);
+    var previous = AchievementWithIdentity("old", observedAt.AddDays(-1));
+    var added = AchievementWithIdentity("new", null);
+
+    var result = AchievementDeltaDetector.Detect(
+        previousReportedCount: 1,
+        previousAchievementIds: new[] { previous.Id },
+        previousReportedGamerscore: 10,
+        currentReportedCount: 2,
+        currentReportedGamerscore: 20,
+        currentAchievements: new[] { previous, added },
+        previousSuccessfulPollUtc: observedAt.AddMinutes(-1),
+        observedAt: observedAt,
+        futureClockTolerance: TimeSpan.FromMinutes(5));
+
+    Assert(result.IsComplete, "A complete identity response was rejected.");
+    Assert(result.NewAchievements.Select(item => item.Id).SequenceEqual(new[] { "new" }), "The new stable identity was not detected.");
+    Assert(result.UnidentifiedIncrease == 0, "A stable identity delta was marked ambiguous.");
+}
+
+static void HydratesIdentityBaselineWithoutPosting()
+{
+    var observedAt = new DateTimeOffset(2026, 8, 15, 20, 0, 0, TimeSpan.Zero);
+    var result = AchievementDeltaDetector.Detect(
+        previousReportedCount: 2,
+        previousAchievementIds: null,
+        previousReportedGamerscore: 20,
+        currentReportedCount: 2,
+        currentReportedGamerscore: 20,
+        currentAchievements: new[]
+        {
+            AchievementWithIdentity("historic-one", null),
+            AchievementWithIdentity("historic-two", null)
+        },
+        previousSuccessfulPollUtc: observedAt.AddMinutes(-1),
+        observedAt: observedAt,
+        futureClockTolerance: TimeSpan.FromMinutes(5));
+
+    Assert(result.IsComplete, "A complete unchanged title could not establish its identity baseline.");
+    Assert(result.NewAchievements.Count == 0, "Identity hydration would post historical achievements.");
+    Assert(result.CurrentAchievementIds.Count == 2, "Identity hydration did not retain the complete set.");
+}
+
+static void SafelyBaselinesProviderIdentityChurn()
+{
+    var observedAt = new DateTimeOffset(2026, 8, 15, 20, 0, 0, TimeSpan.Zero);
+    var result = AchievementDeltaDetector.Detect(
+        previousReportedCount: 2,
+        previousAchievementIds: new[] { "old-route-one", "old-route-two" },
+        previousReportedGamerscore: 20,
+        currentReportedCount: 2,
+        currentReportedGamerscore: 20,
+        currentAchievements: new[]
+        {
+            AchievementWithIdentity("new-route-one", null),
+            AchievementWithIdentity("new-route-two", null)
+        },
+        previousSuccessfulPollUtc: observedAt.AddMinutes(-1),
+        observedAt: observedAt,
+        futureClockTolerance: TimeSpan.FromMinutes(5));
+
+    Assert(result.IsComplete, "Provider identity churn was left in a permanent retry loop.");
+    Assert(result.NewAchievements.Count == 0, "Provider identity churn would flood historical achievements.");
+    Assert(result.CurrentAchievementIds.Count == 4, "Both provider identity forms were not retained for deduplication.");
+}
+
+static void AttributesUniqueUntimestampedMigrationUnlock()
+{
+    var observedAt = new DateTimeOffset(2026, 8, 15, 20, 0, 0, TimeSpan.Zero);
+    var previous = AchievementWithIdentity("old", observedAt.AddDays(-10));
+    var added = AchievementWithIdentity("new", null);
+
+    var result = AchievementDeltaDetector.Detect(
+        previousReportedCount: 1,
+        previousAchievementIds: null,
+        previousReportedGamerscore: 10,
+        currentReportedCount: 2,
+        currentReportedGamerscore: 20,
+        currentAchievements: new[] { previous, added },
+        previousSuccessfulPollUtc: observedAt.AddMinutes(-1),
+        observedAt: observedAt,
+        futureClockTolerance: TimeSpan.FromMinutes(5));
+
+    Assert(result.NewAchievements.Select(item => item.Id).SequenceEqual(new[] { "new" }), "The sole untimestamped count increase was not attributed.");
+    Assert(result.CurrentAchievementIds.Count == 2, "The complete migration identity baseline was not returned.");
+    Assert(result.UnidentifiedIncrease == 0, "A uniquely attributable migration unlock was marked ambiguous.");
+}
+
+static void SafelyBaselinesAmbiguousMigrationUnlock()
+{
+    var observedAt = new DateTimeOffset(2026, 8, 15, 20, 0, 0, TimeSpan.Zero);
+    var result = AchievementDeltaDetector.Detect(
+        previousReportedCount: 1,
+        previousAchievementIds: null,
+        previousReportedGamerscore: 10,
+        currentReportedCount: 2,
+        currentReportedGamerscore: 20,
+        currentAchievements: new[]
+        {
+            AchievementWithIdentity("historic-untimed", null),
+            AchievementWithIdentity("possibly-new", null)
+        },
+        previousSuccessfulPollUtc: observedAt.AddMinutes(-1),
+        observedAt: observedAt,
+        futureClockTolerance: TimeSpan.FromMinutes(5));
+
+    Assert(result.IsComplete, "An ambiguity that can be safely baselined was left in a retry loop.");
+    Assert(result.NewAchievements.Count == 0, "Ambiguous historical achievements would have flooded Discord.");
+    Assert(result.UnidentifiedIncrease == 1, "The ambiguous count increase was not reported.");
+    Assert(result.CurrentAchievementIds.Count == 2, "The ambiguity did not produce a durable identity baseline.");
+}
+
+static void AttributesUntimestampedMigrationUnlockByGamerscore()
+{
+    var observedAt = new DateTimeOffset(2026, 8, 15, 20, 0, 0, TimeSpan.Zero);
+    var fivePoint = AchievementWithIdentity("historic-five", null) with { Gamerscore = 5 };
+    var tenPoint = AchievementWithIdentity("new-ten", null) with { Gamerscore = 10 };
+    var twentyPoint = AchievementWithIdentity("historic-twenty", null) with { Gamerscore = 20 };
+
+    var result = AchievementDeltaDetector.Detect(
+        previousReportedCount: 2,
+        previousAchievementIds: null,
+        previousReportedGamerscore: 25,
+        currentReportedCount: 3,
+        currentReportedGamerscore: 35,
+        currentAchievements: new[] { fivePoint, tenPoint, twentyPoint },
+        previousSuccessfulPollUtc: observedAt.AddMinutes(-1),
+        observedAt: observedAt,
+        futureClockTolerance: TimeSpan.FromMinutes(5));
+
+    Assert(result.NewAchievements.Select(item => item.Id).SequenceEqual(new[] { "new-ten" }), "Gamerscore did not isolate the only possible untimestamped unlock.");
+    Assert(result.UnidentifiedIncrease == 0, "A unique Gamerscore match was marked ambiguous.");
+}
+
+static void RejectsIncompleteAchievementDetail()
+{
+    var observedAt = new DateTimeOffset(2026, 8, 15, 20, 0, 0, TimeSpan.Zero);
+    var result = AchievementDeltaDetector.Detect(
+        previousReportedCount: 1,
+        previousAchievementIds: new[] { "old" },
+        previousReportedGamerscore: 10,
+        currentReportedCount: 2,
+        currentReportedGamerscore: 20,
+        currentAchievements: new[] { AchievementWithIdentity("old", observedAt.AddDays(-1)) },
+        previousSuccessfulPollUtc: observedAt.AddMinutes(-1),
+        observedAt: observedAt,
+        futureClockTolerance: TimeSpan.FromMinutes(5));
+
+    Assert(!result.IsComplete, "A detail response below the provider's reported count was accepted.");
+}
+
+static void RejectsOvercompleteAchievementDetail()
+{
+    var observedAt = new DateTimeOffset(2026, 8, 15, 20, 0, 0, TimeSpan.Zero);
+    var result = AchievementDeltaDetector.Detect(
+        previousReportedCount: 1,
+        previousAchievementIds: new[] { "old" },
+        previousReportedGamerscore: 10,
+        currentReportedCount: 1,
+        currentReportedGamerscore: 10,
+        currentAchievements: new[]
+        {
+            AchievementWithIdentity("old", observedAt.AddDays(-1)),
+            AchievementWithIdentity("detail-ahead", null)
+        },
+        previousSuccessfulPollUtc: observedAt.AddMinutes(-1),
+        observedAt: observedAt,
+        futureClockTolerance: TimeSpan.FromMinutes(5));
+
+    Assert(!result.IsComplete, "A detail response ahead of the provider's reported count was accepted.");
 }
 
 static void ValidatesWebhookUrls()
@@ -378,9 +638,14 @@ static void ValidatesWebhookUrls()
     const string testToken = "not-a-real-webhook-token-0123456789";
     var valid = $"https://discord.com/api/webhooks/{testWebhookId}/{testToken}";
     var versioned = $"https://discord.com/api/v10/webhooks/{testWebhookId}/{testToken}";
+    var legacyHost = $"https://discordapp.com/api/webhooks/{testWebhookId}/{testToken}";
 
     Assert(WebhookUrlValidator.TryNormalize(valid, out _, out _), "Standard Discord webhook was rejected.");
     Assert(WebhookUrlValidator.TryNormalize(versioned, out _, out _), "Versioned Discord webhook was rejected.");
+    Assert(
+        WebhookUrlValidator.TryNormalize(legacyHost, out var canonicalLegacy, out _) &&
+        canonicalLegacy?.Host == "discord.com",
+        "Legacy Discord webhook hosts were not normalized before redirect-safe delivery.");
     Assert(!WebhookUrlValidator.TryNormalize("http://discord.com/api/webhooks/1/not-safe", out _, out _), "HTTP webhook was accepted.");
     Assert(!WebhookUrlValidator.TryNormalize($"https://example.com/api/webhooks/{testWebhookId}/{testToken}", out _, out _), "Foreign host was accepted.");
 }
@@ -392,6 +657,18 @@ static void PayloadSuppressesMentions()
     using var document = JsonDocument.Parse(DiscordWebhookPayloadFactory.Create(achievement, new AppSettings()));
     var parse = document.RootElement.GetProperty("allowed_mentions").GetProperty("parse");
     Assert(parse.GetArrayLength() == 0, "Payload allowed Discord mention parsing.");
+}
+
+static void PayloadLabelsEstimatedTimestamp()
+{
+    var achievement = Achievement("Legacy Time", "Provider omitted its timestamp") with
+    {
+        UnlockTimeEstimated = true
+    };
+
+    using var document = JsonDocument.Parse(DiscordWebhookPayloadFactory.Create(achievement, new AppSettings()));
+    var footer = document.RootElement.GetProperty("embeds")[0].GetProperty("footer").GetProperty("text").GetString();
+    Assert(footer?.Contains("Xbox supplied no unlock time", StringComparison.Ordinal) == true, "Estimated time was not disclosed in the Discord embed.");
 }
 
 static void DescriptionSettingIsRespected()
@@ -419,6 +696,16 @@ static AchievementEvent Achievement(string name, string description) => new()
     Gamerscore = 20,
     SourceProvider = "OpenXBL",
     UnlockedAt = DateTimeOffset.UtcNow
+};
+
+static AchievementEvent AchievementWithIdentity(string id, DateTimeOffset? unlockedAt) => new()
+{
+    Id = id,
+    Name = id,
+    Gamerscore = 10,
+    SourceProvider = "OpenXBL",
+    UnlockedAt = unlockedAt,
+    UnlockTimeEstimated = unlockedAt is null
 };
 
 static void AssertThrows<TException>(Action action, string message)

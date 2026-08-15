@@ -169,6 +169,34 @@ if (-not $openXblClientText.Contains('"api/v2/player/titleHistory"') -or
     throw 'OpenXBL polling must negotiate complete modern and Xbox 360 detail responses, cache success per title, and back off failed probes.'
 }
 
+$deltaDetectorText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.Core\Services\AchievementDeltaDetector.cs') -Raw
+$syncStateText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\XboxSyncStateStore.cs') -Raw
+$relayCoordinatorText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\RelayCoordinator.cs') -Raw
+if (-not $openXblParserText.Contains('DateTimeOffset? unlockedAt = null') -or
+    -not $openXblParserText.Contains('UnlockTimeEstimated = unlockedAt is null') -or
+    -not $deltaDetectorText.Contains('previousAchievementIds') -or
+    -not $deltaDetectorText.Contains('previousReportedGamerscore') -or
+    -not $deltaDetectorText.Contains('FindUniqueGamerscoreCombination') -or
+    -not $deltaDetectorText.Contains('timestampedIds') -or
+    -not $syncStateText.Contains('CurrentSchemaVersion = 3') -or
+    -not $syncStateText.Contains('UnlockedAchievementIds') -or
+    -not $syncStateText.Contains('Math.Max(') -or
+    -not $relayCoordinatorText.Contains('retainMissingTitles: true') -or
+    -not $relayCoordinatorText.Contains('AchievementDeltaDetector.Detect') -or
+    -not $relayCoordinatorText.Contains('var hydrationTitle =') -or
+    $relayCoordinatorText.Contains('no new timestamped achievement is available yet')) {
+    throw 'Achievement polling must persist stable identities and support legacy unlocks without provider timestamps.'
+}
+
+$discordClientText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\DiscordWebhookClient.cs') -Raw
+if (-not $openXblParserText.Contains('ParseContinuationToken') -or
+    -not $openXblClientText.Contains('MaximumContinuationPages') -or
+    -not $openXblClientText.Contains('achievements/title/{escapedTitleId}') -or
+    -not $discordClientText.Contains('.Where(item => !item.StartsWith("wait="') -or
+    -not $discordClientText.Contains('.Append("wait=true")')) {
+    throw 'Provider paging and confirmed Discord webhook delivery contracts are incomplete.'
+}
+
 $appProjectText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\AchievementRelay.App.csproj') -Raw
 if (-not $appProjectText.Contains('THIRD-PARTY-NOTICES.md') -or
     -not $appProjectText.Contains('RelayCommandDeck.png')) {

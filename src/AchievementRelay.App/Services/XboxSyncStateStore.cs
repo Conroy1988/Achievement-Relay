@@ -7,7 +7,7 @@ namespace AchievementRelay.App.Services;
 
 public sealed record XboxSyncState
 {
-    public const int CurrentSchemaVersion = 4;
+    public const int CurrentSchemaVersion = 5;
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
 
@@ -17,7 +17,11 @@ public sealed record XboxSyncState
 
     public DateTimeOffset? LastSuccessfulPollUtc { get; init; }
 
+    public DateTimeOffset? LastBackgroundWorkUtc { get; init; }
+
     public Dictionary<string, XboxTitleSnapshot> Titles { get; init; } = new(StringComparer.Ordinal);
+
+    public Dictionary<string, XboxTitleSyncWork> PendingTitles { get; init; } = new(StringComparer.Ordinal);
 }
 
 public sealed record XboxTitleSnapshot
@@ -73,6 +77,14 @@ public sealed class XboxSyncStateStore(AppPaths paths)
                         .ToDictionary(
                             entry => entry.Key,
                             entry => NormalizeSnapshot(entry.Value, sourceSchemaVersion),
+                            StringComparer.Ordinal),
+                    StringComparer.Ordinal),
+                PendingTitles = new Dictionary<string, XboxTitleSyncWork>(
+                    (state.PendingTitles ?? new Dictionary<string, XboxTitleSyncWork>())
+                        .Where(entry => !string.IsNullOrWhiteSpace(entry.Key))
+                        .ToDictionary(
+                            entry => entry.Key,
+                            entry => NormalizePendingWork(entry.Key, entry.Value),
                             StringComparer.Ordinal),
                     StringComparer.Ordinal)
             };
@@ -210,7 +222,7 @@ public sealed class XboxSyncStateStore(AppPaths paths)
         // Schema 3 treated a summary count of zero as a verified empty ID
         // baseline without fetching details. Re-open those snapshots once so
         // a later provider correction cannot turn old history into new posts.
-        if (sourceSchemaVersion < XboxSyncState.CurrentSchemaVersion &&
+        if (sourceSchemaVersion < 4 &&
             snapshot.CurrentAchievements == 0 &&
             normalizedIds is { Length: 0 })
         {
@@ -220,6 +232,23 @@ public sealed class XboxSyncStateStore(AppPaths paths)
         return snapshot with
         {
             UnlockedAchievementIds = normalizedIds
+        };
+    }
+
+    private static XboxTitleSyncWork NormalizePendingWork(
+        string titleId,
+        XboxTitleSyncWork? work)
+    {
+        work ??= new XboxTitleSyncWork();
+        return work with
+        {
+            TitleId = titleId,
+            Name = string.IsNullOrWhiteSpace(work.Name) ? null : work.Name.Trim(),
+            CurrentAchievements = Math.Max(0, work.CurrentAchievements),
+            CurrentGamerscore = Math.Max(0, work.CurrentGamerscore),
+            LastPlayedAt = work.LastPlayedAt?.ToUniversalTime(),
+            FirstObservedUtc = work.FirstObservedUtc.ToUniversalTime(),
+            LastObservedUtc = work.LastObservedUtc.ToUniversalTime()
         };
     }
 }

@@ -33,7 +33,7 @@ Discord receives this data under the user's relationship with Discord. The app d
 Achievement Relay stores data under `%LOCALAPPDATA%\AchievementRelay`:
 
 - `settings.json`: preferences, setup state, XUID, gamertag, and current-user DPAPI ciphertext for the OpenXBL API key and Discord webhook;
-- `xbox-sync-state.json`: account identifier, baseline timestamp, and last successful poll timestamp;
+- `xbox-sync-state.json`: account identifier, baseline/poll/background timestamps, per-title achievement counts, Gamerscore and stable achievement IDs, plus queued title identifiers, names, counts and last-played/observation times needed to pace unfinished identity baselines across restarts;
 - `processed-events.json`: deterministic achievement identifiers and processed timestamps, capped at 1,000 entries and 90 days; and
 - `achievement-relay.log`: a size-bounded operational log with status/errors and achievement names involved in delivery.
 

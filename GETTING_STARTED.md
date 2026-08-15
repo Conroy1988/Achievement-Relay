@@ -79,7 +79,7 @@ If nothing arrives:
 
 ## Upgrading from 0.1.x
 
-Version 0.1.x depended on Windows Notification Center and cannot detect a Game Bar-only overlay. Version 0.2 preserves the encrypted Discord webhook and preferences, but deliberately reopens Guided setup so the user can add an OpenXBL key. The first account check creates a fresh baseline; it does not dump historical achievements into Discord.
+Version 0.1.x depended on Windows Notification Center and cannot detect a Game Bar-only overlay. Version 0.2 preserves the encrypted Discord webhook and preferences, but deliberately reopens Guided setup so the user can add an OpenXBL key. The first account check creates a lightweight baseline; it neither dumps historical achievements into Discord nor downloads every old title immediately. Exact historical identities are filled in silently under the 15-minute background schedule while live achievement changes remain prioritised.
 
 ## What cannot be automated
 

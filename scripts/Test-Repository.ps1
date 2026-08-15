@@ -145,6 +145,7 @@ if (-not $openXblParserText.Contains('"profileUsers"') -or
 }
 
 $openXblClientText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\OpenXblClient.cs') -Raw
+$openXblBudgetText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.Core\Services\OpenXblRequestBudget.cs') -Raw
 if (-not $openXblClientText.Contains('new("https://api.xbl.io/")') -or
     -not $openXblClientText.Contains('"api/v2/account"') -or
     -not $openXblClientText.Contains('"v2/account"') -or
@@ -168,6 +169,16 @@ if (-not $openXblClientText.Contains('"api/v2/player/titleHistory"') -or
     -not $openXblClientText.Contains('_preferredTitleProgressRouteTemplate = routeTemplate')) {
     throw 'OpenXBL polling must negotiate complete modern and Xbox 360 detail responses, cache success per title, and back off failed probes.'
 }
+if (-not $openXblClientText.Contains('MaximumTitleDetailRequestsPerOperation = 12') -or
+    -not $openXblClientText.Contains('X-RateLimit-Remaining') -or
+    -not $openXblClientText.Contains('RateLimitFallbackRetryAfter = TimeSpan.FromHours(1)') -or
+    -not $openXblClientText.Contains('OpenXblRequestPriority.Background') -or
+    -not $openXblBudgetText.Contains('LocalHourlySafetyCeiling = 120') -or
+    -not $openXblBudgetText.Contains('GetBackgroundReserve()') -or
+    -not $openXblBudgetText.Contains('ObserveProviderWindow') -or
+    -not $openXblBudgetText.Contains('ObserveRateLimited')) {
+    throw 'OpenXBL requests must obey provider headers, preserve a rolling-hour reserve, and cap each multi-page operation.'
+}
 
 $deltaDetectorText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.Core\Services\AchievementDeltaDetector.cs') -Raw
 $syncStateText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\XboxSyncStateStore.cs') -Raw
@@ -180,11 +191,17 @@ if (-not $openXblParserText.Contains('DateTimeOffset? unlockedAt = null') -or
     $deltaDetectorText.Contains('previousReportedGamerscore') -or
     $deltaDetectorText.Contains('AttributeByCountAndGamerscore') -or
     $deltaDetectorText.Contains('FindUniqueGamerscoreCombination') -or
-    -not $syncStateText.Contains('CurrentSchemaVersion = 4') -or
+    -not $syncStateText.Contains('CurrentSchemaVersion = 5') -or
     -not $syncStateText.Contains('sourceSchemaVersion') -or
     -not $syncStateText.Contains('UnlockedAchievementIds') -or
+    -not $syncStateText.Contains('PendingTitles') -or
+    -not $syncStateText.Contains('LastBackgroundWorkUtc') -or
     -not $syncStateText.Contains('Math.Max(') -or
-    -not $relayCoordinatorText.Contains('retainMissingTitles: true') -or
+    -not $relayCoordinatorText.Contains('QueueTitleWork(') -or
+    -not $relayCoordinatorText.Contains('XboxSyncWorkPlanner.SelectNext') -or
+    -not $relayCoordinatorText.Contains('BackgroundWorkInterval = TimeSpan.FromMinutes(15)') -or
+    -not $relayCoordinatorText.Contains('ShouldPauseAllOpenXblWork') -or
+    -not $relayCoordinatorText.Contains('at most one title in this sync') -or
     -not $relayCoordinatorText.Contains('AchievementDeltaDetector.Detect') -or
     -not $relayCoordinatorText.Contains('var hydrationTitle =') -or
     -not $relayCoordinatorText.Contains('Nothing historical was sent to Discord') -or

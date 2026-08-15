@@ -15,7 +15,9 @@ If the key saves but setup says that no usable Xbox profile was returned, confir
 
 ## OpenXBL is rate-limiting requests
 
-Achievement Relay's default one-minute interval normally makes about 60 title-index checks per hour plus changed-title and occasional account/setup checks. If the same key is used by other software, or the account's OpenXBL allowance is reached, the provider can return HTTP 429. The app respects `Retry-After` when supplied and waits up to 15 minutes before retrying. OpenXBL's published OpenAPI file does not state a numeric allowance, so the app does not hard-code one.
+OpenXBL currently publishes a free-plan limit of 150 requests/hour, and every HTTP request—including an error or cached response—counts. Achievement Relay's default one-minute interval normally makes about 60 lightweight title-index checks per hour. It processes at most one detailed title per sync, limits each multi-route/paged detail operation to 12 requests, and gives old-history hydration only one background slot every 15 minutes.
+
+The app reads `X-RateLimit-Remaining` and reset headers when OpenXBL supplies them, keeps capacity reserved for live monitoring, and also enforces a conservative 120-request rolling-hour ceiling. On HTTP 429 it honors the full `Retry-After`/reset window rather than repeatedly probing. **Sync now** never bypasses these protections.
 
 Check [OpenXBL pricing](https://xbl.io/pricing) and provider status. Do not launch multiple copies or reuse one key across many polling tools.
 

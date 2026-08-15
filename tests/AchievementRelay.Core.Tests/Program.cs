@@ -34,6 +34,11 @@ var tests = new (string Name, Action Run)[]
     ("Restarting with the same identities never reposts", DoesNotRepostKnownIdentitiesAfterRestart),
     ("Incomplete achievement detail is retried without advancing state", RejectsIncompleteAchievementDetail),
     ("Ahead-of-summary achievement detail is retried without advancing state", RejectsOvercompleteAchievementDetail),
+    ("OpenXBL rolling-hour guard preserves a safety reserve", ProtectsOpenXblRollingHourAllowance),
+    ("OpenXBL provider headers reserve capacity for live monitoring", ProtectsOpenXblProviderRemainingAllowance),
+    ("OpenXBL rate-limit reset pauses and recovers automatically", HonorsOpenXblRateLimitReset),
+    ("Xbox sync work prioritizes live changes and throttles history", PrioritizesLiveXboxSyncWork),
+    ("Pending Xbox sync work survives durable JSON state", PersistsPendingXboxSyncWork),
     ("Webhook URL validation is strict", ValidatesWebhookUrls),
     ("Discord payload suppresses mentions", PayloadSuppressesMentions),
     ("Discord identifies estimated provider timestamps", PayloadLabelsEstimatedTimestamp),
@@ -58,6 +63,141 @@ foreach (var test in tests)
 
 Console.WriteLine($"{tests.Length - failures.Count}/{tests.Length} checks passed.");
 return failures.Count == 0 ? 0 : 1;
+
+static void ProtectsOpenXblRollingHourAllowance()
+{
+    var budget = new OpenXblRequestBudget();
+    var startedAt = new DateTimeOffset(2026, 8, 15, 20, 0, 0, TimeSpan.Zero);
+    for (var index = 0; index < OpenXblRequestBudget.LocalHourlySafetyCeiling; index++)
+    {
+        var decision = budget.TryAcquire(OpenXblRequestPriority.Essential, startedAt.AddSeconds(index));
+        Assert(decision.Allowed, $"Request {index + 1} was blocked before the local safety ceiling.");
+    }
+
+    var blocked = budget.TryAcquire(
+        OpenXblRequestPriority.Essential,
+        startedAt.AddMinutes(5));
+    Assert(!blocked.Allowed, "The app could consume the full provider allowance in one rolling hour.");
+    Assert(blocked.RetryAfter > TimeSpan.Zero, "The protected allowance did not return a retry delay.");
+
+    var recovered = budget.TryAcquire(
+        OpenXblRequestPriority.Essential,
+        startedAt.AddHours(1).AddMinutes(5));
+    Assert(recovered.Allowed, "The local request window did not recover after one hour.");
+}
+
+static void ProtectsOpenXblProviderRemainingAllowance()
+{
+    var budget = new OpenXblRequestBudget();
+    var observedAt = new DateTimeOffset(2026, 8, 15, 20, 0, 0, TimeSpan.Zero);
+    budget.ObserveProviderWindow(
+        limit: 150,
+        remaining: 60,
+        resetUtc: observedAt.AddMinutes(40),
+        now: observedAt);
+
+    var background = budget.CanStartOperation(
+        OpenXblRequestPriority.Background,
+        maximumRequests: 12,
+        now: observedAt);
+    Assert(!background.Allowed, "Historical hydration could consume the capacity reserved for live monitoring.");
+    Assert(background.RetryAfter == TimeSpan.FromMinutes(40), "The provider reset time was not honored.");
+
+    var live = budget.CanStartOperation(
+        OpenXblRequestPriority.Essential,
+        maximumRequests: 12,
+        now: observedAt);
+    Assert(live.Allowed, "A live achievement check was blocked while sufficient protected capacity remained.");
+
+    budget.ObserveProviderWindow(
+        limit: 150,
+        remaining: 21,
+        resetUtc: observedAt.AddMinutes(40),
+        now: observedAt);
+    var protectedLive = budget.CanStartOperation(
+        OpenXblRequestPriority.Essential,
+        maximumRequests: 12,
+        now: observedAt);
+    Assert(!protectedLive.Allowed, "A multi-page live check could consume the final provider reserve.");
+}
+
+static void PrioritizesLiveXboxSyncWork()
+{
+    var observedAt = new DateTimeOffset(2026, 8, 15, 20, 0, 0, TimeSpan.Zero);
+    var historical = new XboxTitleSyncWork
+    {
+        TitleId = "historic",
+        Name = "Historical title",
+        CurrentAchievements = 50,
+        LastPlayedAt = observedAt.AddYears(-10),
+        FirstObservedUtc = observedAt,
+        IsPriority = false
+    };
+    var live = new XboxTitleSyncWork
+    {
+        TitleId = "live",
+        Name = "Currently played title",
+        CurrentAchievements = 2,
+        LastPlayedAt = observedAt,
+        FirstObservedUtc = observedAt.AddMinutes(1),
+        IsPriority = true
+    };
+
+    var selected = XboxSyncWorkPlanner.SelectNext(new[] { historical, live }, allowBackground: true);
+    Assert(selected?.TitleId == "live", "Historical hydration was selected ahead of a live achievement change.");
+    Assert(
+        XboxSyncWorkPlanner.SelectNext(new[] { historical }, allowBackground: false) is null,
+        "Historical work ignored the background throttle.");
+    Assert(
+        !XboxSyncWorkPlanner.IsBackgroundWorkDue(observedAt, observedAt.AddMinutes(14), TimeSpan.FromMinutes(15)),
+        "Historical work became eligible before the interval elapsed.");
+    Assert(
+        XboxSyncWorkPlanner.IsBackgroundWorkDue(observedAt, observedAt.AddMinutes(15), TimeSpan.FromMinutes(15)),
+        "Historical work did not become eligible after the interval elapsed.");
+}
+
+static void HonorsOpenXblRateLimitReset()
+{
+    var budget = new OpenXblRequestBudget();
+    var limitedAt = new DateTimeOffset(2026, 8, 15, 20, 0, 0, TimeSpan.Zero);
+    budget.ObserveRateLimited(limitedAt, TimeSpan.FromMinutes(40));
+
+    var blocked = budget.TryAcquire(OpenXblRequestPriority.Essential, limitedAt.AddMinutes(1));
+    Assert(!blocked.Allowed, "A request was allowed inside the provider reset window.");
+    Assert(blocked.RetryAfter == TimeSpan.FromMinutes(39), "The remaining reset delay was not preserved.");
+
+    var recovered = budget.TryAcquire(OpenXblRequestPriority.Essential, limitedAt.AddMinutes(40));
+    Assert(recovered.Allowed, "The provider request budget did not recover at reset time.");
+}
+
+static void PersistsPendingXboxSyncWork()
+{
+    var observedAt = new DateTimeOffset(2026, 8, 15, 20, 0, 0, TimeSpan.Zero);
+    var original = new Dictionary<string, XboxTitleSyncWork>(StringComparer.Ordinal)
+    {
+        ["legacy-title"] = new XboxTitleSyncWork
+        {
+            TitleId = "legacy-title",
+            Name = "Queued legacy title",
+            CurrentAchievements = 75,
+            CurrentGamerscore = 1_500,
+            LastPlayedAt = observedAt.AddYears(-10),
+            FirstObservedUtc = observedAt,
+            LastObservedUtc = observedAt.AddMinutes(1),
+            IsPriority = false
+        }
+    };
+
+    var json = JsonSerializer.Serialize(original);
+    var restored = JsonSerializer.Deserialize<Dictionary<string, XboxTitleSyncWork>>(json);
+    Assert(restored is not null, "Pending work JSON could not be read after restart.");
+    Assert(restored!.TryGetValue("legacy-title", out var work), "Pending work was lost during JSON state round-trip.");
+    var restoredWork = work ?? throw new InvalidOperationException("Pending work deserialized as null.");
+    Assert(restoredWork.CurrentAchievements == 75, "The queued target count changed during persistence.");
+    Assert(restoredWork.CurrentGamerscore == 1_500, "The queued Gamerscore changed during persistence.");
+    Assert(restoredWork.FirstObservedUtc == observedAt, "The queued observation time changed during persistence.");
+    Assert(!restoredWork.IsPriority, "Historical queue priority changed during persistence.");
+}
 
 static void ValidatesOpenXblApiKeys()
 {

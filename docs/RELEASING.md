@@ -40,7 +40,7 @@ If either is absent, the workflow makes a development-signed alpha release and i
 1. Update application/file versions and release notes.
 2. Run the core contract checks and repository checks.
 3. Build and install both target packages on representative Windows devices where available.
-4. Verify installer connect-now/skip paths, encrypted handoff deletion, desktop-shortcut choice, first baseline, Discord test, and real Xbox account sync. Run two consecutive syncs and confirm that no pre-baseline or newly revealed historical achievement reaches Discord; then verify one genuinely new modern unlock and one untimestamped Xbox 360 unlock exactly once across tray close/reopen. Finish with startup, upgrade, and uninstall checks.
+4. Verify installer connect-now/skip paths, encrypted handoff deletion, desktop-shortcut choice, first baseline, Discord test, and real Xbox account sync. Run two consecutive syncs and confirm that no pre-baseline or newly revealed historical achievement reaches Discord. Confirm historical titles remain queued and consume no more than one background detail slot per 15 minutes, while a genuinely new modern unlock and one untimestamped Xbox 360 unlock each post exactly once across tray close/reopen. Finish with startup, upgrade, and uninstall checks.
 5. Confirm the package certificate subject exactly matches the manifest publisher.
 6. Tag the verified commit with `v<major>.<minor>.<patch>` and push the tag, or run the **Release** workflow from GitHub Actions and enter that version. The manual workflow creates the tag at the selected commit when it publishes the release.
 7. Confirm `AchievementRelay_Setup.exe`, both MSIX packages, the manual ZIP, and the public `.cer` for development-signed builds are attached to the release.

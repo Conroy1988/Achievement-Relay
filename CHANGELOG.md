@@ -21,6 +21,9 @@ All notable changes to Achievement Relay are documented here. The project follow
 - Retained saved title snapshots when OpenXBL omits a title from a later page, preventing an old game from reappearing as a false new title
 - Required exact title-index/detail agreement, followed documented continuation pages, and gradually hydrated every unverified count-only baseline without posting historical achievements
 - Preserved durable counts and identities across regressive or representation-changing provider responses instead of risking a historical Discord flood
+- Replaced the unbounded changed-title loop with a durable per-title queue that expands at most one title per sync, prioritises verified/recently played games, and gives historical hydration only one background slot every 15 minutes
+- Added a 12-request ceiling to each title-detail operation, a conservative 120-request rolling-hour guard, provider `X-RateLimit-Remaining`/reset tracking, and protected reserves so history cannot consume the full OpenXBL allowance
+- Honored the complete provider reset delay instead of retrying an hourly OpenXBL limit every 15 minutes
 - Labelled Discord timestamps as detected/estimated when Xbox supplies no usable unlock time
 - Requested Discord webhook responses with `wait=true`, honored both forms of `Retry-After`, canonicalized legacy webhook hosts, and disabled credential-bearing redirects
 - Documented the researched OpenXBL response families, failure policy, security boundary, automated matrix, and real-Windows release gates

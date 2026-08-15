@@ -13,26 +13,36 @@ public sealed record OpenXblAccountResult(
     string Message,
     XboxAccount? Account = null,
     int? StatusCode = null,
-    TimeSpan? RetryAfter = null);
+    TimeSpan? RetryAfter = null,
+    bool Deferred = false,
+    bool AllowanceProtected = false);
 
 public sealed record OpenXblAchievementsResult(
     bool Success,
     string Message,
     IReadOnlyList<AchievementEvent>? Achievements = null,
     int? StatusCode = null,
-    TimeSpan? RetryAfter = null);
+    TimeSpan? RetryAfter = null,
+    bool Deferred = false,
+    bool AllowanceProtected = false);
 
 public sealed record OpenXblTitleProgressResult(
     bool Success,
     string Message,
     IReadOnlyList<XboxTitleProgress>? Titles = null,
     int? StatusCode = null,
-    TimeSpan? RetryAfter = null);
+    TimeSpan? RetryAfter = null,
+    bool Deferred = false,
+    bool AllowanceProtected = false);
 
 public sealed class OpenXblClient : IDisposable
 {
+    private const string ProtectedAllowanceMessage =
+        "OpenXBL request allowance is being protected. Achievement Relay will resume automatically after the hourly window resets.";
     private static readonly Uri BaseAddress = new("https://api.xbl.io/");
     private static readonly TimeSpan EndpointProbeRetryAfter = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan OperationLimitRetryAfter = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan RateLimitFallbackRetryAfter = TimeSpan.FromHours(1);
     private static readonly string[] AccountRoutes =
     [
         "api/v2/account",
@@ -58,11 +68,15 @@ public sealed class OpenXblClient : IDisposable
     ];
     private const int MaximumResponseCharacters = 20 * 1024 * 1024;
     private const int MaximumContinuationPages = 20;
+    private const int MaximumAccountRequestsPerOperation = 2;
+    private const int MaximumTitleProgressRequestsPerOperation = 4;
+    public const int MaximumTitleDetailRequestsPerOperation = 12;
 
     private string? _preferredAccountRoute;
     private string? _preferredTitleProgressRouteTemplate;
     private readonly Dictionary<string, string> _preferredTitleAchievementRouteTemplates =
         new(StringComparer.Ordinal);
+    private readonly OpenXblRequestBudget _requestBudget = new();
 
     private readonly HttpClient _httpClient = new(new HttpClientHandler
     {
@@ -85,11 +99,31 @@ public sealed class OpenXblClient : IDisposable
             return new OpenXblAccountResult(false, error ?? "The OpenXBL API key is invalid.");
         }
 
+        var operationBudget = new RequestOperationBudget(MaximumAccountRequestsPerOperation);
+        var startDecision = _requestBudget.CanStartOperation(
+            OpenXblRequestPriority.Essential,
+            operationBudget.MaximumRequests,
+            DateTimeOffset.UtcNow);
+        if (!startDecision.Allowed)
+        {
+            return new OpenXblAccountResult(
+                false,
+                ProtectedAllowanceMessage,
+                RetryAfter: startDecision.RetryAfter,
+                Deferred: true,
+                AllowanceProtected: true);
+        }
+
         ApiResponse? lastResponse = null;
         var receivedUnreadableResponse = false;
         foreach (var route in PreferRoute(_preferredAccountRoute, AccountRoutes))
         {
-            var response = await SendAsync(route, normalized, cancellationToken);
+            var response = await SendAsync(
+                route,
+                normalized,
+                OpenXblRequestPriority.Essential,
+                operationBudget,
+                cancellationToken);
             lastResponse = response;
             if (!response.Success || response.Content is null)
             {
@@ -99,7 +133,9 @@ public sealed class OpenXblClient : IDisposable
                         false,
                         response.Message,
                         StatusCode: response.StatusCode,
-                        RetryAfter: response.RetryAfter);
+                        RetryAfter: response.RetryAfter,
+                        Deferred: response.Deferred,
+                        AllowanceProtected: response.AllowanceProtected);
                 }
 
                 continue;
@@ -132,7 +168,9 @@ public sealed class OpenXblClient : IDisposable
             false,
             message,
             StatusCode: lastResponse?.StatusCode,
-            RetryAfter: lastResponse?.RetryAfter ?? EndpointProbeRetryAfter);
+            RetryAfter: lastResponse?.RetryAfter ?? EndpointProbeRetryAfter,
+            Deferred: lastResponse?.Deferred ?? false,
+            AllowanceProtected: lastResponse?.AllowanceProtected ?? false);
     }
 
     public async Task<OpenXblTitleProgressResult> GetTitleProgressAsync(
@@ -150,6 +188,21 @@ public sealed class OpenXblClient : IDisposable
             return new OpenXblTitleProgressResult(false, "The connected Xbox account identifier is missing.");
         }
 
+        var operationBudget = new RequestOperationBudget(MaximumTitleProgressRequestsPerOperation);
+        var startDecision = _requestBudget.CanStartOperation(
+            OpenXblRequestPriority.Essential,
+            operationBudget.MaximumRequests,
+            DateTimeOffset.UtcNow);
+        if (!startDecision.Allowed)
+        {
+            return new OpenXblTitleProgressResult(
+                false,
+                ProtectedAllowanceMessage,
+                RetryAfter: startDecision.RetryAfter,
+                Deferred: true,
+                AllowanceProtected: true);
+        }
+
         var escapedAccountId = Uri.EscapeDataString(accountId.Trim());
         ApiResponse? lastResponse = null;
         var receivedUnreadableResponse = false;
@@ -158,7 +211,12 @@ public sealed class OpenXblClient : IDisposable
                      TitleProgressRouteTemplates))
         {
             var route = routeTemplate.Replace("{xuid}", escapedAccountId, StringComparison.Ordinal);
-            var response = await SendAsync(route, normalized, cancellationToken);
+            var response = await SendAsync(
+                route,
+                normalized,
+                OpenXblRequestPriority.Essential,
+                operationBudget,
+                cancellationToken);
             lastResponse = response;
             if (!response.Success || response.Content is null)
             {
@@ -168,7 +226,9 @@ public sealed class OpenXblClient : IDisposable
                         false,
                         response.Message,
                         StatusCode: response.StatusCode,
-                        RetryAfter: response.RetryAfter);
+                        RetryAfter: response.RetryAfter,
+                        Deferred: response.Deferred,
+                        AllowanceProtected: response.AllowanceProtected);
                 }
 
                 continue;
@@ -201,7 +261,9 @@ public sealed class OpenXblClient : IDisposable
             false,
             message,
             StatusCode: lastResponse?.StatusCode,
-            RetryAfter: lastResponse?.RetryAfter ?? EndpointProbeRetryAfter);
+            RetryAfter: lastResponse?.RetryAfter ?? EndpointProbeRetryAfter,
+            Deferred: lastResponse?.Deferred ?? false,
+            AllowanceProtected: lastResponse?.AllowanceProtected ?? false);
     }
 
     public async Task<OpenXblAchievementsResult> GetTitleAchievementsAsync(
@@ -209,6 +271,7 @@ public sealed class OpenXblClient : IDisposable
         string accountId,
         string titleId,
         int expectedUnlockedCount,
+        OpenXblRequestPriority priority = OpenXblRequestPriority.Essential,
         CancellationToken cancellationToken = default)
     {
         if (!OpenXblApiKeyValidator.TryNormalize(apiKey, out var normalized, out var error))
@@ -219,6 +282,21 @@ public sealed class OpenXblClient : IDisposable
         if (string.IsNullOrWhiteSpace(accountId) || string.IsNullOrWhiteSpace(titleId))
         {
             return new OpenXblAchievementsResult(false, "The Xbox account or title identifier is missing.");
+        }
+
+        var operationBudget = new RequestOperationBudget(MaximumTitleDetailRequestsPerOperation);
+        var startDecision = _requestBudget.CanStartOperation(
+            priority,
+            operationBudget.MaximumRequests,
+            DateTimeOffset.UtcNow);
+        if (!startDecision.Allowed)
+        {
+            return new OpenXblAchievementsResult(
+                false,
+                ProtectedAllowanceMessage,
+                RetryAfter: startDecision.RetryAfter,
+                Deferred: true,
+                AllowanceProtected: true);
         }
 
         var escapedAccountId = Uri.EscapeDataString(accountId.Trim());
@@ -232,7 +310,12 @@ public sealed class OpenXblClient : IDisposable
             var route = routeTemplate
                 .Replace("{xuid}", escapedAccountId, StringComparison.Ordinal)
                 .Replace("{titleId}", escapedTitleId, StringComparison.Ordinal);
-            var response = await SendAsync(route, normalized, cancellationToken);
+            var response = await SendAsync(
+                route,
+                normalized,
+                priority,
+                operationBudget,
+                cancellationToken);
             lastResponse = response;
             if (!response.Success || response.Content is null)
             {
@@ -243,7 +326,9 @@ public sealed class OpenXblClient : IDisposable
                         false,
                         response.Message,
                         StatusCode: response.StatusCode,
-                        RetryAfter: response.RetryAfter);
+                        RetryAfter: response.RetryAfter,
+                        Deferred: response.Deferred,
+                        AllowanceProtected: response.AllowanceProtected);
                 }
 
                 continue;
@@ -267,7 +352,12 @@ public sealed class OpenXblClient : IDisposable
                        continuationPages++ < MaximumContinuationPages)
                 {
                     var continuationRoute = $"{routePrefix}achievements/title/{escapedTitleId}/{Uri.EscapeDataString(continuationToken)}";
-                    var continuationResponse = await SendAsync(continuationRoute, normalized, cancellationToken);
+                    var continuationResponse = await SendAsync(
+                        continuationRoute,
+                        normalized,
+                        priority,
+                        operationBudget,
+                        cancellationToken);
                     lastResponse = continuationResponse;
                     if (!continuationResponse.Success || continuationResponse.Content is null)
                     {
@@ -278,7 +368,9 @@ public sealed class OpenXblClient : IDisposable
                                 false,
                                 continuationResponse.Message,
                                 StatusCode: continuationResponse.StatusCode,
-                                RetryAfter: continuationResponse.RetryAfter);
+                                RetryAfter: continuationResponse.RetryAfter,
+                                Deferred: continuationResponse.Deferred,
+                                AllowanceProtected: continuationResponse.AllowanceProtected);
                         }
 
                         break;
@@ -345,7 +437,9 @@ public sealed class OpenXblClient : IDisposable
             false,
             message,
             StatusCode: lastResponse?.StatusCode,
-            RetryAfter: lastResponse?.RetryAfter ?? EndpointProbeRetryAfter);
+            RetryAfter: lastResponse?.RetryAfter ?? EndpointProbeRetryAfter,
+            Deferred: lastResponse?.Deferred ?? false,
+            AllowanceProtected: lastResponse?.AllowanceProtected ?? false);
     }
 
     public void Dispose() => _httpClient.Dispose();
@@ -381,8 +475,31 @@ public sealed class OpenXblClient : IDisposable
     private async Task<ApiResponse> SendAsync(
         string relativePath,
         string apiKey,
+        OpenXblRequestPriority priority,
+        RequestOperationBudget operationBudget,
         CancellationToken cancellationToken)
     {
+        if (!operationBudget.HasCapacity)
+        {
+            return new ApiResponse(
+                false,
+                "This title needs additional OpenXBL pages. Achievement Relay paused it so one sync cannot drain the request allowance.",
+                RetryAfter: OperationLimitRetryAfter,
+                Deferred: true);
+        }
+
+        var requestDecision = _requestBudget.TryAcquire(priority, DateTimeOffset.UtcNow);
+        if (!requestDecision.Allowed)
+        {
+            return new ApiResponse(
+                false,
+                ProtectedAllowanceMessage,
+                RetryAfter: requestDecision.RetryAfter,
+                Deferred: true,
+                AllowanceProtected: true);
+        }
+
+        operationBudget.RecordRequest();
         try
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, relativePath);
@@ -399,13 +516,22 @@ public sealed class OpenXblClient : IDisposable
                 HttpCompletionOption.ResponseContentRead,
                 cancellationToken);
 
+            var responseObservedAt = DateTimeOffset.UtcNow;
+            var providerResetUtc = ObserveRateLimitHeaders(response, responseObservedAt);
             var statusCode = (int)response.StatusCode;
             if (!response.IsSuccessStatusCode)
             {
                 var retryAfter = GetRetryAfter(response.Headers.RetryAfter);
                 if (response.StatusCode == HttpStatusCode.TooManyRequests && retryAfter is null)
                 {
-                    retryAfter = EndpointProbeRetryAfter;
+                    retryAfter = providerResetUtc is { } resetUtc && resetUtc > responseObservedAt
+                        ? resetUtc - responseObservedAt
+                        : RateLimitFallbackRetryAfter;
+                }
+
+                if (response.StatusCode == HttpStatusCode.TooManyRequests)
+                {
+                    _requestBudget.ObserveRateLimited(responseObservedAt, retryAfter);
                 }
 
                 return new ApiResponse(
@@ -460,10 +586,103 @@ public sealed class OpenXblClient : IDisposable
         return null;
     }
 
+    private DateTimeOffset? ObserveRateLimitHeaders(HttpResponseMessage response, DateTimeOffset observedAt)
+    {
+        var limit = GetIntegerHeader(response, "X-RateLimit-Limit", "RateLimit-Limit");
+        var remaining = GetIntegerHeader(response, "X-RateLimit-Remaining", "RateLimit-Remaining");
+        var resetUtc = GetResetHeader(
+            response,
+            observedAt,
+            "X-RateLimit-Reset",
+            "X-RateLimit-Reset-After",
+            "RateLimit-Reset");
+        _requestBudget.ObserveProviderWindow(limit, remaining, resetUtc, observedAt);
+        return resetUtc;
+    }
+
+    private static int? GetIntegerHeader(HttpResponseMessage response, params string[] names)
+    {
+        var value = GetFirstHeaderValue(response, names);
+        return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) && parsed >= 0
+            ? parsed
+            : null;
+    }
+
+    private static DateTimeOffset? GetResetHeader(
+        HttpResponseMessage response,
+        DateTimeOffset observedAt,
+        params string[] names)
+    {
+        var value = GetFirstHeaderValue(response, names);
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        if (long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var numeric))
+        {
+            try
+            {
+                if (numeric > 10_000_000_000)
+                {
+                    return DateTimeOffset.FromUnixTimeMilliseconds(numeric);
+                }
+
+                if (numeric > observedAt.ToUnixTimeSeconds() - 86_400)
+                {
+                    return DateTimeOffset.FromUnixTimeSeconds(numeric);
+                }
+
+                if (numeric > 0)
+                {
+                    return observedAt.AddSeconds(numeric);
+                }
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                return null;
+            }
+        }
+
+        return DateTimeOffset.TryParse(
+            value,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+            out var parsed)
+            ? parsed
+            : null;
+    }
+
+    private static string? GetFirstHeaderValue(HttpResponseMessage response, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (response.Headers.TryGetValues(name, out var values))
+            {
+                return values.FirstOrDefault();
+            }
+        }
+
+        return null;
+    }
+
     private sealed record ApiResponse(
         bool Success,
         string Message,
         string? Content = null,
         int? StatusCode = null,
-        TimeSpan? RetryAfter = null);
+        TimeSpan? RetryAfter = null,
+        bool Deferred = false,
+        bool AllowanceProtected = false);
+
+    private sealed class RequestOperationBudget(int maximumRequests)
+    {
+        private int _requests;
+
+        public int MaximumRequests { get; } = maximumRequests;
+
+        public bool HasCapacity => _requests < MaximumRequests;
+
+        public void RecordRequest() => _requests++;
+    }
 }

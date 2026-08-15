@@ -11,9 +11,9 @@
     <ApplicationIcon>Assets\AchievementRelay.ico</ApplicationIcon>
     <AssemblyName>AchievementRelay.App</AssemblyName>
     <RootNamespace>AchievementRelay.App</RootNamespace>
-    <Version>0.2.0</Version>
-    <FileVersion>0.2.0.0</FileVersion>
-    <AssemblyVersion>0.2.0.0</AssemblyVersion>
+    <Version>0.2.1</Version>
+    <FileVersion>0.2.1.0</FileVersion>
+    <AssemblyVersion>0.2.1.0</AssemblyVersion>
     <Description>Automatically relay Xbox account achievements to Discord.</Description>
   </PropertyGroup>
 
@@ -23,6 +23,10 @@
 
   <ItemGroup>
     <None Include="..\..\PRIVACY.md" Link="PRIVACY.md" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\THIRD-PARTY-NOTICES.md" Link="THIRD-PARTY-NOTICES.md" CopyToOutputDirectory="PreserveNewest" />
     <Resource Include="Assets\AchievementRelay.png" />
+    <Resource Include="Assets\RelayCommandDeck.png" />
+    <Resource Include="Assets\TrophyCup.png" />
+    <Resource Include="Assets\RadarSweep.png" />
   </ItemGroup>
 </Project>

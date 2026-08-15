@@ -18,6 +18,7 @@ public partial class MainWindow : Window
 {
     private const string GitHubUrl = "https://github.com/Conroy1988/Achievement-Relay";
     private const string KoFiUrl = "https://ko-fi.com/D4P124RWI9";
+    private const string ArtLicensesUrl = GitHubUrl + "/blob/main/THIRD-PARTY-NOTICES.md";
     private const string OpenXblProfileUrl = "https://xbl.io/profile";
     private const string DiscordWebhookGuideUrl = "https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks";
 
@@ -66,7 +67,7 @@ public partial class MainWindow : Window
                 : $"Connected as {_settings.XboxGamertag}";
             SetStatus(XboxStatusText, "Connected", StatusTone.Success);
             XboxStatusDetail.Text = accountLabel;
-            SetupXboxStatus.Text = $"Status: {accountLabel}";
+            SetupXboxStatus.Text = $"✓ API key stored securely  •  {accountLabel}";
             SetupXboxStatus.Foreground = Brush("AccentBrush");
             SettingsXboxStatus.Text = $"{accountLabel}. The API key is encrypted for this Windows account.";
         }
@@ -74,7 +75,7 @@ public partial class MainWindow : Window
         {
             SetStatus(XboxStatusText, "Reconnect", StatusTone.Warning);
             XboxStatusDetail.Text = "The saved key needs to be verified";
-            SetupXboxStatus.Text = "Status: select Save and connect to retry the encrypted key, or paste a replacement";
+            SetupXboxStatus.Text = "✓ API key stored securely  •  Leave the field blank and select Save and connect to retry";
             SetupXboxStatus.Foreground = Brush("WarningBrush");
             SettingsXboxStatus.Text = "An API key is stored, but no Xbox account has been verified.";
         }
@@ -91,7 +92,7 @@ public partial class MainWindow : Window
         {
             SetStatus(DiscordStatusText, "Connected", StatusTone.Success);
             DiscordStatusDetail.Text = "Webhook stored with Windows encryption";
-            SetupWebhookStatus.Text = "Status: webhook configured";
+            SetupWebhookStatus.Text = "✓ Webhook stored securely  •  Leave the field blank to retest it";
             SetupWebhookStatus.Foreground = Brush("AccentBrush");
             SettingsWebhookStatus.Text = "A Discord webhook is configured and encrypted for this Windows account.";
         }
@@ -134,6 +135,7 @@ public partial class MainWindow : Window
             $"Discord: {(webhookConfigured ? "configured" : "not configured")}",
             $"Polling interval: {Math.Clamp(_settings.PollIntervalSeconds, 60, 3600)} seconds",
             $"Install context: {(StartupService.IsPackaged() ? "MSIX packaged" : "classic Windows app")}",
+            $"Installer handoff: {_services.Paths.PendingInstallerSetupFile} (deleted after durable import)",
             $"Local data: {_services.Paths.DataDirectory}");
     }
 
@@ -199,7 +201,7 @@ public partial class MainWindow : Window
 
     private void PopulateControls()
     {
-        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.2.0";
+        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.2.1";
         AboutVersionText.Text = $"Version {version} beta";
 
         SetupDisplayNameTextBox.Text = _settings.DisplayName;
@@ -352,7 +354,15 @@ public partial class MainWindow : Window
     private async void SaveAndTestWebhook_Click(object sender, RoutedEventArgs e)
     {
         var value = SetupWebhookPasswordBox.Password;
-        if (!WebhookUrlValidator.TryNormalize(value, out var webhookUri, out var error) || webhookUri is null)
+        Uri? webhookUri;
+        string? error = null;
+        if (string.IsNullOrWhiteSpace(value) &&
+            TryGetWebhook(out var storedWebhook) &&
+            storedWebhook is not null)
+        {
+            webhookUri = storedWebhook;
+        }
+        else if (!WebhookUrlValidator.TryNormalize(value, out webhookUri, out error) || webhookUri is null)
         {
             SetupWebhookStatus.Text = $"Status: {error}";
             SetupWebhookStatus.Foreground = Brush("ErrorBrush");
@@ -695,6 +705,12 @@ public partial class MainWindow : Window
     {
         var localPrivacyPolicy = Path.Combine(AppContext.BaseDirectory, "PRIVACY.md");
         OpenExternal(File.Exists(localPrivacyPolicy) ? localPrivacyPolicy : $"{GitHubUrl}/blob/main/PRIVACY.md");
+    }
+
+    private void OpenArtLicenses_Click(object sender, RoutedEventArgs e)
+    {
+        var localNotices = Path.Combine(AppContext.BaseDirectory, "THIRD-PARTY-NOTICES.md");
+        OpenExternal(File.Exists(localNotices) ? localNotices : ArtLicensesUrl);
     }
 
     private void OpenGitHub_Click(object sender, RoutedEventArgs e) => OpenExternal(GitHubUrl);

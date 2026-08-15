@@ -52,9 +52,9 @@ No Windows Notification Center entry is required. Xbox can take time to add an o
 
 ## Installer-provided credentials need attention
 
-Setup only validates the local shape; the app performs live checks after launch. If one fails, Guided setup opens with status details. Choose **Save and connect** to retry the encrypted OpenXBL key without re-entering it, paste a replacement if needed, and/or use **Save and test** for Discord.
+Setup only validates the local shape; the app stores both secrets before performing live checks after launch. If one fails, Guided setup opens with status details. Saved fields remain blank by design: leave the field blank and choose **Save and connect** or **Save and test** to retry the encrypted value, or paste a replacement.
 
-The one-time installer file contains DPAPI ciphertext, not plaintext. The app truncates and deletes it on import. If it remains after a crash, exit the app and remove `%LOCALAPPDATA%\AchievementRelay\pending-installer-setup.json`, then use Guided setup.
+The one-time installer file contains DPAPI ciphertext, not plaintext. The app truncates and deletes it only after the normal encrypted settings file is safely written. If it remains after a crash, exit the app and remove `%USERPROFILE%\.achievement-relay\pending-installer-setup.json` (or the legacy `%LOCALAPPDATA%\AchievementRelay\pending-installer-setup.json`), then use Guided setup.
 
 ## Desktop shortcut was not created
 

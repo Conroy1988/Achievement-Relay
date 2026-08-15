@@ -5,7 +5,7 @@ Achievement Relay is a local Windows desktop app with two projects:
 - `AchievementRelay.Core` contains platform-neutral OpenXBL response parsing, API-key/webhook validation, deterministic event identity, settings models, and Discord payload construction.
 - `AchievementRelay.App` contains the WPF/tray UI, OpenXBL and Discord HTTP clients, DPAPI secret storage, account polling, baseline/cursor state, event ledger, installer import, startup integration, and logging.
 
-The MSIX manifest supplies package identity, `internetClient`, `runFullTrust`, the packaged startup task, and unvirtualized per-user AppData. Disabling AppData write virtualization keeps the installer handoff, app state, upgrade behavior, diagnostics, and explicit cleanup on the same `%LOCALAPPDATA%\AchievementRelay` path. Version 0.2 intentionally has no `userNotificationListener` capability.
+The MSIX manifest supplies package identity, `internetClient`, `runFullTrust`, the packaged startup task, and unvirtualized per-user AppData. The app's durable state remains under `%LOCALAPPDATA%\AchievementRelay`, with both the legacy full-trust declaration and an explicit Windows 11 virtualization exclusion. The one-time installer handoff uses `%USERPROFILE%\.achievement-relay` instead, which is outside AppData virtualization. Version 0.2 intentionally has no `userNotificationListener` capability.
 
 ## Poll and delivery path
 
@@ -73,12 +73,14 @@ The Inno Setup UI accepts optional credentials in password-masked controls. It d
 
 1. short-lived process environment variables are inherited by `Protect-InstallerSetup.ps1`;
 2. that process applies current-user DPAPI using the same per-secret entropy as the app;
-3. only ciphertext is written to `pending-installer-setup.json`;
+3. only ciphertext is written to `%USERPROFILE%\.achievement-relay\pending-installer-setup.json`;
 4. installer variables/fields are cleared;
-5. `InstallerSetupImporter` decrypts the file, truncates and deletes it immediately, then verifies OpenXBL and Discord; and
-6. normal settings are saved with fresh DPAPI ciphertext.
+5. `InstallerSetupImporter` decrypts and validates the file;
+6. normal settings are durably saved with fresh DPAPI ciphertext;
+7. the handoff is truncated and deleted; and
+8. only then does the importer verify OpenXBL and Discord.
 
-If setup is skipped, no handoff file is created.
+If durable settings storage fails, the encrypted handoff is retained for the next launch. Version 0.2.1 also reads the legacy `%LOCALAPPDATA%\AchievementRelay` handoff path for compatibility. If setup is skipped, no handoff file is created.
 
 ## Upgrade behavior
 

@@ -4,11 +4,24 @@ namespace AchievementRelay.App.Services;
 
 public sealed class AppPaths
 {
+    private const string PendingInstallerSetupFileName = "pending-installer-setup.json";
+
     public AppPaths()
     {
         DataDirectory = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "AchievementRelay");
+
+        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        PendingInstallerSetupFile = string.IsNullOrWhiteSpace(userProfile)
+            ? Path.Combine(DataDirectory, PendingInstallerSetupFileName)
+            : Path.Combine(userProfile, ".achievement-relay", PendingInstallerSetupFileName);
+        LegacyPendingInstallerSetupFile = Path.Combine(DataDirectory, PendingInstallerSetupFileName);
+        PendingInstallerSetupFiles =
+        [
+            PendingInstallerSetupFile,
+            LegacyPendingInstallerSetupFile
+        ];
 
         Directory.CreateDirectory(DataDirectory);
     }
@@ -21,7 +34,15 @@ public sealed class AppPaths
 
     public string XboxSyncStateFile => Path.Combine(DataDirectory, "xbox-sync-state.json");
 
-    public string PendingInstallerSetupFile => Path.Combine(DataDirectory, "pending-installer-setup.json");
+    /// <summary>
+    /// One-time installer handoff outside AppData so MSIX virtualization cannot split the
+    /// installer and packaged-app views of the file.
+    /// </summary>
+    public string PendingInstallerSetupFile { get; }
+
+    public string LegacyPendingInstallerSetupFile { get; }
+
+    public IReadOnlyList<string> PendingInstallerSetupFiles { get; }
 
     public string LogFile => Path.Combine(DataDirectory, "achievement-relay.log");
 }

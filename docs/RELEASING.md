@@ -2,14 +2,14 @@
 
 ## Versioning
 
-Use four-part numeric MSIX versions such as `0.2.0.0`. Create a matching Git tag such as `v0.2.0`. The release workflow converts a three-part tag to its four-part MSIX version.
+Use four-part numeric MSIX versions such as `0.2.1.0`. Create a matching Git tag such as `v0.2.1`. The release workflow converts a three-part tag to its four-part MSIX version.
 
 ## Local package
 
 On Windows with .NET 10, the Windows SDK, and Inno Setup 6:
 
 ```powershell
-.\scripts\Build-Release.ps1 -Version 0.2.0.0
+.\scripts\Build-Release.ps1 -Version 0.2.1.0
 ```
 
 Without signing parameters, the script creates a temporary two-year development certificate, signs both architecture packages and `AchievementRelay_Setup.exe`, exports only the public certificate, and deletes the private key file from its temporary folder. The versioned ZIP remains as a manual fallback.
@@ -18,7 +18,7 @@ For a production certificate whose subject matches `CN=Achievement Relay Open So
 
 ```powershell
 .\scripts\Build-Release.ps1 `
-  -Version 0.2.0.0 `
+  -Version 0.2.1.0 `
   -PfxPath C:\secure\AchievementRelay.pfx `
   -PfxPassword $env:ACHIEVEMENT_RELAY_PFX_PASSWORD
 ```

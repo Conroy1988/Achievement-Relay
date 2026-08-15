@@ -9,6 +9,24 @@ All notable changes to Achievement Relay are documented here. The project follow
 - Stable code signing and update channel
 - Steam achievement provider research
 
+## [0.2.1] - 2026-08-15
+
+### Fixed
+
+- Made installer-entered OpenXBL and Discord secrets survive first launch by storing the encrypted app settings before any network verification
+- Moved the one-time encrypted handoff outside virtualized AppData while retaining the 0.2.0 path as a compatibility fallback
+- Kept the encrypted handoff for a later retry if durable settings storage fails instead of consuming it prematurely
+- Allowed Guided setup to retest a stored Discord webhook when its intentionally blank password field is left empty
+
+### Changed
+
+- Rebuilt the app dashboard as a cinematic relay command centre with original multi-genre achievement artwork
+- Replaced the installer artwork with a premium trophy-and-game-world composition
+- Added persistent secure-vault guidance so hidden saved values are never mistaken for missing values
+- Added a compact Ko-fi action to the sidebar while keeping the full support card in About
+- Added attributed CC BY 3.0 trophy and radar interface art, with a dedicated third-party notice
+- Added explicit Windows 11 AppData virtualization exclusion alongside the existing full-trust package declaration
+
 ## [0.2.0] - 2026-08-15
 
 ### Changed
@@ -62,7 +80,8 @@ All notable changes to Achievement Relay are documented here. The project follow
 - x64/Arm64 MSIX packaging, installer scripts, development signing, CI, and tagged release workflow
 - User, privacy, security, troubleshooting, architecture, contributor, and release documentation
 
-[Unreleased]: https://github.com/Conroy1988/Achievement-Relay/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Conroy1988/Achievement-Relay/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.2.1
 [0.2.0]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.2.0
 [0.1.1]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.1.1
 [0.1.0]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.1.0

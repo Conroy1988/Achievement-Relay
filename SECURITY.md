@@ -23,7 +23,7 @@ Achievement Relay:
 - accepts only HTTPS webhook URLs on approved Discord-owned hosts;
 - encrypts both saved values with current-user Windows DPAPI and separate entropy values;
 - does not place installer-entered credentials on a command line;
-- deletes the one-time DPAPI-encrypted installer handoff on first launch;
+- durably stores fresh DPAPI ciphertext before deleting the one-time installer handoff;
 - redacts Discord-webhook-shaped log content; and
 - disables Discord mention parsing.
 

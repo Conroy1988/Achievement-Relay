@@ -5,26 +5,28 @@ $ErrorActionPreference = 'Stop'
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $manifestPath = Join-Path $repositoryRoot 'src\AchievementRelay.Package\AppxManifest.xml'
 $manifestText = Get-Content -LiteralPath $manifestPath -Raw
-$manifestText = $manifestText.Replace('__VERSION__', '0.2.0.0').Replace('__ARCHITECTURE__', 'x64')
+$manifestText = $manifestText.Replace('__VERSION__', '0.2.1.0').Replace('__ARCHITECTURE__', 'x64')
 [xml] $manifest = $manifestText
 
 $namespaceManager = [System.Xml.XmlNamespaceManager]::new($manifest.NameTable)
 $namespaceManager.AddNamespace('f', 'http://schemas.microsoft.com/appx/manifest/foundation/windows10')
 $namespaceManager.AddNamespace('uap5', 'http://schemas.microsoft.com/appx/manifest/uap/windows10/5')
 $namespaceManager.AddNamespace('desktop6', 'http://schemas.microsoft.com/appx/manifest/desktop/windows10/6')
+$namespaceManager.AddNamespace('virtualization', 'http://schemas.microsoft.com/appx/manifest/virtualization/windows10')
 $namespaceManager.AddNamespace('rescap', 'http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities')
 
 $internetCapability = $manifest.SelectSingleNode('//f:Capability[@Name="internetClient"]', $namespaceManager)
 $startupTask = $manifest.SelectSingleNode('//uap5:StartupTask[@TaskId="AchievementRelayStartup"]', $namespaceManager)
 $application = $manifest.SelectSingleNode('//f:Application[@Executable="AchievementRelay.App.exe"]', $namespaceManager)
 $unvirtualizedAppData = $manifest.SelectSingleNode('//desktop6:FileSystemWriteVirtualization[text()="disabled"]', $namespaceManager)
+$excludedAppData = $manifest.SelectSingleNode('//virtualization:ExcludedDirectory[contains(text(), "AchievementRelay")]', $namespaceManager)
 $unvirtualizedResources = $manifest.SelectSingleNode('//rescap:Capability[@Name="unvirtualizedResources"]', $namespaceManager)
 
 if (-not $internetCapability) { throw 'Manifest is missing internetClient.' }
 if ($manifestText.Contains('userNotificationListener')) { throw 'Obsolete notification-listener capability is still present.' }
 if (-not $startupTask) { throw 'Manifest is missing AchievementRelayStartup.' }
 if (-not $application) { throw 'Manifest does not launch AchievementRelay.App.exe.' }
-if (-not $unvirtualizedAppData -or -not $unvirtualizedResources) {
+if (-not $unvirtualizedAppData -or -not $excludedAppData -or -not $unvirtualizedResources) {
     throw 'Manifest must expose the per-user AppData folder shared by Setup and the packaged app.'
 }
 
@@ -33,12 +35,16 @@ $requiredFiles = @(
     'GETTING_STARTED.md',
     'PRIVACY.md',
     'SECURITY.md',
+    'THIRD-PARTY-NOTICES.md',
     'installer\AchievementRelay.iss',
     'installer\assets\wizard-large.png',
     'scripts\Build-Installer.ps1',
     'scripts\Protect-InstallerSetup.ps1',
     'src\AchievementRelay.App\MainWindow.xaml',
-    'src\AchievementRelay.App\Assets\AchievementRelay.ico'
+    'src\AchievementRelay.App\Assets\AchievementRelay.ico',
+    'src\AchievementRelay.App\Assets\RelayCommandDeck.png',
+    'src\AchievementRelay.App\Assets\TrophyCup.png',
+    'src\AchievementRelay.App\Assets\RadarSweep.png'
 )
 
 foreach ($relativePath in $requiredFiles) {
@@ -63,6 +69,10 @@ if (-not $installerText.Contains('desktopicon')) {
 if (-not $installerText.Contains('SetEnvironmentVariable')) {
     throw 'The setup bootstrapper is missing the short-lived credential handoff.'
 }
+if (-not $installerText.Contains("GetEnv('USERPROFILE')") -or
+    -not $installerText.Contains('.achievement-relay\pending-installer-setup.json')) {
+    throw 'The installer handoff must use the non-virtualized per-user profile path.'
+}
 if (($installerText -split "`r?`n") | Where-Object { $_ -match 'Parameters.*CredentialsPage' }) {
     throw 'Installer credentials must never be placed in a process command line.'
 }
@@ -74,6 +84,35 @@ if (-not $protectionScriptText.Contains('[Security.Cryptography.ProtectedData]::
 if (-not $protectionScriptText.Contains('AchievementRelay.OpenXBL.v1') -or
     -not $protectionScriptText.Contains('AchievementRelay.Webhook.v1')) {
     throw 'The installer and app secret-protection entropy contract is incomplete.'
+}
+
+$pathsText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\AppPaths.cs') -Raw
+if (-not $pathsText.Contains('Environment.SpecialFolder.UserProfile') -or
+    -not $pathsText.Contains('LegacyPendingInstallerSetupFile')) {
+    throw 'The app must read the profile handoff path and retain legacy AppData compatibility.'
+}
+
+$importerText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\InstallerSetupImporter.cs') -Raw
+$durableSaveIndex = $importerText.IndexOf('SaveAsync(storedSettings', [StringComparison]::Ordinal)
+$accountRequestIndex = $importerText.IndexOf('GetAccountAsync(apiKey', [StringComparison]::Ordinal)
+$discordRequestIndex = $importerText.IndexOf('webhookClient.SendAsync', [StringComparison]::Ordinal)
+$handoffDeleteIndex = $importerText.IndexOf('DeletePendingSetupFiles(paths.PendingInstallerSetupFiles)', [StringComparison]::Ordinal)
+if ($durableSaveIndex -lt 0 -or $accountRequestIndex -lt 0 -or $discordRequestIndex -lt 0 -or
+    $handoffDeleteIndex -lt 0 -or $durableSaveIndex -gt $handoffDeleteIndex -or
+    $durableSaveIndex -gt $accountRequestIndex -or $durableSaveIndex -gt $discordRequestIndex) {
+    throw 'Installer secrets must be durably saved before handoff deletion or network verification.'
+}
+
+$mainWindowText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\MainWindow.xaml.cs') -Raw
+if (-not $mainWindowText.Contains('TryGetWebhook(out var storedWebhook)') -or
+    -not $mainWindowText.Contains('Leave the field blank')) {
+    throw 'Guided setup must make intentionally hidden stored secrets reusable and explicit.'
+}
+
+$appProjectText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\AchievementRelay.App.csproj') -Raw
+if (-not $appProjectText.Contains('THIRD-PARTY-NOTICES.md') -or
+    -not $appProjectText.Contains('RelayCommandDeck.png')) {
+    throw 'The packaged app must include its art notice and premium dashboard artwork.'
 }
 
 $releaseWorkflowText = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github\workflows\release.yml') -Raw

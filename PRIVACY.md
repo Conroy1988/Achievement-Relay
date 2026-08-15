@@ -45,12 +45,13 @@ If the user selects **Connect OpenXBL and Discord now** in `AchievementRelay_Set
 
 1. the masked fields exist in installer process memory;
 2. Setup passes them to a child protection step using short-lived process environment variables—not command-line arguments;
-3. that step encrypts each value with Windows DPAPI scoped to the current user before writing `pending-installer-setup.json`;
+3. that step encrypts each value with Windows DPAPI scoped to the current user before writing `%USERPROFILE%\.achievement-relay\pending-installer-setup.json`;
 4. Setup clears the environment variables and input fields;
-5. the app reads, truncates, and deletes the one-time encrypted file on first launch; and
-6. the app live-tests the connections and saves normal DPAPI-protected settings.
+5. the app reads the one-time encrypted file and durably saves fresh DPAPI-protected settings;
+6. the app truncates and deletes the handoff; and
+7. the app live-tests the connections.
 
-If installation or first launch is interrupted, the one-time file can remain, but its values are still encrypted for that Windows user. The next launch retries cleanup. Selecting **Skip — I will do this later** creates no credential handoff.
+If installation or first launch is interrupted before durable storage, the one-time file can remain, but its values are still encrypted for that Windows user. The next launch retries the import. Selecting **Skip — I will do this later** creates no credential handoff.
 
 ## Network access
 
@@ -63,7 +64,7 @@ Documentation, GitHub, OpenXBL, Discord help, and Ko-fi links open in the defaul
 
 ## Retention and deletion
 
-Disconnecting the Xbox account or removing the Discord webhook deletes the corresponding saved ciphertext from settings. Uninstall the app and run `Uninstall.ps1 -RemoveLocalData`, or exit the app and delete `%LOCALAPPDATA%\AchievementRelay`, to remove all local state.
+Disconnecting the Xbox account or removing the Discord webhook deletes the corresponding saved ciphertext from settings. Uninstall the app and run `Uninstall.ps1 -RemoveLocalData` to remove durable state and any remaining handoff. Manual cleanup requires deleting both `%LOCALAPPDATA%\AchievementRelay` and `%USERPROFILE%\.achievement-relay`.
 
 Revoking the OpenXBL API key stops future account requests. Deleting/rotating the Discord webhook immediately prevents future use of that URL.
 

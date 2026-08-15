@@ -34,20 +34,21 @@ Discord's [official webhook guide](https://support.discord.com/hc/en-us/articles
 5. On **Player options**, toggle **Create a desktop shortcut** as preferred.
 6. Select **Install**. A development-signed beta may request administrator approval once to trust its public package certificate.
 
-The installer never places either secret on a command line or in its log. It uses a one-time DPAPI-encrypted file for the signed-in Windows user, clears the installer fields, launches the app, and the app immediately truncates and deletes the handoff after reading it.
+The installer never places either secret on a command line or in its log. It uses a one-time DPAPI-encrypted file under `%USERPROFILE%\.achievement-relay` for the signed-in Windows user, clears the installer fields, and launches the app. The app saves fresh encrypted settings before it truncates and deletes that handoff.
 
 ## 3. First launch
 
 If credentials were supplied in Setup, Achievement Relay automatically:
 
 1. decrypts the one-time installer handoff;
-2. verifies the Xbox account and achievement feed through OpenXBL;
-3. sends one green connection-test embed to Discord;
-4. protects the API key and webhook in normal settings with current-user DPAPI;
-5. creates a baseline so old achievements are not reposted; and
-6. starts one-minute monitoring if both checks succeed.
+2. protects and durably saves the API key and webhook in normal settings with current-user DPAPI;
+3. deletes the one-time handoff;
+4. verifies the Xbox account and achievement feed through OpenXBL;
+5. sends one green connection-test embed to Discord;
+6. creates a baseline so old achievements are not reposted; and
+7. starts one-minute monitoring if both checks succeed.
 
-If either check fails, the values that passed local validation are stored encrypted and the app opens **Guided setup** with a useful status. Nothing is silently posted except the clearly disclosed Discord connection test.
+If either check fails, the values that passed local validation remain stored encrypted and the app opens **Guided setup** with a useful status. Saved secret fields intentionally remain blank; leave one blank and select its retry button to reuse the stored value. Nothing is silently posted except the clearly disclosed Discord connection test.
 
 ## 4. Guided setup when skipped
 

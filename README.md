@@ -41,7 +41,7 @@ No Xbox password, Microsoft password, Discord bot, public Achievement Relay serv
    - **Connect OpenXBL and Discord now** — paste your OpenXBL API key and Discord webhook; or
    - **Skip — I will do this later** — the app opens at Guided setup.
 3. Choose whether to create a desktop shortcut and install.
-4. On first launch, the app verifies the Xbox account and Discord channel, securely stores both secrets, and establishes a no-spam baseline.
+4. On first launch, the app securely stores both secrets before it verifies the Xbox account and Discord channel, then establishes a no-spam baseline.
 5. Leave Achievement Relay in the notification area while playing. A new unlock normally posts within about one minute.
 
 The complete walkthrough is in [Getting Started](GETTING_STARTED.md). SmartScreen, signing, architecture selection, and manual installation are covered in [Installation](docs/INSTALL.md).
@@ -67,7 +67,7 @@ Important limits:
 
 The API key is sent only to OpenXBL. Achievement details are sent to the Discord webhook selected by the user. The app has no analytics, ads, cloud database, or telemetry.
 
-If account details are entered in the installer, they are passed through a one-time current-user DPAPI-encrypted handoff—never command-line arguments—and the app deletes that handoff after first launch. See [Privacy](PRIVACY.md), [Security](SECURITY.md), and [Architecture](docs/ARCHITECTURE.md) for the exact data flow.
+If account details are entered in the installer, they are passed through a one-time current-user DPAPI-encrypted handoff—never command-line arguments. The app first saves fresh encrypted settings, then deletes the handoff before attempting live verification. See [Privacy](PRIVACY.md), [Security](SECURITY.md), and [Architecture](docs/ARCHITECTURE.md) for the exact data flow.
 
 ## Build and test
 
@@ -88,7 +88,7 @@ dotnet run --project .\tests\AchievementRelay.Core.Tests --configuration Release
 Create x64 and Arm64 packages plus the setup executable:
 
 ```powershell
-.\scripts\Build-Release.ps1 -Version 0.2.0.0
+.\scripts\Build-Release.ps1 -Version 0.2.1.0
 ```
 
 Maintainer instructions are in [Release Process](docs/RELEASING.md).
@@ -105,6 +105,8 @@ Maintainer instructions are in [Release Process](docs/RELEASING.md).
 - [ ] Additional outbound destinations
 
 Issues and pull requests are welcome. Read [Contributing](CONTRIBUTING.md) before sharing diagnostics. Never post an OpenXBL API key or Discord webhook URL in an issue.
+
+Original artwork and licensed interface assets are documented in [Third-party art notices](THIRD-PARTY-NOTICES.md). Public visibility alone is not treated as permission to redistribute an asset.
 
 ## Support the project
 

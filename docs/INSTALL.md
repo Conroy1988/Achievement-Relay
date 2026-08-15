@@ -21,7 +21,7 @@ Release packages are self-contained; .NET does not need to be installed separate
 
 Setup contains x64 and Arm64 MSIX packages, selects the native architecture, installs for the signed-in user, creates/removes the optional desktop shortcut, and launches Achievement Relay.
 
-The optional credentials are never added to PowerShell arguments. Setup passes them to a short-lived protection process through inherited environment variables, writes only current-user DPAPI ciphertext, clears its fields/environment, and launches the app. The app deletes the one-time encrypted handoff on import. Choose **Skip** to create no handoff at all.
+The optional credentials are never added to PowerShell arguments. Setup passes them to a short-lived protection process through inherited environment variables, writes only current-user DPAPI ciphertext under `%USERPROFILE%\.achievement-relay`, clears its fields/environment, and launches the app. The app durably stores fresh encrypted settings before deleting the one-time handoff and starting live checks. Choose **Skip** to create no handoff at all.
 
 ## Signing notice
 

@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "0.2.0"
+  #define AppVersion "0.2.1"
 #endif
 
 #ifndef MsixVersion
@@ -120,7 +120,7 @@ begin
   CredentialsPage := CreateInputQueryPage(SetupChoicePage.ID,
     'PLAYER CONNECTIONS',
     'Add the two private values used by Achievement Relay.',
-    'Setup encrypts both values for this Windows user before the app receives them. The app deletes the one-time handoff after first launch and posts a connection test to Discord.');
+    'Setup encrypts both values for this Windows user before the app receives them. On first launch, the app saves fresh encrypted settings before deleting the one-time handoff and running connection tests.');
   CredentialsPage.Add('&OpenXBL API key:', True);
   CredentialsPage.Add('&Discord webhook URL:', True);
   CredentialsPage.Edits[0].MaxLength := 512;
@@ -208,6 +208,27 @@ begin
   end;
 end;
 
+function GetLegacyPendingSetupPath(): String;
+begin
+  Result := ExpandConstant(
+    '{localappdata}\AchievementRelay\pending-installer-setup.json');
+end;
+
+function GetPendingSetupPath(): String;
+var
+  UserProfile: String;
+begin
+  UserProfile := Trim(GetEnv('USERPROFILE'));
+  if UserProfile = '' then
+  begin
+    Result := GetLegacyPendingSetupPath();
+    Exit;
+  end;
+
+  Result := AddBackslash(UserProfile) +
+    '.achievement-relay\pending-installer-setup.json';
+end;
+
 function CreateProtectedPendingSetup(): Boolean;
 var
   PendingPath: String;
@@ -216,9 +237,9 @@ var
   ResultCode: Integer;
 begin
   Result := False;
-  PendingPath := ExpandConstant(
-    '{localappdata}\AchievementRelay\pending-installer-setup.json');
+  PendingPath := GetPendingSetupPath();
   DeleteFile(PendingPath);
+  DeleteFile(GetLegacyPendingSetupPath());
 
   try
     if not SetEnvironmentVariable('ACHIEVEMENT_RELAY_OPENXBL_KEY',
@@ -246,8 +267,8 @@ end;
 
 procedure DeletePendingSetup();
 begin
-  DeleteFile(ExpandConstant(
-    '{localappdata}\AchievementRelay\pending-installer-setup.json'));
+  DeleteFile(GetPendingSetupPath());
+  DeleteFile(GetLegacyPendingSetupPath());
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);

@@ -15,7 +15,7 @@
       <ColumnDefinition Width="*" />
     </Grid.ColumnDefinitions>
 
-    <Border Grid.Column="0" Background="#0C121B" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
+    <Border Grid.Column="0" Background="{StaticResource SidebarSurfaceBrush}" BorderBrush="#344662" BorderThickness="0,0,1,0">
       <Grid Margin="16">
         <Grid.RowDefinitions>
           <RowDefinition Height="Auto" />
@@ -28,7 +28,7 @@
           <StackPanel Margin="10,1,0,0">
             <TextBlock Text="ACHIEVEMENT" FontWeight="Bold" FontSize="14" />
             <TextBlock Text="RELAY" Foreground="{StaticResource AccentBrush}" FontWeight="Bold" FontSize="18" />
-            <TextBlock Text="XBOX  //  DISCORD" Foreground="{StaticResource MutedTextBrush}" FontSize="8" FontWeight="SemiBold" />
+            <TextBlock Text="RELAY COMMAND" Foreground="{StaticResource LegendaryBrush}" FontSize="8" FontWeight="Bold" />
           </StackPanel>
         </StackPanel>
 
@@ -41,12 +41,15 @@
           <Button Style="{StaticResource NavButton}" Click="ShowAbout_Click" Content="ⓘ   About" />
         </StackPanel>
 
-        <Border Grid.Row="2" Style="{StaticResource Card}" Padding="12" Margin="0,12,0,0">
-          <StackPanel>
-            <TextBlock Text="MONITOR STATUS" Foreground="{StaticResource MutedTextBrush}" FontSize="10" FontWeight="Bold" />
-            <TextBlock x:Name="SidebarMonitorStatus" Text="Checking…" Margin="0,4,0,0" FontWeight="SemiBold" />
-          </StackPanel>
-        </Border>
+        <StackPanel Grid.Row="2" Margin="0,12,0,0">
+          <Border Style="{StaticResource Card}" BorderBrush="#66F4C96B" Padding="12">
+            <StackPanel>
+              <TextBlock Text="MONITOR STATUS" Foreground="{StaticResource LegendaryBrush}" FontSize="10" FontWeight="Bold" />
+              <TextBlock x:Name="SidebarMonitorStatus" Text="Checking…" Margin="0,4,0,0" FontWeight="SemiBold" />
+            </StackPanel>
+          </Border>
+          <Button Content="☕  Support on Ko-fi" Style="{StaticResource KoFiButton}" Click="OpenKoFi_Click" Margin="0,10,0,0" Padding="10,7" FontSize="11" />
+        </StackPanel>
       </Grid>
     </Border>
 
@@ -59,26 +62,40 @@
 
       <TabItem>
         <ScrollViewer VerticalScrollBarVisibility="Auto">
-          <StackPanel Margin="34,30,34,36">
-            <TextBlock Style="{StaticResource PageTitle}" Text="Dashboard" />
-            <TextBlock Style="{StaticResource PageSubtitle}" Text="New Xbox achievements are checked through your account and relayed to Discord automatically." />
-
-            <Border Background="#D90B111A" BorderBrush="#315C477F" BorderThickness="1" CornerRadius="8" Padding="14,10" Margin="0,0,0,14">
+          <StackPanel Margin="30,26,30,36">
+            <Border Height="248" BorderBrush="#7AF4C96B" BorderThickness="1" CornerRadius="17" Margin="0,0,0,18">
+              <Border.Background>
+                <ImageBrush ImageSource="Assets/RelayCommandDeck.png" Stretch="UniformToFill" AlignmentX="Right" />
+              </Border.Background>
               <Grid>
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="Auto" />
-                  <ColumnDefinition Width="*" />
-                  <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <TextBlock Text="RELAY ROUTE" Foreground="{StaticResource AccentBrush}" FontSize="10" FontWeight="Bold" VerticalAlignment="Center" />
-                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center">
-                  <TextBlock Text="XBOX ACCOUNT" FontWeight="SemiBold" FontSize="11" />
-                  <TextBlock Text="  ➜  " Foreground="{StaticResource AccentBrush}" />
-                  <TextBlock Text="SYNC NODE" FontWeight="SemiBold" FontSize="11" />
-                  <TextBlock Text="  ➜  " Foreground="{StaticResource DiscordBrush}" />
-                  <TextBlock Text="DISCORD CHANNEL" FontWeight="SemiBold" FontSize="11" />
+                <Border CornerRadius="16">
+                  <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+                      <GradientStop Color="#FC050812" Offset="0" />
+                      <GradientStop Color="#F20A1020" Offset="0.46" />
+                      <GradientStop Color="#5A07101A" Offset="0.72" />
+                      <GradientStop Color="#18050812" Offset="1" />
+                    </LinearGradientBrush>
+                  </Border.Background>
+                </Border>
+
+                <StackPanel Width="490" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="28,18,0,18">
+                  <TextBlock Style="{StaticResource EyebrowText}" Text="LIVE ACHIEVEMENT NETWORK" />
+                  <TextBlock Text="YOUR WINS.&#x0a;BROADCAST." FontFamily="Bahnschrift SemiBold, Segoe UI Variable Display, Segoe UI" FontWeight="Bold" FontSize="34" LineHeight="34" Margin="0,10,0,8" />
+                  <TextBlock Text="Xbox account unlocks travel through one secure relay and land in your Discord channel." Foreground="#CFD8E8" FontSize="13" MaxWidth="440" HorizontalAlignment="Left" />
+                  <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                    <Button Content="SYNC NOW" Style="{StaticResource PrimaryButton}" Click="SyncNow_Click" Padding="18,8" Margin="0,0,9,0" />
+                    <Button Content="GUIDED SETUP" Click="ShowSetup_Click" Padding="18,8" />
+                  </StackPanel>
                 </StackPanel>
-                <TextBlock Grid.Column="2" Text="POLL // 60 SEC" Foreground="{StaticResource MutedTextBrush}" FontSize="10" FontWeight="Bold" VerticalAlignment="Center" />
+
+                <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,16,18,0" Background="#D00A101B" BorderBrush="#6B52F2AD" BorderThickness="1" CornerRadius="8" Padding="11,7">
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="XBOX" FontWeight="Bold" FontSize="10" />
+                    <TextBlock Text="  ➜  RELAY  ➜  " Foreground="{StaticResource AccentBrush}" FontWeight="Bold" FontSize="10" />
+                    <TextBlock Text="DISCORD" Foreground="#AAB2FF" FontWeight="Bold" FontSize="10" />
+                  </StackPanel>
+                </Border>
               </Grid>
             </Border>
 
@@ -92,27 +109,54 @@
               </Grid.ColumnDefinitions>
 
               <Border Grid.Column="0" Style="{StaticResource Card}">
-                <StackPanel>
-                  <TextBlock Text="XBOX ACCOUNT" Foreground="{StaticResource MutedTextBrush}" FontSize="11" FontWeight="Bold" />
-                  <TextBlock x:Name="XboxStatusText" Text="Checking…" FontSize="18" FontWeight="SemiBold" Margin="0,8,0,3" />
-                  <TextBlock x:Name="XboxStatusDetail" Text="OpenXBL connection" Foreground="{StaticResource MutedTextBrush}" FontSize="12" />
-                </StackPanel>
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="44" />
+                    <ColumnDefinition Width="*" />
+                  </Grid.ColumnDefinitions>
+                  <Border Width="34" Height="34" CornerRadius="9" Background="#1A52F2AD" BorderBrush="#6552F2AD" BorderThickness="1" VerticalAlignment="Top">
+                    <Image Source="Assets/RadarSweep.png" Width="22" Height="22" Opacity="0.94" />
+                  </Border>
+                  <StackPanel Grid.Column="1">
+                    <TextBlock Text="XBOX ACCOUNT" Foreground="{StaticResource MutedTextBrush}" FontSize="10" FontWeight="Bold" />
+                    <TextBlock x:Name="XboxStatusText" Text="Checking…" FontSize="17" FontWeight="SemiBold" Margin="0,6,0,3" />
+                    <TextBlock x:Name="XboxStatusDetail" Text="OpenXBL connection" Foreground="{StaticResource MutedTextBrush}" FontSize="11" />
+                  </StackPanel>
+                </Grid>
               </Border>
 
               <Border Grid.Column="2" Style="{StaticResource Card}">
-                <StackPanel>
-                  <TextBlock Text="DISCORD" Foreground="{StaticResource MutedTextBrush}" FontSize="11" FontWeight="Bold" />
-                  <TextBlock x:Name="DiscordStatusText" Text="Checking…" FontSize="18" FontWeight="SemiBold" Margin="0,8,0,3" />
-                  <TextBlock x:Name="DiscordStatusDetail" Text="Webhook destination" Foreground="{StaticResource MutedTextBrush}" FontSize="12" />
-                </StackPanel>
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="44" />
+                    <ColumnDefinition Width="*" />
+                  </Grid.ColumnDefinitions>
+                  <Border Width="34" Height="34" CornerRadius="9" Background="#255865F2" BorderBrush="#725865F2" BorderThickness="1" VerticalAlignment="Top">
+                    <TextBlock Text="◈" Foreground="#B9C0FF" FontSize="22" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                  </Border>
+                  <StackPanel Grid.Column="1">
+                    <TextBlock Text="DISCORD" Foreground="{StaticResource MutedTextBrush}" FontSize="10" FontWeight="Bold" />
+                    <TextBlock x:Name="DiscordStatusText" Text="Checking…" FontSize="17" FontWeight="SemiBold" Margin="0,6,0,3" />
+                    <TextBlock x:Name="DiscordStatusDetail" Text="Webhook destination" Foreground="{StaticResource MutedTextBrush}" FontSize="11" />
+                  </StackPanel>
+                </Grid>
               </Border>
 
               <Border Grid.Column="4" Style="{StaticResource Card}">
-                <StackPanel>
-                  <TextBlock Text="RELAY" Foreground="{StaticResource MutedTextBrush}" FontSize="11" FontWeight="Bold" />
-                  <TextBlock x:Name="RelayStatusText" Text="Checking…" FontSize="18" FontWeight="SemiBold" Margin="0,8,0,3" />
-                  <TextBlock Text="One-minute account sync" Foreground="{StaticResource MutedTextBrush}" FontSize="12" />
-                </StackPanel>
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="44" />
+                    <ColumnDefinition Width="*" />
+                  </Grid.ColumnDefinitions>
+                  <Border Width="34" Height="34" CornerRadius="9" Background="#22F4C96B" BorderBrush="#7AF4C96B" BorderThickness="1" VerticalAlignment="Top">
+                    <Image Source="Assets/TrophyCup.png" Width="22" Height="22" Opacity="0.94" />
+                  </Border>
+                  <StackPanel Grid.Column="1">
+                    <TextBlock Text="RELAY CORE" Foreground="{StaticResource MutedTextBrush}" FontSize="10" FontWeight="Bold" />
+                    <TextBlock x:Name="RelayStatusText" Text="Checking…" FontSize="17" FontWeight="SemiBold" Margin="0,6,0,3" />
+                    <TextBlock Text="One-minute account sync" Foreground="{StaticResource MutedTextBrush}" FontSize="11" />
+                  </StackPanel>
+                </Grid>
               </Border>
             </Grid>
 
@@ -185,6 +229,7 @@
                     <Button Grid.Column="1" Content="Get free API key" Click="OpenOpenXbl_Click" Margin="10,0,0,0" />
                     <Button Grid.Column="2" Content="Save and connect" Style="{StaticResource PrimaryButton}" Click="SaveAndTestOpenXbl_Click" Margin="8,0,0,0" />
                   </Grid>
+                  <TextBlock Text="SECURE VAULT  //  Saved keys stay hidden. Leave this field blank to reuse the stored key." Foreground="{StaticResource MutedTextBrush}" FontSize="10" Margin="0,9,0,0" />
                   <TextBlock x:Name="SetupXboxStatus" Text="Status: not connected" Margin="0,10,0,0" FontWeight="SemiBold" />
                 </StackPanel>
               </Grid>
@@ -215,6 +260,7 @@
                     <Button Grid.Column="1" Content="Official guide" Click="OpenDiscordWebhookGuide_Click" Margin="10,0,0,0" />
                     <Button Grid.Column="2" Content="Save and test" Style="{StaticResource DiscordButton}" Click="SaveAndTestWebhook_Click" Margin="8,0,0,0" />
                   </Grid>
+                  <TextBlock Text="SECURE VAULT  //  Saved webhooks stay hidden. Leave this field blank to retest the stored destination." Foreground="{StaticResource MutedTextBrush}" FontSize="10" Margin="0,9,0,0" />
                   <TextBlock x:Name="SetupWebhookStatus" Text="Status: not connected" Margin="0,10,0,0" FontWeight="SemiBold" />
                 </StackPanel>
               </Grid>
@@ -289,7 +335,7 @@
               <StackPanel>
                 <TextBlock Text="Xbox account · OpenXBL" FontSize="18" FontWeight="SemiBold" />
                 <TextBlock x:Name="SettingsXboxStatus" Text="Not configured" Foreground="{StaticResource MutedTextBrush}" Margin="0,5,0,12" />
-                <TextBlock Text="Paste a new key only when replacing the connected account" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,5" />
+                <TextBlock Text="Saved keys stay hidden. Leave this blank to retry the stored key, or paste a new key to replace it." Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,5" />
                 <PasswordBox x:Name="SettingsXboxApiKeyPasswordBox" PasswordChar="●" />
                 <WrapPanel Margin="0,10,0,0">
                   <Button Content="Get API key" Click="OpenOpenXbl_Click" Margin="0,0,8,0" />
@@ -303,7 +349,7 @@
               <StackPanel>
                 <TextBlock Text="Discord destination" FontSize="18" FontWeight="SemiBold" />
                 <TextBlock x:Name="SettingsWebhookStatus" Text="Not configured" Foreground="{StaticResource MutedTextBrush}" Margin="0,5,0,12" />
-                <TextBlock Text="Paste a new webhook only when replacing the current destination" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,5" />
+                <TextBlock Text="Saved webhooks stay hidden. Leave this blank to keep/test the stored destination, or paste a replacement." Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,5" />
                 <PasswordBox x:Name="SettingsWebhookPasswordBox" PasswordChar="●" />
                 <Button Content="Remove saved webhook" Click="RemoveWebhook_Click" HorizontalAlignment="Left" Margin="0,10,0,0" />
                 <TextBlock Text="Webhook display name" Foreground="{StaticResource MutedTextBrush}" Margin="0,12,0,5" />
@@ -386,7 +432,7 @@
               <StackPanel>
                 <Image Source="Assets/AchievementRelay.png" Width="96" Height="96" HorizontalAlignment="Left" />
                 <TextBlock Text="Achievement Relay" FontSize="25" FontWeight="Bold" Margin="0,14,0,3" />
-                <TextBlock x:Name="AboutVersionText" Text="Version 0.2.0 beta" Foreground="{StaticResource AccentBrush}" FontWeight="SemiBold" />
+                <TextBlock x:Name="AboutVersionText" Text="Version 0.2.1 beta" Foreground="{StaticResource AccentBrush}" FontWeight="SemiBold" />
                 <TextBlock Text="A Windows companion that checks an Xbox account for new achievements and sends rich unlock posts to a Discord channel chosen by the user." Foreground="{StaticResource MutedTextBrush}" Margin="0,14,0,0" MaxWidth="680" HorizontalAlignment="Left" />
               </StackPanel>
             </Border>
@@ -411,6 +457,7 @@
                 <TextBlock Text="Achievement Relay stores the OpenXBL API key and Discord webhook with Windows account encryption. The key is sent only to OpenXBL; achievement details are sent only to the configured Discord webhook. OpenXBL is an independent, unofficial Xbox API provider." Foreground="{StaticResource MutedTextBrush}" Margin="0,7,0,14" />
                 <WrapPanel>
                   <Button Content="View privacy policy" Click="OpenPrivacyPolicy_Click" Margin="0,0,8,0" />
+                  <Button Content="Art licences" Click="OpenArtLicenses_Click" Margin="0,0,8,0" />
                   <Button Content="Open GitHub" Click="OpenGitHub_Click" Margin="0,0,8,0" />
                   <Button Content="Open OpenXBL" Click="OpenOpenXbl_Click" />
                 </WrapPanel>

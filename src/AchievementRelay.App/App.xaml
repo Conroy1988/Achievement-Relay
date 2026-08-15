@@ -3,14 +3,16 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              ShutdownMode="OnExplicitShutdown">
   <Application.Resources>
-    <Color x:Key="BackgroundColor">#090D14</Color>
-    <Color x:Key="PanelColor">#101722</Color>
-    <Color x:Key="PanelRaisedColor">#151E2B</Color>
-    <Color x:Key="BorderColor">#243044</Color>
+    <Color x:Key="BackgroundColor">#050812</Color>
+    <Color x:Key="PanelColor">#0B1220</Color>
+    <Color x:Key="PanelRaisedColor">#131D31</Color>
+    <Color x:Key="BorderColor">#293B57</Color>
     <Color x:Key="TextColor">#F4F7FB</Color>
     <Color x:Key="MutedTextColor">#9AA8BC</Color>
-    <Color x:Key="AccentColor">#56E39F</Color>
-    <Color x:Key="AccentDarkColor">#187B50</Color>
+    <Color x:Key="AccentColor">#52F2AD</Color>
+    <Color x:Key="AccentDarkColor">#126E50</Color>
+    <Color x:Key="LegendaryColor">#F4C96B</Color>
+    <Color x:Key="ArcaneColor">#9B7BFF</Color>
     <Color x:Key="DiscordColor">#5865F2</Color>
     <Color x:Key="KoFiColor">#FF5E5B</Color>
     <Color x:Key="WarningColor">#F6C85F</Color>
@@ -24,10 +26,23 @@
     <SolidColorBrush x:Key="MutedTextBrush" Color="{StaticResource MutedTextColor}" />
     <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
     <SolidColorBrush x:Key="AccentDarkBrush" Color="{StaticResource AccentDarkColor}" />
+    <SolidColorBrush x:Key="LegendaryBrush" Color="{StaticResource LegendaryColor}" />
+    <SolidColorBrush x:Key="ArcaneBrush" Color="{StaticResource ArcaneColor}" />
     <SolidColorBrush x:Key="DiscordBrush" Color="{StaticResource DiscordColor}" />
     <SolidColorBrush x:Key="KoFiBrush" Color="{StaticResource KoFiColor}" />
     <SolidColorBrush x:Key="WarningBrush" Color="{StaticResource WarningColor}" />
     <SolidColorBrush x:Key="ErrorBrush" Color="{StaticResource ErrorColor}" />
+
+    <LinearGradientBrush x:Key="CardSurfaceBrush" StartPoint="0,0" EndPoint="1,1">
+      <GradientStop Color="#F3121C2E" Offset="0" />
+      <GradientStop Color="#F00A101D" Offset="1" />
+    </LinearGradientBrush>
+
+    <LinearGradientBrush x:Key="SidebarSurfaceBrush" StartPoint="0,0" EndPoint="1,1">
+      <GradientStop Color="#FF0D1727" Offset="0" />
+      <GradientStop Color="#FF070B14" Offset="0.68" />
+      <GradientStop Color="#FF111025" Offset="1" />
+    </LinearGradientBrush>
 
     <DrawingBrush x:Key="GamingGridBrush"
                   TileMode="Tile"
@@ -37,14 +52,14 @@
                   ViewboxUnits="Absolute">
       <DrawingBrush.Drawing>
         <DrawingGroup>
-          <GeometryDrawing Brush="#090D14">
+          <GeometryDrawing Brush="#050812">
             <GeometryDrawing.Geometry>
               <RectangleGeometry Rect="0,0,36,36" />
             </GeometryDrawing.Geometry>
           </GeometryDrawing>
           <GeometryDrawing>
             <GeometryDrawing.Pen>
-              <Pen Brush="#172235" Thickness="0.6" />
+              <Pen Brush="#14223A" Thickness="0.55" />
             </GeometryDrawing.Pen>
             <GeometryDrawing.Geometry>
               <GeometryGroup>
@@ -62,6 +77,7 @@
       <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
       <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI" />
       <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+      <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
     </Style>
 
     <Style TargetType="TextBlock">
@@ -71,7 +87,8 @@
 
     <Style x:Key="PageTitle" TargetType="TextBlock">
       <Setter Property="FontSize" Value="28" />
-      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="FontFamily" Value="Bahnschrift SemiBold, Segoe UI Variable Display, Segoe UI" />
       <Setter Property="Margin" Value="0,0,0,6" />
     </Style>
 
@@ -82,11 +99,23 @@
     </Style>
 
     <Style x:Key="Card" TargetType="Border">
-      <Setter Property="Background" Value="#F2101722" />
-      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+      <Setter Property="Background" Value="{StaticResource CardSurfaceBrush}" />
+      <Setter Property="BorderBrush" Value="#3B4B667F" />
       <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="CornerRadius" Value="14" />
       <Setter Property="Padding" Value="20" />
+      <Setter Property="Effect">
+        <Setter.Value>
+          <DropShadowEffect Color="#02040A" BlurRadius="18" ShadowDepth="4" Opacity="0.42" />
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style x:Key="EyebrowText" TargetType="TextBlock">
+      <Setter Property="Foreground" Value="{StaticResource LegendaryBrush}" />
+      <Setter Property="FontFamily" Value="Bahnschrift SemiBold, Segoe UI" />
+      <Setter Property="FontSize" Value="10" />
+      <Setter Property="FontWeight" Value="Bold" />
     </Style>
 
     <Style TargetType="Button">
@@ -130,7 +159,7 @@
       <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
       <Setter Property="Effect">
         <Setter.Value>
-          <DropShadowEffect Color="#56E39F" BlurRadius="12" ShadowDepth="0" Opacity="0.24" />
+          <DropShadowEffect Color="#52F2AD" BlurRadius="16" ShadowDepth="0" Opacity="0.30" />
         </Setter.Value>
       </Setter>
     </Style>
@@ -152,6 +181,8 @@
       <Setter Property="HorizontalContentAlignment" Value="Left" />
       <Setter Property="Padding" Value="14,11" />
       <Setter Property="Margin" Value="0,2" />
+      <Setter Property="FontFamily" Value="Bahnschrift SemiBold, Segoe UI" />
+      <Setter Property="FontSize" Value="13" />
     </Style>
 
     <Style TargetType="TextBox">

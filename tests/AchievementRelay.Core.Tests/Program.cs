@@ -13,9 +13,11 @@ var tests = new (string Name, Action Run)[]
     ("OpenXBL title progress index is parsed", ParsesTitleProgress),
     ("OpenXBL title progress envelopes are supported", ParsesWrappedTitleProgress),
     ("OpenXBL title-history envelopes and userTitles are supported", ParsesTitleHistoryEnvelope),
+    ("OpenXBL string-wrapped title history is supported", ParsesStringWrappedTitleHistory),
     ("Only unlocked, non-revoked achievements are parsed", ParsesUnlockedAchievements),
     ("Achievement identities are stable and account-specific", AchievementIdentityIsStable),
     ("OpenXBL root arrays and alternate fields are supported", ParsesAlternateAchievementShape),
+    ("OpenXBL string-wrapped achievements are supported", ParsesStringWrappedAchievements),
     ("Webhook URL validation is strict", ValidatesWebhookUrls),
     ("Discord payload suppresses mentions", PayloadSuppressesMentions),
     ("Description sharing setting is respected", DescriptionSettingIsRespected),
@@ -239,6 +241,21 @@ static void ParsesTitleHistoryEnvelope()
         $"Unexpected title-history last-played timestamp: {titles[0].LastPlayedAt:O}");
 }
 
+static void ParsesStringWrappedTitleHistory()
+{
+    const string json = """
+        {
+          "body": "{\"titles\":[{\"titleId\":\"987654321\",\"name\":\"String Wrapped Game\",\"achievement\":{\"currentAchievements\":2,\"currentGamerscore\":40}}]}"
+        }
+        """;
+
+    var titles = OpenXblResponseParser.ParseTitleProgress(json);
+    Assert(titles.Count == 1, $"Expected one string-wrapped title summary, found {titles.Count}.");
+    Assert(titles[0].TitleId == "987654321", $"Unexpected string-wrapped title ID: {titles[0].TitleId}");
+    Assert(titles[0].CurrentAchievements == 2, "String-wrapped achievement count was not parsed.");
+    Assert(titles[0].CurrentGamerscore == 40, "String-wrapped Gamerscore was not parsed.");
+}
+
 static void ParsesUnlockedAchievements()
 {
     var achievements = OpenXblResponseParser.ParseAchievements(StandardAchievementResponse(), "2533274999999999");
@@ -298,6 +315,20 @@ static void ParsesAlternateAchievementShape()
     Assert(achievements[0].GameName == "Example Game", "Alternate title field was not parsed.");
     Assert(achievements[0].Gamerscore == 25, "Direct gamerscore field was not parsed.");
     Assert(achievements[0].IsRare, "Direct rarity percentage was not parsed.");
+}
+
+static void ParsesStringWrappedAchievements()
+{
+    const string json = """
+        {
+          "content": "[{\"id\":\"wrapped-1\",\"name\":\"Wrapped Unlock\",\"progressState\":\"Achieved\",\"timeUnlocked\":\"2026-08-15T18:00:00Z\",\"titleName\":\"Wrapped Game\"}]"
+        }
+        """;
+
+    var achievements = OpenXblResponseParser.ParseAchievements(json, "account-a", "123456789");
+    Assert(achievements.Count == 1, "String-wrapped achievement response was not parsed.");
+    Assert(achievements[0].Name == "Wrapped Unlock", "String-wrapped achievement name was not parsed.");
+    Assert(achievements[0].GameName == "Wrapped Game", "String-wrapped game name was not parsed.");
 }
 
 static void ValidatesWebhookUrls()

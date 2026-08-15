@@ -8,10 +8,11 @@ All notable changes to Achievement Relay are documented here. The project follow
 
 - Gave each pull-request installer an increasing MSIX revision so updated test builds install over earlier packages instead of failing with `0x80073CFB`
 - Attempted direct shutdown of the running tray process, then delegated any stubborn or elevated instance to Windows' package deployment broker instead of aborting the upgrade
-- Switched account verification from OpenXBL's legacy host to the provider's current `api.xbl.io/api/v2` service so a saved key can resolve the Xbox profile and complete setup
+- Switched account verification from OpenXBL's legacy host to the provider's current `api.xbl.io` service so a saved key can resolve the Xbox profile and complete setup
 - Combined XUID and gamertag fields found across nested OpenXBL account envelopes instead of requiring both values in the same JSON object
-- Switched title polling to OpenXBL's dedicated `player/titleHistory/{xuid}` route instead of treating the overall achievement response as title history
-- Restored the documented `/api/v2/` path prefix on the current OpenXBL host so title-history polling receives the Xbox title collection instead of an unreadable route response
+- Switched title polling to OpenXBL's current-account `player/titleHistory` operation instead of the XUID-specific route that returns 404 for the connected key owner
+- Added one-time, cached route negotiation across OpenXBL's current `/api/v2/` paths and its live `/v2/` compatibility paths, with a five-minute retry backoff if no title route is usable
+- Accepted JSON collections wrapped as encoded strings inside provider response envelopes
 
 ### Planned
 

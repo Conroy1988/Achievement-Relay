@@ -189,8 +189,8 @@ public static class OpenXblResponseParser
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(json);
 
-        using var document = JsonDocument.Parse(json);
-        var titles = GetArray(document.RootElement, "titles", "userTitles", "items");
+        var root = ParseJsonRoot(json);
+        var titles = GetArray(root, "titles", "userTitles", "items");
         if (titles is null)
         {
             throw new JsonException("OpenXBL did not return an Xbox title collection.");
@@ -272,8 +272,8 @@ public static class OpenXblResponseParser
         ArgumentException.ThrowIfNullOrWhiteSpace(json);
         ArgumentException.ThrowIfNullOrWhiteSpace(accountId);
 
-        using var document = JsonDocument.Parse(json);
-        var achievements = GetArray(document.RootElement, "achievements", "items");
+        var root = ParseJsonRoot(json);
+        var achievements = GetArray(root, "achievements", "items");
         if (achievements is null)
         {
             throw new JsonException("OpenXBL did not return an achievement collection.");
@@ -377,8 +377,27 @@ public static class OpenXblResponseParser
 
     private static JsonElement? GetArray(JsonElement root, int depth, string[] propertyNames)
     {
-        if (depth > 3)
+        if (depth > 5)
         {
+            return null;
+        }
+
+        if (root.ValueKind == JsonValueKind.String)
+        {
+            var nestedJson = root.GetString();
+            if (!string.IsNullOrWhiteSpace(nestedJson))
+            {
+                try
+                {
+                    using var nestedDocument = JsonDocument.Parse(nestedJson.Trim().TrimStart('\uFEFF'));
+                    return GetArray(nestedDocument.RootElement.Clone(), depth + 1, propertyNames);
+                }
+                catch (JsonException)
+                {
+                    return null;
+                }
+            }
+
             return null;
         }
 
@@ -400,7 +419,7 @@ public static class OpenXblResponseParser
 
             foreach (var containerName in new[]
                      {
-                         "data", "result", "response", "payload", "value", "titleHistory", "history"
+                         "data", "result", "response", "payload", "value", "body", "content", "titleHistory", "history"
                      })
             {
                 if (!TryGetProperty(root, containerName, out var container))
@@ -417,6 +436,12 @@ public static class OpenXblResponseParser
         }
 
         return null;
+    }
+
+    private static JsonElement ParseJsonRoot(string json)
+    {
+        using var document = JsonDocument.Parse(json.Trim().TrimStart('\uFEFF'));
+        return document.RootElement.Clone();
     }
 
     private static bool IsAchieved(JsonElement item)

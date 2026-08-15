@@ -145,15 +145,22 @@ if (-not $openXblParserText.Contains('"profileUsers"') -or
 }
 
 $openXblClientText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\OpenXblClient.cs') -Raw
-if (-not $openXblClientText.Contains('new("https://api.xbl.io/api/v2/")') -or
-    $openXblClientText.Contains('new("https://api.xbl.io/v2/")') -or
+if (-not $openXblClientText.Contains('new("https://api.xbl.io/")') -or
+    -not $openXblClientText.Contains('"api/v2/account"') -or
+    -not $openXblClientText.Contains('"v2/account"') -or
     $openXblClientText.Contains('https://xbl.io/api/v2/')) {
-    throw 'OpenXBL requests must use the provider documented https://api.xbl.io/api/v2/ base endpoint.'
+    throw 'OpenXBL requests must stay on the provider current https://api.xbl.io/ origin.'
 }
-if (-not $openXblClientText.Contains('$"player/titleHistory/{Uri.EscapeDataString(accountId.Trim())}"') -or
-    $openXblClientText.Contains('$"achievements/player/{Uri.EscapeDataString(accountId.Trim())}",') -or
-    -not $openXblClientText.Contains('$"achievements/player/{Uri.EscapeDataString(accountId.Trim())}/{Uri.EscapeDataString(titleId.Trim())}"')) {
-    throw 'OpenXBL polling must use title history for the lightweight index and the title-specific route for achievement details.'
+if (-not $openXblClientText.Contains('"api/v2/player/titleHistory"') -or
+    -not $openXblClientText.Contains('"v2/player/titleHistory"') -or
+    $openXblClientText.Contains('"api/v2/player/titleHistory/{xuid}"') -or
+    $openXblClientText.Contains('"v2/player/titleHistory/{xuid}"') -or
+    -not $openXblClientText.Contains('"api/v2/achievements/player/{xuid}"') -or
+    -not $openXblClientText.Contains('"api/v2/achievements/player/{xuid}/{titleId}"') -or
+    -not $openXblClientText.Contains('"api/v2/achievements/title/{titleId}"') -or
+    -not $openXblClientText.Contains('EndpointProbeRetryAfter = TimeSpan.FromMinutes(5)') -or
+    -not $openXblClientText.Contains('_preferredTitleProgressRouteTemplate = routeTemplate')) {
+    throw 'OpenXBL polling must prefer current-account title history, safely negotiate compatible routes, cache success, and back off failed probes.'
 }
 
 $appProjectText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\AchievementRelay.App.csproj') -Raw

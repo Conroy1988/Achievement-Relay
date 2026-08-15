@@ -31,8 +31,32 @@ public sealed record OpenXblTitleProgressResult(
 
 public sealed class OpenXblClient : IDisposable
 {
-    private static readonly Uri BaseAddress = new("https://api.xbl.io/api/v2/");
+    private static readonly Uri BaseAddress = new("https://api.xbl.io/");
+    private static readonly TimeSpan EndpointProbeRetryAfter = TimeSpan.FromMinutes(5);
+    private static readonly string[] AccountRoutes =
+    [
+        "api/v2/account",
+        "v2/account"
+    ];
+    private static readonly string[] TitleProgressRouteTemplates =
+    [
+        "api/v2/player/titleHistory",
+        "v2/player/titleHistory",
+        "api/v2/achievements/player/{xuid}",
+        "v2/achievements/player/{xuid}"
+    ];
+    private static readonly string[] TitleAchievementRouteTemplates =
+    [
+        "api/v2/achievements/player/{xuid}/{titleId}",
+        "api/v2/achievements/title/{titleId}",
+        "v2/achievements/player/{xuid}/{titleId}",
+        "v2/achievements/title/{titleId}"
+    ];
     private const int MaximumResponseCharacters = 20 * 1024 * 1024;
+
+    private string? _preferredAccountRoute;
+    private string? _preferredTitleProgressRouteTemplate;
+    private string? _preferredTitleAchievementRouteTemplate;
 
     private readonly HttpClient _httpClient = new()
     {
@@ -50,31 +74,54 @@ public sealed class OpenXblClient : IDisposable
             return new OpenXblAccountResult(false, error ?? "The OpenXBL API key is invalid.");
         }
 
-        var response = await SendAsync("account", normalized, cancellationToken);
-        if (!response.Success || response.Content is null)
+        ApiResponse? lastResponse = null;
+        var receivedUnreadableResponse = false;
+        foreach (var route in PreferRoute(_preferredAccountRoute, AccountRoutes))
         {
-            return new OpenXblAccountResult(
-                false,
-                response.Message,
-                StatusCode: response.StatusCode,
-                RetryAfter: response.RetryAfter);
+            var response = await SendAsync(route, normalized, cancellationToken);
+            lastResponse = response;
+            if (!response.Success || response.Content is null)
+            {
+                if (response.StatusCode != (int)HttpStatusCode.NotFound)
+                {
+                    return new OpenXblAccountResult(
+                        false,
+                        response.Message,
+                        StatusCode: response.StatusCode,
+                        RetryAfter: response.RetryAfter);
+                }
+
+                continue;
+            }
+
+            try
+            {
+                var account = OpenXblResponseParser.ParseAccount(response.Content);
+                _preferredAccountRoute = route;
+                return new OpenXblAccountResult(
+                    true,
+                    "OpenXBL connected to the Xbox account.",
+                    account,
+                    response.StatusCode);
+            }
+            catch (JsonException)
+            {
+                receivedUnreadableResponse = true;
+            }
+            catch (ArgumentException)
+            {
+                receivedUnreadableResponse = true;
+            }
         }
 
-        try
-        {
-            return new OpenXblAccountResult(
-                true,
-                "OpenXBL connected to the Xbox account.",
-                OpenXblResponseParser.ParseAccount(response.Content),
-                response.StatusCode);
-        }
-        catch (JsonException exception)
-        {
-            var message = exception.Message.StartsWith("OpenXBL ", StringComparison.Ordinal)
-                ? exception.Message
-                : "OpenXBL returned an account response that Achievement Relay could not read.";
-            return new OpenXblAccountResult(false, message);
-        }
+        var message = receivedUnreadableResponse
+            ? "OpenXBL accepted the API key, but did not return a usable Xbox profile. Confirm the intended Xbox profile is connected in OpenXBL, then try again."
+            : lastResponse?.Message ?? "Achievement Relay could not find OpenXBL's account service.";
+        return new OpenXblAccountResult(
+            false,
+            message,
+            StatusCode: lastResponse?.StatusCode,
+            RetryAfter: lastResponse?.RetryAfter ?? EndpointProbeRetryAfter);
     }
 
     public async Task<OpenXblTitleProgressResult> GetTitleProgressAsync(
@@ -92,32 +139,58 @@ public sealed class OpenXblClient : IDisposable
             return new OpenXblTitleProgressResult(false, "The connected Xbox account identifier is missing.");
         }
 
-        var response = await SendAsync(
-            $"player/titleHistory/{Uri.EscapeDataString(accountId.Trim())}",
-            normalized,
-            cancellationToken);
-        if (!response.Success || response.Content is null)
+        var escapedAccountId = Uri.EscapeDataString(accountId.Trim());
+        ApiResponse? lastResponse = null;
+        var receivedUnreadableResponse = false;
+        foreach (var routeTemplate in PreferRoute(
+                     _preferredTitleProgressRouteTemplate,
+                     TitleProgressRouteTemplates))
         {
-            return new OpenXblTitleProgressResult(
-                false,
-                response.Message,
-                StatusCode: response.StatusCode,
-                RetryAfter: response.RetryAfter);
+            var route = routeTemplate.Replace("{xuid}", escapedAccountId, StringComparison.Ordinal);
+            var response = await SendAsync(route, normalized, cancellationToken);
+            lastResponse = response;
+            if (!response.Success || response.Content is null)
+            {
+                if (response.StatusCode != (int)HttpStatusCode.NotFound)
+                {
+                    return new OpenXblTitleProgressResult(
+                        false,
+                        response.Message,
+                        StatusCode: response.StatusCode,
+                        RetryAfter: response.RetryAfter);
+                }
+
+                continue;
+            }
+
+            try
+            {
+                var titles = OpenXblResponseParser.ParseTitleProgress(response.Content);
+                _preferredTitleProgressRouteTemplate = routeTemplate;
+                return new OpenXblTitleProgressResult(
+                    true,
+                    $"OpenXBL returned progress for {titles.Count} Xbox title{(titles.Count == 1 ? string.Empty : "s")}.",
+                    titles,
+                    response.StatusCode);
+            }
+            catch (JsonException)
+            {
+                receivedUnreadableResponse = true;
+            }
+            catch (ArgumentException)
+            {
+                receivedUnreadableResponse = true;
+            }
         }
 
-        try
-        {
-            var titles = OpenXblResponseParser.ParseTitleProgress(response.Content);
-            return new OpenXblTitleProgressResult(
-                true,
-                $"OpenXBL returned progress for {titles.Count} Xbox title{(titles.Count == 1 ? string.Empty : "s")}.",
-                titles,
-                response.StatusCode);
-        }
-        catch (JsonException)
-        {
-            return new OpenXblTitleProgressResult(false, "OpenXBL returned title progress that Achievement Relay could not read.");
-        }
+        var message = receivedUnreadableResponse
+            ? "OpenXBL returned title data in a format that Achievement Relay could not read from its current account routes."
+            : "OpenXBL did not expose a compatible title-progress route for this account. Achievement Relay will retry automatically.";
+        return new OpenXblTitleProgressResult(
+            false,
+            message,
+            StatusCode: lastResponse?.StatusCode,
+            RetryAfter: lastResponse?.RetryAfter ?? EndpointProbeRetryAfter);
     }
 
     public async Task<OpenXblAchievementsResult> GetTitleAchievementsAsync(
@@ -136,35 +209,89 @@ public sealed class OpenXblClient : IDisposable
             return new OpenXblAchievementsResult(false, "The Xbox account or title identifier is missing.");
         }
 
-        var response = await SendAsync(
-            $"achievements/player/{Uri.EscapeDataString(accountId.Trim())}/{Uri.EscapeDataString(titleId.Trim())}",
-            normalized,
-            cancellationToken);
-        if (!response.Success || response.Content is null)
+        var escapedAccountId = Uri.EscapeDataString(accountId.Trim());
+        var escapedTitleId = Uri.EscapeDataString(titleId.Trim());
+        ApiResponse? lastResponse = null;
+        var receivedUnreadableResponse = false;
+        foreach (var routeTemplate in PreferTitleAchievementRoute())
         {
-            return new OpenXblAchievementsResult(
-                false,
-                response.Message,
-                StatusCode: response.StatusCode,
-                RetryAfter: response.RetryAfter);
+            var route = routeTemplate
+                .Replace("{xuid}", escapedAccountId, StringComparison.Ordinal)
+                .Replace("{titleId}", escapedTitleId, StringComparison.Ordinal);
+            var response = await SendAsync(route, normalized, cancellationToken);
+            lastResponse = response;
+            if (!response.Success || response.Content is null)
+            {
+                if (response.StatusCode != (int)HttpStatusCode.NotFound)
+                {
+                    return new OpenXblAchievementsResult(
+                        false,
+                        response.Message,
+                        StatusCode: response.StatusCode,
+                        RetryAfter: response.RetryAfter);
+                }
+
+                continue;
+            }
+
+            try
+            {
+                var achievements = OpenXblResponseParser.ParseAchievements(response.Content, accountId, titleId);
+                _preferredTitleAchievementRouteTemplate = routeTemplate;
+                return new OpenXblAchievementsResult(
+                    true,
+                    $"OpenXBL returned {achievements.Count} unlocked achievement{(achievements.Count == 1 ? string.Empty : "s")} for the changed title.",
+                    achievements,
+                    response.StatusCode);
+            }
+            catch (JsonException)
+            {
+                receivedUnreadableResponse = true;
+            }
+            catch (ArgumentException)
+            {
+                receivedUnreadableResponse = true;
+            }
         }
 
-        try
-        {
-            var achievements = OpenXblResponseParser.ParseAchievements(response.Content, accountId, titleId);
-            return new OpenXblAchievementsResult(
-                true,
-                $"OpenXBL returned {achievements.Count} unlocked achievement{(achievements.Count == 1 ? string.Empty : "s")} for the changed title.",
-                achievements,
-                response.StatusCode);
-        }
-        catch (JsonException)
-        {
-            return new OpenXblAchievementsResult(false, "OpenXBL returned title achievement data that Achievement Relay could not read.");
-        }
+        var message = receivedUnreadableResponse
+            ? "OpenXBL returned title achievement data that Achievement Relay could not read from its current account routes."
+            : "OpenXBL did not expose a compatible achievement-detail route for this account. Achievement Relay will retry automatically.";
+        return new OpenXblAchievementsResult(
+            false,
+            message,
+            StatusCode: lastResponse?.StatusCode,
+            RetryAfter: lastResponse?.RetryAfter ?? EndpointProbeRetryAfter);
     }
 
     public void Dispose() => _httpClient.Dispose();
+
+    private IEnumerable<string> PreferTitleAchievementRoute()
+    {
+        var preferredPrefix = _preferredTitleProgressRouteTemplate?.StartsWith("v2/", StringComparison.Ordinal) == true
+            ? "v2/"
+            : "api/v2/";
+        var orderedRoutes = TitleAchievementRouteTemplates
+            .OrderByDescending(route => route.StartsWith(preferredPrefix, StringComparison.Ordinal))
+            .ToArray();
+        return PreferRoute(_preferredTitleAchievementRouteTemplate, orderedRoutes);
+    }
+
+    private static IEnumerable<string> PreferRoute(string? preferredRoute, IEnumerable<string> routes)
+    {
+        if (!string.IsNullOrWhiteSpace(preferredRoute))
+        {
+            yield return preferredRoute;
+        }
+
+        foreach (var route in routes)
+        {
+            if (!string.Equals(route, preferredRoute, StringComparison.Ordinal))
+            {
+                yield return route;
+            }
+        }
+    }
 
     private async Task<ApiResponse> SendAsync(
         string relativePath,

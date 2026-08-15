@@ -31,7 +31,7 @@ DPAPI protects secrets at rest from other ordinary Windows users; it does not pr
 
 ## Provider and network boundary
 
-The API key is sent only to OpenXBL's documented `https://api.xbl.io/api/v2/` service in the `X-Authorization` header. Discord payloads are sent only to a URL accepted by `WebhookUrlValidator`. HTTP responses are size-bounded and requests use timeouts. No provider response is treated as executable content.
+The API key is sent only to OpenXBL's `https://api.xbl.io/` service in the `X-Authorization` header. Route negotiation changes only the path on that fixed HTTPS origin. Discord payloads are sent only to a URL accepted by `WebhookUrlValidator`. HTTP responses are size-bounded and requests use timeouts. No provider response is treated as executable content.
 
 OpenXBL is an independent third party. A compromise or behavioral change at that provider is outside Achievement Relay's security boundary; users can revoke the API key and disconnect the account at any time.
 

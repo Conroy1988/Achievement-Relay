@@ -283,6 +283,7 @@ public sealed class RelayCoordinator(
                     normalizedApiKey,
                     accountXuid,
                     title.TitleId,
+                    title.CurrentAchievements,
                     cancellationToken);
                 if (!detailFetch.Success || detailFetch.Achievements is null)
                 {
@@ -297,7 +298,8 @@ public sealed class RelayCoordinator(
                 {
                     return SetError(
                         $"OpenXBL reported new progress for {title.Name ?? "an Xbox title"}, but its achievement details have not caught up yet. Achievement Relay will retry without advancing the sync position.",
-                        manual);
+                        manual,
+                        detailFetch.RetryAfter);
                 }
 
                 var candidates = detailFetch.Achievements
@@ -314,7 +316,8 @@ public sealed class RelayCoordinator(
                 {
                     return SetError(
                         $"OpenXBL reported a new unlock for {title.Name ?? "an Xbox title"}, but no new timestamped achievement is available yet. Achievement Relay will retry without advancing the sync position.",
-                        manual);
+                        manual,
+                        detailFetch.RetryAfter);
                 }
 
                 foreach (var achievement in candidates)

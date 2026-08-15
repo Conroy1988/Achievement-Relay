@@ -21,7 +21,7 @@ Check [OpenXBL pricing](https://xbl.io/pricing) and provider status. Do not laun
 
 ## Xbox account connects but the achievement feed fails
 
-OpenXBL profile lookup, title-history lookup, and per-title achievement lookup are separate checks. Current builds ask for the API key owner's title history first instead of appending the XUID to that operation. They try OpenXBL's documented `/api/v2/` route, then compatible live routes only until one returns readable Xbox JSON; the successful route is cached. If every compatible title route fails, background checks wait five minutes before probing again. Install the newest build, confirm internet access to `api.xbl.io`, and retry **Sync Xbox now**. If it still fails, copy the redacted support summary and open an issue without attaching raw account JSON.
+OpenXBL profile lookup, title-history lookup, and per-title achievement lookup are separate checks. Current builds ask for the API key owner's title history first instead of appending the XUID to that operation. They try OpenXBL's documented `/api/v2/` routes, including the canonical player/title and dedicated Xbox 360 detail operations, then compatible live routes. A readable detail response is accepted only when its unlocked count catches up with title history; the complete route is cached for that individual title. If every compatible title route fails, background checks wait five minutes before probing again. Install the newest build, confirm internet access to `api.xbl.io`, and retry **Sync Xbox now**. If it still fails, copy the redacted support summary and open an issue without attaching raw account JSON.
 
 ## Discord sample/test fails
 

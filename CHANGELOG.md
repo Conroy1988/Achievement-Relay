@@ -13,6 +13,8 @@ All notable changes to Achievement Relay are documented here. The project follow
 - Switched title polling to OpenXBL's current-account `player/titleHistory` operation instead of the XUID-specific route that returns 404 for the connected key owner
 - Added one-time, cached route negotiation across OpenXBL's current `/api/v2/` paths and its live `/v2/` compatibility paths, with a five-minute retry backoff if no title route is usable
 - Accepted JSON collections wrapped as encoded strings inside provider response envelopes
+- Added OpenXBL's dedicated Xbox 360 achievement route and accepted its `unlocked` response field
+- Kept probing documented per-title detail routes when the first readable response contains fewer unlocked achievements than title history reports, then cached the complete route per title
 
 ### Planned
 

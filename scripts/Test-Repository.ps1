@@ -156,11 +156,17 @@ if (-not $openXblClientText.Contains('"api/v2/player/titleHistory"') -or
     $openXblClientText.Contains('"api/v2/player/titleHistory/{xuid}"') -or
     $openXblClientText.Contains('"v2/player/titleHistory/{xuid}"') -or
     -not $openXblClientText.Contains('"api/v2/achievements/player/{xuid}"') -or
+    -not $openXblClientText.Contains('"api/v2/achievements/player/{xuid}/title/{titleId}"') -or
+    -not $openXblClientText.Contains('"api/v2/achievements/x360/{xuid}/title/{titleId}"') -or
     -not $openXblClientText.Contains('"api/v2/achievements/player/{xuid}/{titleId}"') -or
     -not $openXblClientText.Contains('"api/v2/achievements/title/{titleId}"') -or
+    -not $openXblClientText.Contains('achievements.Count >= Math.Max(0, expectedUnlockedCount)') -or
+    -not $openXblClientText.Contains('_preferredTitleAchievementRouteTemplates[titleId] = routeTemplate') -or
+    -not $openXblClientText.Contains('HttpStatusCode.BadRequest') -or
+    -not $openXblParserText.Contains('TryGetProperty(item, "unlocked"') -or
     -not $openXblClientText.Contains('EndpointProbeRetryAfter = TimeSpan.FromMinutes(5)') -or
     -not $openXblClientText.Contains('_preferredTitleProgressRouteTemplate = routeTemplate')) {
-    throw 'OpenXBL polling must prefer current-account title history, safely negotiate compatible routes, cache success, and back off failed probes.'
+    throw 'OpenXBL polling must negotiate complete modern and Xbox 360 detail responses, cache success per title, and back off failed probes.'
 }
 
 $appProjectText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\AchievementRelay.App.csproj') -Raw

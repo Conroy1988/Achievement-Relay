@@ -18,6 +18,7 @@ var tests = new (string Name, Action Run)[]
     ("Achievement identities are stable and account-specific", AchievementIdentityIsStable),
     ("OpenXBL root arrays and alternate fields are supported", ParsesAlternateAchievementShape),
     ("OpenXBL string-wrapped achievements are supported", ParsesStringWrappedAchievements),
+    ("OpenXBL Xbox 360 achievements are supported", ParsesXbox360Achievements),
     ("Webhook URL validation is strict", ValidatesWebhookUrls),
     ("Discord payload suppresses mentions", PayloadSuppressesMentions),
     ("Description sharing setting is respected", DescriptionSettingIsRespected),
@@ -329,6 +330,46 @@ static void ParsesStringWrappedAchievements()
     Assert(achievements.Count == 1, "String-wrapped achievement response was not parsed.");
     Assert(achievements[0].Name == "Wrapped Unlock", "String-wrapped achievement name was not parsed.");
     Assert(achievements[0].GameName == "Wrapped Game", "String-wrapped game name was not parsed.");
+}
+
+static void ParsesXbox360Achievements()
+{
+    const string json = """
+        {
+          "achievements": [
+            {
+              "id": 36,
+              "titleId": 41560855,
+              "name": "Legacy Unlock",
+              "unlockedOnline": true,
+              "unlocked": true,
+              "isSecret": false,
+              "gamerscore": 15,
+              "description": "Complete the legacy objective.",
+              "isRevoked": false,
+              "timeUnlocked": "2026-08-15T19:45:00Z"
+            },
+            {
+              "id": 37,
+              "titleId": 41560855,
+              "name": "Still Locked",
+              "unlockedOnline": false,
+              "unlocked": false,
+              "gamerscore": 20,
+              "timeUnlocked": "0001-01-01T00:00:00Z"
+            }
+          ],
+          "pagingInfo": { "continuationToken": null, "totalRecords": 2 }
+        }
+        """;
+
+    var achievements = OpenXblResponseParser.ParseAchievements(json, "account-a");
+    Assert(achievements.Count == 1, $"Expected one unlocked Xbox 360 achievement, found {achievements.Count}.");
+    Assert(achievements[0].Name == "Legacy Unlock", "Xbox 360 achievement name was not parsed.");
+    Assert(achievements[0].Gamerscore == 15, "Xbox 360 Gamerscore was not parsed.");
+    Assert(
+        achievements[0].UnlockedAt == new DateTimeOffset(2026, 8, 15, 19, 45, 0, TimeSpan.Zero),
+        $"Unexpected Xbox 360 unlock time: {achievements[0].UnlockedAt:O}");
 }
 
 static void ValidatesWebhookUrls()

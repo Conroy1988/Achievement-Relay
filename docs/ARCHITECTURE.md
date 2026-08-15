@@ -32,13 +32,13 @@ sequenceDiagram
     end
 ```
 
-`OpenXblClient` sends the user-supplied key only in the `X-Authorization` header to OpenXBL's `https://api.xbl.io/` service. The client tries the documented `/api/v2/` current-account operations first, can fall back to the provider's live `/v2/` compatibility paths, and caches the first route whose JSON parses successfully. Requests time out after 20 seconds and response buffering is capped at 20 MiB. Provider and network failures become user-safe messages; the key is never included.
+`OpenXblClient` sends the user-supplied key only in the `X-Authorization` header to OpenXBL's `https://api.xbl.io/` service. The client tries the documented `/api/v2/` current-account operations first and can fall back to the provider's live `/v2/` compatibility paths. Account and title-history routes are cached after readable JSON; per-title detail routes are cached only after their parsed unlocked count reaches the title-history count. Requests time out after 20 seconds and response buffering is capped at 20 MiB. Provider and network failures become user-safe messages; the key is never included.
 
 ## Baseline, recovery, and duplicates
 
 On the first verified account connection, `XboxSyncStateStore` records the complete first successful title snapshot and a baseline timestamp. Achievements already present in that response are intentionally ignored, preventing historical Discord floods. Monitoring begins from that verified snapshot.
 
-Each successful poll records `LastSuccessfulPollUtc` and a per-title snapshot of unlocked count plus current Gamerscore. The inexpensive current-account `player/titleHistory` index is preferred for the one-minute poll; compatible title-index routes are probed only until one succeeds. A title-specific achievement route is requested only for new or changed titles and is cached after its first successful parse. If no compatible route is available, automatic probes back off for five minutes to remain below OpenXBL's free-tier request budget. Later checks examine detailed unlocks newer than the baseline and use a 24-hour overlap before the last cursor. The overlap allows failed Discord posts to retry, while `EventLedger` prevents already handled events from posting twice. The cursor/title snapshot is not advanced past a pending provider or Discord delivery.
+Each successful poll records `LastSuccessfulPollUtc` and a per-title snapshot of unlocked count plus current Gamerscore. The inexpensive current-account `player/titleHistory` index is preferred for the one-minute poll; compatible title-index routes are probed only until one succeeds. A title-specific achievement route is requested only for new or changed titles. A readable but incomplete result does not end route negotiation: the client also tries OpenXBL's canonical player/title and dedicated Xbox 360 operations until the parsed unlocked count reaches the title-history count, then caches that complete route for the individual title. If no compatible route is available, automatic probes back off for five minutes to remain below OpenXBL's free-tier request budget. Later checks examine detailed unlocks newer than the baseline and use a 24-hour overlap before the last cursor. The overlap allows failed Discord posts to retry, while `EventLedger` prevents already handled events from posting twice. The cursor/title snapshot is not advanced past a pending provider or Discord delivery.
 
 The overlap does not limit offline recovery: after several days offline, the cursor still begins at the previous successful poll, so achievements earned during downtime remain candidates when returned by OpenXBL.
 
@@ -49,7 +49,7 @@ Event IDs are SHA-256 hashes over a version marker, account XUID, service config
 `OpenXblResponseParser` accepts the Xbox Achievement v2-style JSON returned by OpenXBL. It:
 
 1. accepts a documented `achievements` collection or root array;
-2. keeps only entries explicitly marked achieved;
+2. keeps only entries explicitly marked achieved, including the Xbox 360 `unlocked` boolean;
 3. rejects revoked or timestamp-less entries;
 4. maps title, description, Gamerscore, rarity, and icon when available; and
 5. deduplicates by deterministic event identity.

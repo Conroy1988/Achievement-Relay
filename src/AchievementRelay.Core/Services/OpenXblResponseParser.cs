@@ -355,6 +355,11 @@ public static class OpenXblResponseParser
 
         if (string.IsNullOrWhiteSpace(titleId))
         {
+            titleId = GetString(item, "titleId");
+        }
+
+        if (string.IsNullOrWhiteSpace(titleId))
+        {
             titleId = fallbackTitleId ?? string.Empty;
         }
 
@@ -446,6 +451,12 @@ public static class OpenXblResponseParser
 
     private static bool IsAchieved(JsonElement item)
     {
+        if (TryGetProperty(item, "unlocked", out var unlocked) &&
+            unlocked.ValueKind is JsonValueKind.True or JsonValueKind.False)
+        {
+            return unlocked.GetBoolean();
+        }
+
         var state = GetString(item, "progressState", "achievementState");
         if (state.Equals("Achieved", StringComparison.OrdinalIgnoreCase) || state == "1")
         {

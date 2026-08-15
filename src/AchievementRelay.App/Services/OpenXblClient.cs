@@ -47,8 +47,12 @@ public sealed class OpenXblClient : IDisposable
     ];
     private static readonly string[] TitleAchievementRouteTemplates =
     [
+        "api/v2/achievements/player/{xuid}/title/{titleId}",
+        "api/v2/achievements/x360/{xuid}/title/{titleId}",
         "api/v2/achievements/player/{xuid}/{titleId}",
         "api/v2/achievements/title/{titleId}",
+        "v2/achievements/player/{xuid}/title/{titleId}",
+        "v2/achievements/x360/{xuid}/title/{titleId}",
         "v2/achievements/player/{xuid}/{titleId}",
         "v2/achievements/title/{titleId}"
     ];
@@ -56,7 +60,8 @@ public sealed class OpenXblClient : IDisposable
 
     private string? _preferredAccountRoute;
     private string? _preferredTitleProgressRouteTemplate;
-    private string? _preferredTitleAchievementRouteTemplate;
+    private readonly Dictionary<string, string> _preferredTitleAchievementRouteTemplates =
+        new(StringComparer.Ordinal);
 
     private readonly HttpClient _httpClient = new()
     {
@@ -197,6 +202,7 @@ public sealed class OpenXblClient : IDisposable
         string apiKey,
         string accountId,
         string titleId,
+        int expectedUnlockedCount,
         CancellationToken cancellationToken = default)
     {
         if (!OpenXblApiKeyValidator.TryNormalize(apiKey, out var normalized, out var error))
@@ -213,7 +219,8 @@ public sealed class OpenXblClient : IDisposable
         var escapedTitleId = Uri.EscapeDataString(titleId.Trim());
         ApiResponse? lastResponse = null;
         var receivedUnreadableResponse = false;
-        foreach (var routeTemplate in PreferTitleAchievementRoute())
+        IReadOnlyList<AchievementEvent>? bestAchievements = null;
+        foreach (var routeTemplate in PreferTitleAchievementRoute(titleId))
         {
             var route = routeTemplate
                 .Replace("{xuid}", escapedAccountId, StringComparison.Ordinal)
@@ -222,7 +229,8 @@ public sealed class OpenXblClient : IDisposable
             lastResponse = response;
             if (!response.Success || response.Content is null)
             {
-                if (response.StatusCode != (int)HttpStatusCode.NotFound)
+                if (response.StatusCode != (int)HttpStatusCode.NotFound &&
+                    response.StatusCode != (int)HttpStatusCode.BadRequest)
                 {
                     return new OpenXblAchievementsResult(
                         false,
@@ -237,12 +245,20 @@ public sealed class OpenXblClient : IDisposable
             try
             {
                 var achievements = OpenXblResponseParser.ParseAchievements(response.Content, accountId, titleId);
-                _preferredTitleAchievementRouteTemplate = routeTemplate;
-                return new OpenXblAchievementsResult(
-                    true,
-                    $"OpenXBL returned {achievements.Count} unlocked achievement{(achievements.Count == 1 ? string.Empty : "s")} for the changed title.",
-                    achievements,
-                    response.StatusCode);
+                if (bestAchievements is null || achievements.Count > bestAchievements.Count)
+                {
+                    bestAchievements = achievements;
+                }
+
+                if (achievements.Count >= Math.Max(0, expectedUnlockedCount))
+                {
+                    _preferredTitleAchievementRouteTemplates[titleId] = routeTemplate;
+                    return new OpenXblAchievementsResult(
+                        true,
+                        $"OpenXBL returned {achievements.Count} unlocked achievement{(achievements.Count == 1 ? string.Empty : "s")} for the changed title.",
+                        achievements,
+                        response.StatusCode);
+                }
             }
             catch (JsonException)
             {
@@ -252,6 +268,16 @@ public sealed class OpenXblClient : IDisposable
             {
                 receivedUnreadableResponse = true;
             }
+        }
+
+        if (bestAchievements is not null)
+        {
+            return new OpenXblAchievementsResult(
+                true,
+                $"OpenXBL returned {bestAchievements.Count} unlocked achievement{(bestAchievements.Count == 1 ? string.Empty : "s")}, fewer than the changed title reports.",
+                bestAchievements,
+                lastResponse?.StatusCode,
+                EndpointProbeRetryAfter);
         }
 
         var message = receivedUnreadableResponse
@@ -266,7 +292,7 @@ public sealed class OpenXblClient : IDisposable
 
     public void Dispose() => _httpClient.Dispose();
 
-    private IEnumerable<string> PreferTitleAchievementRoute()
+    private IEnumerable<string> PreferTitleAchievementRoute(string titleId)
     {
         var preferredPrefix = _preferredTitleProgressRouteTemplate?.StartsWith("v2/", StringComparison.Ordinal) == true
             ? "v2/"
@@ -274,7 +300,8 @@ public sealed class OpenXblClient : IDisposable
         var orderedRoutes = TitleAchievementRouteTemplates
             .OrderByDescending(route => route.StartsWith(preferredPrefix, StringComparison.Ordinal))
             .ToArray();
-        return PreferRoute(_preferredTitleAchievementRouteTemplate, orderedRoutes);
+        _preferredTitleAchievementRouteTemplates.TryGetValue(titleId, out var preferredRoute);
+        return PreferRoute(preferredRoute, orderedRoutes);
     }
 
     private static IEnumerable<string> PreferRoute(string? preferredRoute, IEnumerable<string> routes)

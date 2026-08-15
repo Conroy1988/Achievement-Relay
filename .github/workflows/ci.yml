@@ -35,9 +35,21 @@ jobs:
         shell: pwsh
         run: .\scripts\Test-Repository.ps1
 
-      - name: Create unsigned installer smoke artifacts
+      - name: Create signed Windows test installer
         shell: pwsh
-        run: |
-          .\scripts\Build-Msix.ps1 -Architecture x64 -Version 0.2.1.0 -OutputDirectory .\artifacts\ci
-          .\scripts\Build-Msix.ps1 -Architecture arm64 -Version 0.2.1.0 -OutputDirectory .\artifacts\ci
-          .\scripts\Build-Installer.ps1 -Version 0.2.1 -MsixVersion 0.2.1.0 -PackageDirectory .\artifacts\ci -OutputDirectory .\artifacts\ci
+        run: .\scripts\Build-Release.ps1 -Version 0.2.1.0
+
+      - name: Retain pull-request installer for Windows verification
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: AchievementRelay-v0.2.1-windows-test
+          path: |
+            artifacts/AchievementRelay_Setup.exe
+            artifacts/AchievementRelay_0.2.1.0_x64.msix
+            artifacts/AchievementRelay_0.2.1.0_arm64.msix
+            artifacts/AchievementRelay_0.2.1.0_installer.zip
+            artifacts/AchievementRelay.Development.cer
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0

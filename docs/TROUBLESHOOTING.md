@@ -60,6 +60,12 @@ The one-time installer file contains DPAPI ciphertext, not plaintext. The app tr
 
 Re-run `AchievementRelay_Setup.exe` and enable **Create a desktop shortcut**, or create a shortcut from the installed app's Start-menu entry. The manual `Install.ps1` supports `-CreateDesktopShortcut`.
 
+## Windows says the package is already installed but the contents differ
+
+Windows rejects a changed MSIX when it reuses an installed four-part package version. Current pull-request installers include an increasing test revision so each newer artifact performs an in-place upgrade. Download the newest artifact instead of retrying an older installer.
+
+Setup closes any Achievement Relay instance running in the current Windows session—including the notification-area instance—before deployment, retains the encrypted per-user settings, and relaunches the updated app afterward. `Add-AppxPackage -ForceApplicationShutdown` remains enabled as a deployment fallback.
+
 ## Duplicate posts
 
 Successful event IDs are retained locally for 90 days, capped at 1,000. Do not delete `processed-events.json` during ordinary troubleshooting. If duplicates persist, include approximate unlock/post times and the redacted support summary in an issue.

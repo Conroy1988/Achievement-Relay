@@ -8,6 +8,32 @@ param(
 $ErrorActionPreference = 'Stop'
 $scriptDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
 
+function Stop-AchievementRelayProcess {
+    $currentSessionId = (Get-Process -Id $PID).SessionId
+    $runningProcesses = @(
+        Get-Process -Name 'AchievementRelay.App' -ErrorAction SilentlyContinue |
+            Where-Object { $_.SessionId -eq $currentSessionId }
+    )
+
+    if ($runningProcesses.Count -eq 0) {
+        return
+    }
+
+    Write-Host 'Closing the running Achievement Relay app before the update...'
+    foreach ($runningProcess in $runningProcesses) {
+        Stop-Process -Id $runningProcess.Id -Force -ErrorAction SilentlyContinue
+    }
+
+    $runningProcesses | Wait-Process -Timeout 10 -ErrorAction SilentlyContinue
+    $remainingProcesses = @(
+        Get-Process -Name 'AchievementRelay.App' -ErrorAction SilentlyContinue |
+            Where-Object { $_.SessionId -eq $currentSessionId }
+    )
+    if ($remainingProcesses.Count -gt 0) {
+        throw 'Achievement Relay is still running. Exit it from the notification area and run Setup again.'
+    }
+}
+
 try {
     try {
         $nativeArchitecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
@@ -62,6 +88,7 @@ try {
     }
 
     Write-Host "Installing $($package.Name)..."
+    Stop-AchievementRelayProcess
     Add-AppxPackage -Path $package.FullName -ForceApplicationShutdown
 
     $installedPackage = Get-AppxPackage -Name 'Conroy.AchievementRelay' | Select-Object -First 1

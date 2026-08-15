@@ -4,6 +4,8 @@
 
 Use four-part numeric MSIX versions such as `0.2.1.0`. Create a matching Git tag such as `v0.2.1`. The release workflow converts a three-part tag to its four-part MSIX version.
 
+Pull-request artifacts use the workflow run number as the fourth MSIX component (for example, `0.2.1.26`) so a tester can install a newer artifact over an earlier build without removing the app or its settings. The next public release must advance the three-part version (for example, `v0.2.2`, which produces `0.2.2.0`) so it remains newer than every `0.2.1.x` test package.
+
 ## Local package
 
 On Windows with .NET 10, the Windows SDK, and Inno Setup 6:

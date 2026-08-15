@@ -77,6 +77,19 @@ if (($installerText -split "`r?`n") | Where-Object { $_ -match 'Parameters.*Cred
     throw 'Installer credentials must never be placed in a process command line.'
 }
 
+$installScriptText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'scripts\Install.ps1') -Raw
+$shutdownCallIndex = $installScriptText.LastIndexOf('Stop-AchievementRelayProcess', [StringComparison]::Ordinal)
+$packageInstallIndex = $installScriptText.IndexOf('Add-AppxPackage', [StringComparison]::Ordinal)
+if (-not $installScriptText.Contains("Get-Process -Name 'AchievementRelay.App'") -or
+    -not $installScriptText.Contains('(Get-Process -Id $PID).SessionId') -or
+    -not $installScriptText.Contains('Where-Object { $_.SessionId -eq $currentSessionId }') -or
+    -not $installScriptText.Contains('Stop-Process') -or
+    -not $installScriptText.Contains('Wait-Process') -or
+    -not $installScriptText.Contains('-ForceApplicationShutdown') -or
+    $shutdownCallIndex -lt 0 -or $packageInstallIndex -lt 0 -or $shutdownCallIndex -gt $packageInstallIndex) {
+    throw 'Setup must close the running Achievement Relay process before deploying an update.'
+}
+
 $protectionScriptText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'scripts\Protect-InstallerSetup.ps1') -Raw
 if (-not $protectionScriptText.Contains('[Security.Cryptography.ProtectedData]::Protect')) {
     throw 'The installer handoff is not protected with Windows DPAPI.'
@@ -131,6 +144,12 @@ if (-not $appProjectText.Contains('THIRD-PARTY-NOTICES.md') -or
 $releaseWorkflowText = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github\workflows\release.yml') -Raw
 if (-not $releaseWorkflowText.Contains("'.exe'")) {
     throw 'The release workflow does not publish the setup executable.'
+}
+
+$ciWorkflowText = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github\workflows\ci.yml') -Raw
+if (-not $ciWorkflowText.Contains('0.2.1.${{ github.run_number }}') -or
+    -not $ciWorkflowText.Contains('-Version $env:TEST_MSIX_VERSION')) {
+    throw 'Pull-request installers must use a monotonically increasing MSIX test revision.'
 }
 
 Write-Host 'Repository structure and package manifest checks passed.' -ForegroundColor Green

@@ -77,6 +77,7 @@ This policy deliberately prefers a missed unprovable or offline event over a his
 ## Rarity, artwork, and timestamps
 
 - A global percentage at or below 10% is labeled rare.
+- Steam's public endpoint has returned `percent` as both a JSON number and a numeric string; both representations are accepted and the exact global unlock percentage is included in the Discord Rarity field.
 - If the public rarity request fails or omits the achievement, rarity is unknown. **Rare only** never discards an unknown-rarity unlock.
 - Artwork is read locally only for a newly observed helper transition, limited to 512×512 RGBA, converted to PNG by the platform-neutral core, and uploaded directly to Discord. Artwork failure cannot lose the event.
 - Helper artwork bytes cross the JSON protocol as an explicitly tested Base64 string, matching the main app's `System.Text.Json` byte-array contract; the raw decoded byte count remains the snapshot budget.

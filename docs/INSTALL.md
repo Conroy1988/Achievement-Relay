@@ -14,13 +14,14 @@ Release packages are self-contained; .NET does not need to be installed separate
 
 1. Download `AchievementRelay_Setup.exe` from the latest official GitHub Release.
 2. Double-click it.
-3. Choose **Connect Discord now; add OpenXBL optionally** or **Skip — I will do this later**.
-4. If connecting now, paste the required Discord webhook. Paste an OpenXBL key only if using Xbox; leave it blank for Steam-only setup.
-5. Toggle **Create a desktop shortcut** and select **Install**.
-6. If SmartScreen appears for this beta, verify the download came from the official release, choose **More info**, then **Run anyway**.
-7. If prompted, approve the one-time development-certificate trust operation.
+3. The original CRNY track **Relay Online** starts locally at 10% volume. Use **Pause music**/**Play music** at the lower-left at any time, or select **CRNY on SoundCloud** to open the artist profile.
+4. Choose **Connect Discord now; add OpenXBL optionally** or **Skip — I will do this later**.
+5. If connecting now, paste the required Discord webhook. Paste an OpenXBL key only if using Xbox; leave it blank for Steam-only setup.
+6. Toggle **Create a desktop shortcut** and select **Install**.
+7. If SmartScreen appears for this beta, verify the download came from the official release, choose **More info**, then **Run anyway**.
+8. If prompted, approve the one-time development-certificate trust operation.
 
-Setup contains x64 and Arm64 MSIX packages, selects the native main app, installs for the signed-in user, creates/removes the optional desktop shortcut, and launches Achievement Relay. Both packages contain a small isolated x64 Steamworks helper; Windows 11 on Arm runs that helper under x64 emulation. On Windows 10 Arm64 the app reports Steam as unavailable instead of entering a retry loop, while Xbox remains supported.
+Setup contains x64 and Arm64 MSIX packages, selects the native main app, installs for the signed-in user, creates/removes the optional desktop shortcut, and launches Achievement Relay. The soundtrack is extracted only to Setup's temporary directory, loops until Setup exits, and is not installed with the app. Both packages contain a small isolated x64 Steamworks helper; Windows 11 on Arm runs that helper under x64 emulation. On Windows 10 Arm64 the app reports Steam as unavailable instead of entering a retry loop, while Xbox remains supported.
 
 The optional credentials are never added to PowerShell arguments. Setup passes them to a short-lived protection process through inherited environment variables, writes only current-user DPAPI ciphertext under `%USERPROFILE%\.achievement-relay`, clears its fields/environment, and launches the app. The app durably stores fresh encrypted settings before deleting the one-time handoff and starting live checks. Choose **Skip** to create no handoff at all.
 

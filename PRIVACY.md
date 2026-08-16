@@ -31,7 +31,8 @@ For each new achievement, Achievement Relay may send the following to the user-s
 - unlock timestamp;
 - player display name;
 - an Xbox/OpenXBL-provided HTTP image URL or a locally read Steam achievement icon uploaded as a PNG attachment; and
-- the source platform (Xbox or Steam).
+- the source platform (Xbox or Steam); and
+- the public Achievement Relay GitHub URL rendered as a **Get the relay** link.
 
 Discord receives this data under the user's relationship with Discord. The app disables Discord mention parsing so an achievement title cannot ping `@everyone` or a role.
 
@@ -61,6 +62,8 @@ If the user selects **Connect Discord now; add OpenXBL optionally** in `Achievem
 
 If installation or first launch is interrupted before durable storage, the one-time file can remain, but its values are still encrypted for that Windows user. The next launch retries the import. Selecting **Skip — I will do this later** creates no credential handoff.
 
+The installer contains the original CRNY track **Relay Online**. Setup extracts it only to its automatically cleaned temporary directory, plays it locally at 10% volume, and provides Play/Pause controls. It is not sent over the network or retained as a separately installed file. The SoundCloud profile opens in the default browser only if the user selects that button.
+
 ## Network access
 
 The app makes outbound HTTPS requests to:
@@ -69,7 +72,7 @@ The app makes outbound HTTPS requests to:
 - `api.steampowered.com` for a public, keyless global-rarity lookup only after a new Steam unlock;
 - the validated Discord-owned webhook host for connection tests and achievement delivery.
 
-Documentation, GitHub, OpenXBL, Discord help, and Ko-fi links open in the default browser only when selected. Achievement Relay does not send data to Ko-fi.
+Documentation, GitHub, OpenXBL, Discord help, Ko-fi, and SoundCloud links open in the default browser only when selected. Achievement Relay does not send data to Ko-fi or SoundCloud unless the user chooses to open the corresponding website in their browser.
 
 ## Retention and deletion
 

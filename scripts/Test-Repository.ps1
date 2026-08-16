@@ -39,11 +39,13 @@ $requiredFiles = @(
     'NuGet.config',
     'installer\AchievementRelay.iss',
     'installer\assets\wizard-large.png',
+    'installer\assets\CRNY - Relay Online.mp3',
     'scripts\Build-Installer.ps1',
     'scripts\Protect-InstallerSetup.ps1',
     'src\AchievementRelay.SteamBridge\AchievementRelay.SteamBridge.csproj',
     'src\AchievementRelay.SteamBridge\Program.cs',
     'src\AchievementRelay.Core\Services\SteamAchievementDeltaDetector.cs',
+    'src\AchievementRelay.Core\Services\SteamRarityResponseParser.cs',
     'src\AchievementRelay.Core\Services\RgbaPngEncoder.cs',
     'third_party\Facepunch.Steamworks.LICENSE.txt',
     'third_party\packages\Facepunch.Steamworks.2.5.2.nupkg',
@@ -86,6 +88,21 @@ if (-not $installerText.Contains("GetEnv('USERPROFILE')") -or
 }
 if (($installerText -split "`r?`n") | Where-Object { $_ -match 'Parameters.*CredentialsPage' }) {
     throw 'Installer credentials must never be placed in a process command line.'
+}
+
+$soundtrackPath = Join-Path $repositoryRoot 'installer\assets\CRNY - Relay Online.mp3'
+$soundtrackHash = (Get-FileHash -LiteralPath $soundtrackPath -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($soundtrackHash -ne '3581211124af4f328a7e6c27d4b726cc0ead0a88b0751bf1113d867272c4b182') {
+    throw 'The installer soundtrack does not match the original CRNY - Relay Online upload.'
+}
+if (-not $installerText.Contains('CRNY - Relay Online.mp3"; Flags: dontcopy noencryption') -or
+    -not $installerText.Contains("setaudio ' + MusicAlias + ' volume to 100") -or
+    -not $installerText.Contains("play ' + MusicAlias + ' repeat") -or
+    -not $installerText.Contains("pause ' + MusicAlias") -or
+    -not $installerText.Contains("resume ' + MusicAlias") -or
+    -not $installerText.Contains('procedure DeinitializeSetup') -or
+    -not $installerText.Contains('https://on.soundcloud.com/WpxV7SQGveaitTlijN')) {
+    throw 'The installer soundtrack must remain temporary, local, limited to 10%, controllable, looped, and linked to CRNY on SoundCloud.'
 }
 
 $installScriptText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'scripts\Install.ps1') -Raw
@@ -260,6 +277,7 @@ if (-not $appProjectText.Contains('THIRD-PARTY-NOTICES.md') -or
 $steamDeltaText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.Core\Services\SteamAchievementDeltaDetector.cs') -Raw
 $steamMonitorText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\SteamMonitorCoordinator.cs') -Raw
 $steamRarityText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\SteamRarityClient.cs') -Raw
+$steamRarityParserText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.Core\Services\SteamRarityResponseParser.cs') -Raw
 $steamBridgeText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.SteamBridge\Program.cs') -Raw
 $discordPayloadText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.Core\Services\DiscordWebhookPayloadFactory.cs') -Raw
 $buildMsixText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'scripts\Build-Msix.ps1') -Raw
@@ -321,7 +339,12 @@ if (-not $steamDeltaText.Contains('Merely appearing unlocked is always history')
     -not $steamBridgeText.Contains('icon.Value.Width > 512') -or
     -not $steamBridgeText.Contains('SteamUserStats.Achievements') -or
     -not $steamRarityText.Contains('Rarity is optional enrichment') -or
+    -not $steamRarityText.Contains('SteamRarityResponseParser.Parse') -or
+    -not $steamRarityParserText.Contains('JsonValueKind.String') -or
+    -not $steamRarityParserText.Contains('NumberStyles.Float') -or
     -not $discordPayloadText.Contains('NormalizeUnicode') -or
+    -not $discordPayloadText.Contains('[Get the relay]') -or
+    -not $discordPayloadText.Contains('https://github.com/Conroy1988/Achievement-Relay') -or
     $steamBridgeText -match $steamMutationPattern) {
     throw 'Steam monitoring must require stable complete snapshots, live transition proof, and durable pending delivery before relaying changes.'
 }

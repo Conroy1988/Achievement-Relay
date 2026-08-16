@@ -10,6 +10,7 @@ public static class DiscordWebhookPayloadFactory
     private const int XboxGreen = 0x107C10;
     private const int SteamBlue = 0x1B6E9F;
     private const int RareGold = 0xF2C94C;
+    private const string ProjectUrl = "https://github.com/Conroy1988/Achievement-Relay";
 
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web)
     {
@@ -35,12 +36,15 @@ public static class DiscordWebhookPayloadFactory
 
         if (achievement.RarityPercentage is { } rarityPercentage)
         {
+            var population = string.Equals(achievement.SourceProvider, "Steam", StringComparison.OrdinalIgnoreCase)
+                ? "Steam players"
+                : "players";
             fields.Add(new
             {
                 name = "Rarity",
                 value = achievement.IsRare
-                    ? $"💎 Rare achievement • {rarityPercentage:0.##}% of players"
-                    : $"{rarityPercentage:0.##}% of players",
+                    ? $"💎 Rare achievement • {rarityPercentage:0.##}% of {population}"
+                    : $"{rarityPercentage:0.##}% of {population}",
                 inline = true
             });
         }
@@ -64,6 +68,8 @@ public static class DiscordWebhookPayloadFactory
                 : achievement.SourceProvider;
             fields.Add(new { name = "Platform", value = Truncate(platform, 1024), inline = true });
         }
+
+        fields.Add(CreateProjectLinkField());
 
         var description = settings.IncludeRawDetailsWhenUncertain
             ? achievement.Description
@@ -132,6 +138,7 @@ public static class DiscordWebhookPayloadFactory
                     title = "✅ Achievement Relay connected",
                     description = "This channel is ready. Your next detected Xbox or Steam achievement will appear here automatically.",
                     color = XboxGreen,
+                    fields = new[] { CreateProjectLinkField() },
                     footer = new { text = "Every achievement. Reliably shared." },
                     timestamp = DateTimeOffset.UtcNow.ToString("O")
                 }
@@ -140,6 +147,13 @@ public static class DiscordWebhookPayloadFactory
 
         return JsonSerializer.Serialize(payload, SerializerOptions);
     }
+
+    private static object CreateProjectLinkField() => new
+    {
+        name = "Achievement Relay",
+        value = $"[Get the relay]({ProjectUrl})",
+        inline = false
+    };
 
     private static string Truncate(string? value, int maximumLength)
     {

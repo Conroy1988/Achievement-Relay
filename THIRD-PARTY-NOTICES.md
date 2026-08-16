@@ -23,3 +23,7 @@ The following interface icons are redistributed under their authors' stated lice
 The editable SVG copies are kept in `assets/third-party/game-icons`. The compiled PNG copies are in `src/AchievementRelay.App/Assets`.
 
 These CC BY assets are not relicensed under the repository's MIT licence; they remain available under CC BY 3.0. All product and company names mentioned by the app belong to their respective owners and are used only to identify compatible services.
+
+## Original music
+
+`installer/assets/CRNY - Relay Online.mp3` is an original track by CRNY, included in the Achievement Relay installer at the artist and copyright holder's direction. Copyright © 2026 CRNY. All rights reserved. The track is not licensed under the repository's MIT licence; that licence applies to the software and documentation, not this recording or composition.

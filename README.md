@@ -19,12 +19,12 @@ Achievement Relay is an open-source Windows 10/11 app that watches Xbox and Stea
 
 - Checks the connected Xbox account about once a minute and locally watches the running Steam game—no Game Bar scraping, OCR, or Windows notification permission.
 - Needs no Steam Web API key or Steam64 ID. It reads the signed-in local Steam client's read-only achievement state through an isolated Steamworks bridge.
-- Posts a Discord embed with achievement name, game, platform, rarity, description, unlock time, player name, and artwork when the source supplies them.
+- Posts a Discord embed with achievement name, game, platform, rarity, description, unlock time, player name, and artwork when the source supplies them, plus a **Get the relay** link back to this public project.
 - Creates a per-account, per-game baseline so installing the app never floods Discord with old achievements.
 - Recovers Xbox achievements earned while the app was closed; Steam posts only directly observed live transitions and durably retries their failed Discord deliveries.
 - Encrypts the OpenXBL API key and Discord webhook with Windows DPAPI for the current Windows user.
 - Runs quietly in the system tray, supports Windows startup, and includes manual sync, diagnostics, activity history, and a safe redacted support summary.
-- Provides a gaming-themed `.exe` installer with optional account setup, a clear **configure later** path, and a desktop-shortcut toggle.
+- Provides a gaming-themed `.exe` installer with optional account setup, a clear **configure later** path, a desktop-shortcut toggle, and the original CRNY track **Relay Online** playing locally at 10% volume with Play/Pause and SoundCloud controls.
 
 ```mermaid
 flowchart LR

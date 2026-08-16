@@ -65,6 +65,7 @@ VersionInfoProductVersion={#AppVersion}
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Player options:"; Flags: checkedonce
 
 [Files]
+Source: "{#RepositoryRoot}\installer\assets\CRNY - Relay Online.mp3"; Flags: dontcopy noencryption
 Source: "{#X64Package}"; DestDir: "{tmp}"; Flags: ignoreversion deleteafterinstall
 Source: "{#Arm64Package}"; DestDir: "{tmp}"; Flags: ignoreversion deleteafterinstall
 Source: "{#RepositoryRoot}\scripts\Install.ps1"; DestDir: "{tmp}"; Flags: ignoreversion deleteafterinstall
@@ -74,14 +75,128 @@ Source: "{#CertificatePath}"; DestDir: "{tmp}"; Flags: ignoreversion deleteafter
 #endif
 
 [Code]
+const
+  MusicAlias = 'AchievementRelayMusic';
+  MusicFileName = 'CRNY - Relay Online.mp3';
+  SoundCloudUrl = 'https://on.soundcloud.com/WpxV7SQGveaitTlijN';
+
 var
   SetupChoicePage: TInputOptionWizardPage;
   CredentialsPage: TInputQueryWizardPage;
   OpenXblButton: TNewButton;
   DiscordGuideButton: TNewButton;
+  MusicButton: TNewButton;
+  SoundCloudButton: TNewButton;
+  MusicOpened: Boolean;
+  MusicPaused: Boolean;
 
 function SetEnvironmentVariable(lpName, lpValue: String): Boolean;
   external 'SetEnvironmentVariableW@kernel32.dll stdcall';
+
+function MciSendString(Command, ReturnBuffer: String;
+  ReturnLength: Cardinal; CallbackWindow: HWND): DWORD;
+  external 'mciSendStringW@winmm.dll stdcall';
+
+procedure SetMusicUnavailable();
+begin
+  MusicButton.Caption := 'Music unavailable';
+  MusicButton.Enabled := False;
+end;
+
+procedure StopInstallerMusic();
+begin
+  if MusicOpened then
+  begin
+    MciSendString('stop ' + MusicAlias, '', 0, 0);
+    MciSendString('close ' + MusicAlias, '', 0, 0);
+  end;
+
+  MusicOpened := False;
+  MusicPaused := False;
+end;
+
+procedure StartInstallerMusic();
+var
+  MusicPath: String;
+begin
+  SetMusicUnavailable();
+  try
+    ExtractTemporaryFile(MusicFileName);
+    MusicPath := ExpandConstant('{tmp}\') + MusicFileName;
+
+    if MciSendString('open "' + MusicPath + '" type MPEGVideo alias ' +
+      MusicAlias, '', 0, 0) <> 0 then
+    begin
+      Log('Installer soundtrack could not be opened.');
+      Exit;
+    end;
+    MusicOpened := True;
+
+    { Windows MCI treats 1000 as normal volume, so 100 is 10%. Never start
+      playback if the volume command fails and could leave it uncontrolled. }
+    if MciSendString('setaudio ' + MusicAlias + ' volume to 100', '', 0, 0) <> 0 then
+    begin
+      Log('Installer soundtrack volume could not be limited to 10%.');
+      StopInstallerMusic();
+      Exit;
+    end;
+
+    if MciSendString('play ' + MusicAlias + ' repeat', '', 0, 0) <> 0 then
+    begin
+      Log('Installer soundtrack could not start.');
+      StopInstallerMusic();
+      Exit;
+    end;
+
+    MusicButton.Caption := 'Pause music';
+    MusicButton.Enabled := True;
+  except
+    Log('Installer soundtrack initialization failed safely.');
+    StopInstallerMusic();
+  end;
+end;
+
+procedure ToggleInstallerMusic(Sender: TObject);
+var
+  CommandResult: DWORD;
+begin
+  if not MusicOpened then
+    Exit;
+
+  if MusicPaused then
+  begin
+    CommandResult := MciSendString('resume ' + MusicAlias, '', 0, 0);
+    if CommandResult = 0 then
+    begin
+      MusicPaused := False;
+      MusicButton.Caption := 'Pause music';
+    end;
+  end
+  else
+  begin
+    CommandResult := MciSendString('pause ' + MusicAlias, '', 0, 0);
+    if CommandResult = 0 then
+    begin
+      MusicPaused := True;
+      MusicButton.Caption := 'Play music';
+    end;
+  end;
+
+  if CommandResult <> 0 then
+  begin
+    Log('Installer soundtrack playback control failed safely.');
+    StopInstallerMusic();
+    SetMusicUnavailable();
+  end;
+end;
+
+procedure OpenSoundCloud(Sender: TObject);
+var
+  ResultCode: Integer;
+begin
+  ShellExec('open', SoundCloudUrl, '', '', SW_SHOWNORMAL,
+    ewNoWait, ResultCode);
+end;
 
 procedure OpenOpenXbl(Sender: TObject);
 var
@@ -143,6 +258,29 @@ begin
   DiscordGuideButton.Top := ButtonTop;
   DiscordGuideButton.Width := ScaleX(145);
   DiscordGuideButton.OnClick := @OpenDiscordGuide;
+
+  MusicButton := TNewButton.Create(WizardForm);
+  MusicButton.Parent := WizardForm;
+  MusicButton.Caption := 'Music unavailable';
+  MusicButton.Left := ScaleX(16);
+  MusicButton.Top := WizardForm.NextButton.Top;
+  MusicButton.Width := ScaleX(100);
+  MusicButton.Height := WizardForm.NextButton.Height;
+  MusicButton.Anchors := [akLeft, akBottom];
+  MusicButton.Enabled := False;
+  MusicButton.OnClick := @ToggleInstallerMusic;
+
+  SoundCloudButton := TNewButton.Create(WizardForm);
+  SoundCloudButton.Parent := WizardForm;
+  SoundCloudButton.Caption := 'CRNY on SoundCloud';
+  SoundCloudButton.Left := MusicButton.Left + MusicButton.Width + ScaleX(8);
+  SoundCloudButton.Top := MusicButton.Top;
+  SoundCloudButton.Width := ScaleX(145);
+  SoundCloudButton.Height := MusicButton.Height;
+  SoundCloudButton.Anchors := [akLeft, akBottom];
+  SoundCloudButton.OnClick := @OpenSoundCloud;
+
+  StartInstallerMusic();
 end;
 
 function ShouldSkipPage(PageID: Integer): Boolean;
@@ -315,4 +453,9 @@ begin
         ErrorText);
     end;
   end;
+end;
+
+procedure DeinitializeSetup();
+begin
+  StopInstallerMusic();
 end;

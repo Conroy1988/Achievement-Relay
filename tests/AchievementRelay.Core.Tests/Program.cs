@@ -45,10 +45,12 @@ var tests = new (string Name, Action Run)[]
     ("Steam restart silently baselines offline unlocks", SteamRestartBaselinesOfflineUnlocks),
     ("Steam timestamps cannot bypass the baseline", SteamTimestampCannotAuthorizeUnlock),
     ("Steam event identities are stable and account-specific", SteamEventIdentityIsStable),
+    ("Steam rarity accepts provider string and numeric percentages", ParsesSteamRarityPercentages),
     ("Steam bridge Base64 artwork wire format decodes to bytes", SteamBridgeBase64ArtworkWireFormat),
     ("Steam RGBA artwork is encoded as a PNG attachment", SteamArtworkEncodesAsPng),
     ("Steam Discord payload identifies platform and attachment", SteamPayloadIncludesPlatformAndAttachment),
     ("Xbox Discord payload labels the player platform", XboxPayloadUsesPlatformLabel),
+    ("Every Discord post links to Achievement Relay", DiscordPostsIncludeProjectLink),
     ("Webhook URL validation is strict", ValidatesWebhookUrls),
     ("Discord payload suppresses mentions", PayloadSuppressesMentions),
     ("Discord payload repairs malformed provider Unicode", PayloadRepairsMalformedUnicode),
@@ -994,6 +996,30 @@ static void SteamEventIdentityIsStable()
     Assert(first != otherAccount && first != otherGame, "Steam event identity is not scoped to the account and game.");
 }
 
+static void ParsesSteamRarityPercentages()
+{
+    const string json = """
+        {
+          "achievementpercentages": {
+            "achievements": [
+              { "name": "NEW_ACHIEVEMENT_1_10", "percent": "91.0" },
+              { "name": "NUMERIC_PERCENT", "percent": 3.5 },
+              { "name": "INVALID_PERCENT", "percent": "unknown" },
+              { "name": "OUT_OF_RANGE", "percent": 101 }
+            ]
+          }
+        }
+        """;
+
+    var rarity = SteamRarityResponseParser.Parse(json);
+    Assert(rarity.TryGetValue("NEW_ACHIEVEMENT_1_10", out var stringPercentage) && stringPercentage == 91.0,
+        "Steam's string percentage response was not parsed.");
+    Assert(rarity.TryGetValue("NUMERIC_PERCENT", out var numericPercentage) && numericPercentage == 3.5,
+        "Steam's numeric percentage response was not parsed.");
+    Assert(!rarity.ContainsKey("INVALID_PERCENT") && !rarity.ContainsKey("OUT_OF_RANGE"),
+        "An invalid Steam percentage was accepted.");
+}
+
 static void SteamBridgeBase64ArtworkWireFormat()
 {
     var decoded = JsonSerializer.Deserialize<byte[]>("\"AQIDBA==\"");
@@ -1035,6 +1061,9 @@ static void SteamPayloadIncludesPlatformAndAttachment()
     Assert(fields.Any(field => field.GetProperty("name").GetString() == "Player" &&
                                field.GetProperty("value").GetString() == "Local Steam Player"),
         "The local Steam player name was not used as a Discord fallback.");
+    Assert(fields.Any(field => field.GetProperty("name").GetString() == "Rarity" &&
+                               field.GetProperty("value").GetString()?.Contains("3.5% of Steam players", StringComparison.Ordinal) == true),
+        "The Steam global unlock percentage was not included in the Discord payload.");
 }
 
 static void XboxPayloadUsesPlatformLabel()
@@ -1046,6 +1075,25 @@ static void XboxPayloadUsesPlatformLabel()
     Assert(fields.Any(field => field.GetProperty("name").GetString() == "Platform" &&
                                field.GetProperty("value").GetString() == "Xbox"),
         "The Xbox player platform was exposed as the provider implementation name.");
+}
+
+static void DiscordPostsIncludeProjectLink()
+{
+    var payloads = new[]
+    {
+        DiscordWebhookPayloadFactory.Create(Achievement("Relay Link", "Achievement post"), new AppSettings()),
+        DiscordWebhookPayloadFactory.CreateConnectionTest(new AppSettings())
+    };
+
+    foreach (var payload in payloads)
+    {
+        using var document = JsonDocument.Parse(payload);
+        var fields = document.RootElement.GetProperty("embeds")[0].GetProperty("fields").EnumerateArray();
+        Assert(fields.Any(field =>
+                field.GetProperty("value").GetString() ==
+                "[Get the relay](https://github.com/Conroy1988/Achievement-Relay)"),
+            "A Discord post omitted the public Achievement Relay project link.");
+    }
 }
 
 static void PayloadSuppressesMentions()

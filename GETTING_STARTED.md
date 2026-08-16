@@ -31,12 +31,13 @@ Discord's [official webhook guide](https://support.discord.com/hc/en-us/articles
 
 1. Download `AchievementRelay_Setup.exe` from the [latest GitHub Release](https://github.com/Conroy1988/Achievement-Relay/releases/latest).
 2. If Microsoft Defender SmartScreen appears for this beta, confirm the file came from the official repository, choose **More info**, then **Run anyway**.
-3. On **Connect your relay**, choose one option:
+3. **Relay Online** by CRNY starts locally at 10% volume. Use the lower-left **Pause music**/**Play music** control at any time; the adjacent SoundCloud button opens the artist profile only when selected.
+4. On **Connect your relay**, choose one option:
    - **Connect Discord now; add OpenXBL optionally (recommended)**; or
    - **Skip — I will do this later in Guided setup**.
-4. If connecting now, paste the Discord webhook. Paste an OpenXBL key only if you also want Xbox monitoring. Setup validates supplied values; the app performs live checks on first launch.
-5. On **Player options**, toggle **Create a desktop shortcut** as preferred.
-6. Select **Install**. A development-signed beta may request administrator approval once to trust its public package certificate.
+5. If connecting now, paste the Discord webhook. Paste an OpenXBL key only if you also want Xbox monitoring. Setup validates supplied values; the app performs live checks on first launch.
+6. On **Player options**, toggle **Create a desktop shortcut** as preferred.
+7. Select **Install**. A development-signed beta may request administrator approval once to trust its public package certificate.
 
 The installer never places either secret on a command line or in its log. It uses a one-time DPAPI-encrypted file under `%USERPROFILE%\.achievement-relay` for the signed-in Windows user, clears the installer fields, and launches the app. The app saves fresh encrypted settings before it truncates and deletes that handoff. Steam creates no secret handoff.
 

@@ -3,6 +3,7 @@ using System.IO;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using AchievementRelay.Core.Services;
 
 namespace AchievementRelay.App.Services;
 
@@ -54,29 +55,7 @@ public sealed class SteamRarityClient : IDisposable
 
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
             using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
-            if (!document.RootElement.TryGetProperty("achievementpercentages", out var root) ||
-                !root.TryGetProperty("achievements", out var achievements) ||
-                achievements.ValueKind != JsonValueKind.Array)
-            {
-                return new Dictionary<string, double>(StringComparer.Ordinal);
-            }
-
-            var result = new Dictionary<string, double>(StringComparer.Ordinal);
-            foreach (var item in achievements.EnumerateArray())
-            {
-                if (!item.TryGetProperty("name", out var nameValue) ||
-                    nameValue.GetString() is not { Length: > 0 } name ||
-                    !item.TryGetProperty("percent", out var percentValue) ||
-                    !percentValue.TryGetDouble(out var percent) ||
-                    double.IsNaN(percent) || percent is < 0 or > 100)
-                {
-                    continue;
-                }
-
-                result[name] = percent;
-            }
-
-            return result;
+            return SteamRarityResponseParser.Parse(document.RootElement);
         }
         catch (Exception)
         {

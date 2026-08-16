@@ -6,6 +6,8 @@ All notable changes to Achievement Relay are documented here. The project follow
 
 ### Added
 
+- Added the original CRNY track **Relay Online** to Setup with local 10% playback, looping, persistent Play/Pause controls, clean shutdown, and a user-initiated SoundCloud link
+- Added a **Get the relay** GitHub link to every Discord achievement and connection-test post
 - Added local, keyless Steam achievement monitoring through an isolated Steamworks helper; the app automatically detects the active game and requires no Steam Web API key or Steam64 ID
 - Added per-Steam-account/per-game complete snapshot baselines and monotonic unlocked-identity state, so an existing Steam library can never become a Discord history dump
 - Added strict Steam live-transition proof from locked-to-unlocked observation or Steam's completed-achievement callback—never timestamps—plus durable pending-delivery recovery, shared cross-provider Discord deduplication/retry, local icon-to-PNG attachments, public cached global rarity, and platform/player metadata
@@ -14,6 +16,7 @@ All notable changes to Achievement Relay are documented here. The project follow
 
 ### Fixed
 
+- Parsed Steam's global achievement percentages when the public endpoint represents `percent` as a JSON string as well as a number, restoring the percentage-based Rarity field in Discord embeds
 - Encoded Steam artwork as Base64 on the helper JSON wire contract, fixing the first live-unlock snapshot being rejected when Steam supplied an icon; the bridge self-test now exercises this exact representation
 - Restarted the isolated helper after unreadable protocol output, made optional Steam rarity failures non-blocking, repaired malformed provider Unicode before Discord serialization, and added privacy-safe processing-stage diagnostics while retaining durable pending-unlock recovery
 - Explicitly requested the signed-in local Steam user's achievement stats after helper initialization and after any unload, fixing the observer's permanent pre-baseline wait when Facepunch's no-op `RequestCurrentStats()` produced no callback

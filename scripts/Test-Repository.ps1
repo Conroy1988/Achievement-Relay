@@ -459,6 +459,8 @@ if (-not $updatePolicyText.Contains('minimum supported version') -or
     -not $appUpdateText.Contains('UpdateManifestSignatureVerifier.Verify') -or
     -not $appUpdateText.Contains('ManifestSignatureBase64') -or
     -not $appUpdateText.Contains('UpdatePolicy.MatchesInstallerVersionResource') -or
+    -not $updatePolicyText.Contains('normalizedProductVersion = productVersion?.Trim()') -or
+    -not $updatePolicyText.Contains('SelectAutomaticAction') -or
     -not $installerTrustText.Contains('WinVerifyTrust') -or
     -not $installerTrustText.Contains('AchievementRelay.UpdatePublisherCertificateSha256') -or
     -not $manifestTrustText.Contains('rsa-sha256-pkcs1') -or
@@ -469,10 +471,13 @@ if (-not $updatePolicyText.Contains('minimum supported version') -or
     -not $buildReleaseText.Contains('-PolicyPath $UpdatePolicyPath') -or
     -not $buildReleaseText.Contains('$AllowUntrustedDevelopmentCertificate -and (-not $PfxPath -or $TimestampUrl)') -or
     -not $newUpdateManifestText.Contains('$embeddedPackageVersion -ne $packageVersionValue') -or
+    -not $newUpdateManifestText.Contains('$embeddedProductVersionText = ([string] $installerVersion.ProductVersion).Trim()') -or
     -not $newUpdateManifestText.Contains('$installerCertificateSha256 -cne $certificateSha256') -or
     -not $mainWindowText.Contains('EnforceRequiredUpdateAsync') -or
+    -not $mainWindowText.Contains('TryStartAutomaticUpdateOnLaunchAsync') -or
+    -not $mainWindowText.Contains('_automaticUpdateFailureVersions') -or
     -not $mainWindowText.Contains('Monitoring is paused until the verified update is installed')) {
-    throw 'The updater must enforce release identity, explicit support policy, SHA-256, pinned Authenticode trust and required-update monitoring suspension.'
+    throw 'The updater must enforce release identity, explicit support policy, SHA-256, pinned Authenticode trust, automatic launch, loop protection and required-update monitoring suspension.'
 }
 
 $ciWorkflowText = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github\workflows\ci.yml') -Raw

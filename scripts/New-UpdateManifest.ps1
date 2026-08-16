@@ -83,9 +83,15 @@ if ($installer.Length -le 0 -or $installer.Length -gt 1GB) {
     throw 'The updater installer size is outside the supported 1 GiB limit.'
 }
 $installerVersion = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($installer.FullName)
+$embeddedProductVersionText = ([string] $installerVersion.ProductVersion).Trim()
+$embeddedPackageVersionText = ([string] $installerVersion.FileVersion).Trim()
+if ($embeddedProductVersionText -notmatch '^\d+\.\d+\.\d+(?:\.0)?$' -or
+    $embeddedPackageVersionText -notmatch '^\d+\.\d+\.\d+\.\d+$') {
+    throw "The installer product/file versions are not numeric: '$($installerVersion.ProductVersion)' and '$($installerVersion.FileVersion)'."
+}
 try {
-    $embeddedProductVersion = [Version]::Parse($installerVersion.ProductVersion)
-    $embeddedPackageVersion = [Version]::Parse($installerVersion.FileVersion)
+    $embeddedProductVersion = [Version]::Parse($embeddedProductVersionText)
+    $embeddedPackageVersion = [Version]::Parse($embeddedPackageVersionText)
 }
 catch {
     throw "The installer product/file versions are not numeric: '$($installerVersion.ProductVersion)' and '$($installerVersion.FileVersion)'."

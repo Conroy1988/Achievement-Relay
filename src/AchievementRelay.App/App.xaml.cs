@@ -54,7 +54,6 @@ public partial class App : System.Windows.Application
         }
 
         var updateState = await _services.UpdateService.CheckAsync(force: false);
-        var updateRequired = updateState.IsRequired;
 
         if (installerImport.Found)
         {
@@ -73,6 +72,17 @@ public partial class App : System.Windows.Application
                 _services.ActivityLog.Warning(installerImport.Message);
             }
         }
+
+        var automaticUpdaterStarted =
+            await _mainWindow.TryStartAutomaticUpdateOnLaunchAsync(updateState);
+        if (automaticUpdaterStarted)
+        {
+            _mainWindow.RefreshStatus();
+            return;
+        }
+
+        updateState = _services.UpdateService.Snapshot;
+        var updateRequired = updateState.IsRequired;
 
         var apiKey = _services.WebhookProtector.TryUnprotectOpenXblApiKey(settings.ProtectedOpenXblApiKey);
         var webhookValue = _services.WebhookProtector.TryUnprotect(settings.ProtectedWebhookUrl);

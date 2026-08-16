@@ -126,6 +126,16 @@ public static partial class UpdatePolicy
             minimum);
     }
 
+    public static AutomaticUpdateAction SelectAutomaticAction(
+        UpdateRequirement? requirement,
+        bool isAppLaunch) => requirement switch
+    {
+        UpdateRequirement.Required => AutomaticUpdateAction.LaunchInstaller,
+        UpdateRequirement.Optional when isAppLaunch => AutomaticUpdateAction.LaunchInstaller,
+        UpdateRequirement.Optional => AutomaticUpdateAction.Prepare,
+        _ => AutomaticUpdateAction.None
+    };
+
     public static Version ParseVersion(string? value, string fieldName = "version")
     {
         if (string.IsNullOrEmpty(value) || !VersionPattern().IsMatch(value))
@@ -183,18 +193,20 @@ public static partial class UpdatePolicy
         UpdateManifest manifest)
     {
         ArgumentNullException.ThrowIfNull(manifest);
-        if (string.IsNullOrEmpty(productVersion) ||
-            !ProductVersionResourcePattern().IsMatch(productVersion) ||
-            string.IsNullOrEmpty(packageVersion) ||
-            !PackageVersionPattern().IsMatch(packageVersion))
+        var normalizedProductVersion = productVersion?.Trim();
+        var normalizedPackageVersion = packageVersion?.Trim();
+        if (string.IsNullOrEmpty(normalizedProductVersion) ||
+            !ProductVersionResourcePattern().IsMatch(normalizedProductVersion) ||
+            string.IsNullOrEmpty(normalizedPackageVersion) ||
+            !PackageVersionPattern().IsMatch(normalizedPackageVersion))
         {
             return false;
         }
 
         try
         {
-            var embeddedProduct = NormalizeVersion(Version.Parse(productVersion));
-            var embeddedPackage = NormalizePackageVersion(Version.Parse(packageVersion));
+            var embeddedProduct = NormalizeVersion(Version.Parse(normalizedProductVersion));
+            var embeddedPackage = NormalizePackageVersion(Version.Parse(normalizedPackageVersion));
             return embeddedProduct == ParseVersion(manifest.Version, "release version") &&
                    embeddedPackage == ParsePackageVersion(manifest.PackageVersion);
         }

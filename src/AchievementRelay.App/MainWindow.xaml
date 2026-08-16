@@ -747,7 +747,7 @@
                 <StackPanel Margin="0,0,22,0" VerticalAlignment="Center">
                   <TextBlock Text="App updates" FontSize="18" FontWeight="SemiBold" />
                   <TextBlock x:Name="AboutUpdateStatusText" Text="Updates have not been checked yet." Foreground="{StaticResource MutedTextBrush}" Margin="0,5,0,0" />
-                  <TextBlock x:Name="AboutUpdateCheckedText" Foreground="{StaticResource MutedTextBrush}" FontSize="10" Margin="0,5,0,0" />
+                  <TextBlock x:Name="AboutUpdateCheckedText" Foreground="{StaticResource MutedTextBrush}" FontSize="10" Margin="0,5,0,0" TextWrapping="Wrap" />
                 </StackPanel>
                 <WrapPanel Grid.Column="1" VerticalAlignment="Center">
                   <Button x:Name="AboutUpdateNotesButton" Content="Release notes" Click="OpenUpdateNotes_Click" Margin="0,0,8,0" Visibility="Collapsed" />

@@ -64,6 +64,7 @@ var tests = new (string Name, Action Run)[]
     ("Update manifest signatures authenticate the pinned publisher", VerifiesSignedUpdateManifest),
     ("Newer releases remain optional above the support floor", SelectsOptionalUpdate),
     ("Final packages supersede same-product beta revisions", SelectsFinalPackageUpdate),
+    ("Automatic updates launch safely at startup and on required detection", SelectsAutomaticUpdateBehavior),
     ("Installer version resources match the signed package numerically", MatchesInstallerVersionResources),
     ("Non-upgradeable package versions fail closed", RejectsNonUpgradeablePackage),
     ("Only the explicit support floor requires an update", SelectsRequiredUpdate),
@@ -208,6 +209,26 @@ static void RejectsNonUpgradeablePackage()
         "A newer product release with a lower Windows package version was accepted.");
 }
 
+static void SelectsAutomaticUpdateBehavior()
+{
+    Assert(
+        UpdatePolicy.SelectAutomaticAction(UpdateRequirement.Optional, isAppLaunch: true) ==
+        AutomaticUpdateAction.LaunchInstaller,
+        "An optional update found at app launch was not selected for automatic installer launch.");
+    Assert(
+        UpdatePolicy.SelectAutomaticAction(UpdateRequirement.Optional, isAppLaunch: false) ==
+        AutomaticUpdateAction.Prepare,
+        "An optional update found while running was not selected for background preparation.");
+    Assert(
+        UpdatePolicy.SelectAutomaticAction(UpdateRequirement.Required, isAppLaunch: false) ==
+        AutomaticUpdateAction.LaunchInstaller,
+        "A newly required update was not selected for automatic installer launch.");
+    Assert(
+        UpdatePolicy.SelectAutomaticAction(UpdateRequirement.Current, isAppLaunch: true) ==
+        AutomaticUpdateAction.None,
+        "A current installation incorrectly selected an automatic update action.");
+}
+
 static void MatchesInstallerVersionResources()
 {
     var manifest = CreateUpdateManifest("0.3.0", "0.3.0", "0.2.2.76");
@@ -215,11 +236,17 @@ static void MatchesInstallerVersionResources()
         UpdatePolicy.MatchesInstallerVersionResource("0.3.0.0", "0.2.2.76", manifest),
         "Windows' padded four-part product version did not match the signed three-part release.");
     Assert(
+        UpdatePolicy.MatchesInstallerVersionResource("  0.3.0.0             ", "\t0.2.2.76  \r\n", manifest),
+        "Windows version-resource padding was not normalized before strict comparison.");
+    Assert(
         !UpdatePolicy.MatchesInstallerVersionResource("0.3.0.1", "0.2.2.76", manifest),
         "A nonzero product-version revision was accepted.");
     Assert(
         !UpdatePolicy.MatchesInstallerVersionResource("0.3.0.0", "0.2.2.75", manifest),
         "A mismatched installer package version was accepted.");
+    Assert(
+        !UpdatePolicy.MatchesInstallerVersionResource("0.3. 0.0", "0.2.2.76", manifest),
+        "Whitespace inside a product version was incorrectly accepted.");
 }
 
 static void SelectsRequiredUpdate()

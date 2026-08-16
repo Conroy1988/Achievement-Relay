@@ -26,6 +26,10 @@ public partial class MainWindow : Window
     private readonly AppServices _services;
     private readonly ObservableCollection<ActivityEntry> _activity = [];
     private readonly SemaphoreSlim _updatePolicyGate = new(1, 1);
+    private readonly SemaphoreSlim _automaticUpdateGate = new(1, 1);
+    private readonly HashSet<string> _automaticallyPreparedUpdateVersions = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _automaticUpdateFailureVersions = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _automaticUpdateLaunchVersions = new(StringComparer.Ordinal);
     private AppSettings _settings;
     private Forms.NotifyIcon? _trayIcon;
     private bool _isExiting;
@@ -35,6 +39,7 @@ public partial class MainWindow : Window
     private bool _updateOperationInProgress;
     private bool _updateInstallerStarted;
     private bool _requiredPolicyApplied;
+    private volatile bool _automaticUpdatesEnabled;
 
     public MainWindow(AppServices services, AppSettings settings)
     {
@@ -68,6 +73,18 @@ public partial class MainWindow : Window
         NavigateTo(0);
         ShowFromTray();
         ApplyUpdateState(_services.UpdateService.Snapshot);
+    }
+
+    public Task<bool> TryStartAutomaticUpdateOnLaunchAsync(AppUpdateSnapshot snapshot)
+    {
+        _automaticUpdatesEnabled = true;
+        var action = UpdatePolicy.SelectAutomaticAction(snapshot.Requirement, isAppLaunch: true);
+        return action == AutomaticUpdateAction.None
+            ? Task.FromResult(false)
+            : TryApplyAutomaticUpdateAsync(
+                snapshot,
+                action == AutomaticUpdateAction.LaunchInstaller,
+                "app launch");
     }
 
     public void RefreshStatus()
@@ -1446,8 +1463,140 @@ public partial class MainWindow : Window
         Dispatcher.InvokeAsync(() =>
         {
             RefreshStatus();
-            _ = ApplyUpdatePolicyAsync(snapshot);
+            _ = HandleUpdateStateTransitionAsync(snapshot);
         });
+    }
+
+    private async Task HandleUpdateStateTransitionAsync(AppUpdateSnapshot snapshot)
+    {
+        await ApplyUpdatePolicyAsync(snapshot);
+        if (!_automaticUpdatesEnabled ||
+            !snapshot.HasUpdate ||
+            snapshot.Stage is not (AppUpdateStage.Available or
+                AppUpdateStage.Required or
+                AppUpdateStage.ReadyToInstall))
+        {
+            return;
+        }
+
+        var action = UpdatePolicy.SelectAutomaticAction(snapshot.Requirement, isAppLaunch: false);
+        if (action == AutomaticUpdateAction.None)
+        {
+            return;
+        }
+
+        var launchInstaller = action == AutomaticUpdateAction.LaunchInstaller;
+        await TryApplyAutomaticUpdateAsync(
+            snapshot,
+            launchInstaller,
+            launchInstaller ? "required update detection" : "background update detection");
+    }
+
+    private async Task<bool> TryApplyAutomaticUpdateAsync(
+        AppUpdateSnapshot requestedSnapshot,
+        bool launchInstaller,
+        string trigger)
+    {
+        var operationStarted = false;
+        await _automaticUpdateGate.WaitAsync();
+        try
+        {
+            var snapshot = _services.UpdateService.Snapshot;
+            if (!snapshot.HasUpdate ||
+                string.IsNullOrWhiteSpace(snapshot.LatestVersion) ||
+                !string.Equals(
+                    snapshot.LatestVersion,
+                    requestedSnapshot.LatestVersion,
+                    StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            var version = snapshot.LatestVersion;
+            if (_automaticUpdateFailureVersions.Contains(version))
+            {
+                return false;
+            }
+            if (_updateInstallerStarted || _automaticUpdateLaunchVersions.Contains(version))
+            {
+                return _updateInstallerStarted;
+            }
+            if (!launchInstaller && _automaticallyPreparedUpdateVersions.Contains(version))
+            {
+                return false;
+            }
+            if (_updateOperationInProgress)
+            {
+                return false;
+            }
+
+            _updateOperationInProgress = true;
+            operationStarted = true;
+            SetUpdateActionButtonsEnabled(false);
+            _services.ActivityLog.Info(
+                $"Automatic update processing started for Achievement Relay {version} ({trigger}).");
+
+            if (snapshot.Stage != AppUpdateStage.ReadyToInstall)
+            {
+                snapshot = await _services.UpdateService.DownloadAsync();
+            }
+
+            if (snapshot.Stage != AppUpdateStage.ReadyToInstall)
+            {
+                _automaticUpdateFailureVersions.Add(version);
+                _services.ActivityLog.Warning(
+                    $"Automatic update processing stopped for version {version}. Use Retry update after reviewing the status.");
+                return false;
+            }
+
+            _automaticallyPreparedUpdateVersions.Add(version);
+            if (!launchInstaller)
+            {
+                _services.ActivityLog.Success(
+                    $"Achievement Relay {version} is verified and prepared for the next app launch.");
+                return false;
+            }
+
+            var launch = await _services.UpdateService.LaunchInstallerAsync();
+            if (!launch.Success)
+            {
+                _automaticUpdateFailureVersions.Add(version);
+                _services.ActivityLog.Warning(
+                    $"Automatic updater launch stopped for version {version}. Use Install update to retry.");
+                return false;
+            }
+
+            _automaticUpdateLaunchVersions.Add(version);
+            _updateInstallerStarted = true;
+            ApplyUpdateState(_services.UpdateService.Snapshot);
+            if (launch.ProcessId is int processId)
+            {
+                _ = MonitorUpdaterExitAsync(processId);
+            }
+
+            return true;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            var version = requestedSnapshot.LatestVersion ?? "unknown";
+            _automaticUpdateFailureVersions.Add(version);
+            _services.ActivityLog.Warning(
+                $"Automatic update processing failed safely for version {version}: {exception.Message}");
+            return false;
+        }
+        finally
+        {
+            if (operationStarted)
+            {
+                _updateOperationInProgress = false;
+                if (!_updateInstallerStarted)
+                {
+                    SetUpdateActionButtonsEnabled(true);
+                }
+            }
+
+            _automaticUpdateGate.Release();
+        }
     }
 
     private void ApplyUpdateState(AppUpdateSnapshot snapshot)
@@ -1460,9 +1609,11 @@ public partial class MainWindow : Window
                 : snapshot.Stage == AppUpdateStage.Failed
                     ? Brush("WarningBrush")
                     : Brush("MutedTextBrush");
+        const string automaticUpdateSummary =
+            "Launch-time updates open automatically; optional updates found while running prepare quietly.";
         AboutUpdateCheckedText.Text = snapshot.LastCheckedUtc is DateTimeOffset checkedAt
-            ? $"Last checked {checkedAt.ToLocalTime():yyyy-MM-dd HH:mm:ss zzz}"
-            : "Automatic checks use the official GitHub Releases feed.";
+            ? $"Last checked {checkedAt.ToLocalTime():yyyy-MM-dd HH:mm:ss zzz} · {automaticUpdateSummary}"
+            : $"Automatic checks use the official GitHub Releases feed. {automaticUpdateSummary}";
 
         var hasReleasePage = snapshot.ReleasePage is not null;
         AboutUpdateNotesButton.Visibility = hasReleasePage ? Visibility.Visible : Visibility.Collapsed;

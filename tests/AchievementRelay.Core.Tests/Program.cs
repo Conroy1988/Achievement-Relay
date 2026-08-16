@@ -64,6 +64,7 @@ var tests = new (string Name, Action Run)[]
     ("Update manifest signatures authenticate the pinned publisher", VerifiesSignedUpdateManifest),
     ("Newer releases remain optional above the support floor", SelectsOptionalUpdate),
     ("Final packages supersede same-product beta revisions", SelectsFinalPackageUpdate),
+    ("Installer version resources match the signed package numerically", MatchesInstallerVersionResources),
     ("Non-upgradeable package versions fail closed", RejectsNonUpgradeablePackage),
     ("Only the explicit support floor requires an update", SelectsRequiredUpdate),
     ("Malformed update manifests fail closed", RejectsMalformedUpdateManifest)
@@ -205,6 +206,20 @@ static void RejectsNonUpgradeablePackage()
             new Version(0, 3, 0, 0),
             manifest),
         "A newer product release with a lower Windows package version was accepted.");
+}
+
+static void MatchesInstallerVersionResources()
+{
+    var manifest = CreateUpdateManifest("0.3.0", "0.3.0", "0.2.2.76");
+    Assert(
+        UpdatePolicy.MatchesInstallerVersionResource("0.3.0.0", "0.2.2.76", manifest),
+        "Windows' padded four-part product version did not match the signed three-part release.");
+    Assert(
+        !UpdatePolicy.MatchesInstallerVersionResource("0.3.0.1", "0.2.2.76", manifest),
+        "A nonzero product-version revision was accepted.");
+    Assert(
+        !UpdatePolicy.MatchesInstallerVersionResource("0.3.0.0", "0.2.2.75", manifest),
+        "A mismatched installer package version was accepted.");
 }
 
 static void SelectsRequiredUpdate()

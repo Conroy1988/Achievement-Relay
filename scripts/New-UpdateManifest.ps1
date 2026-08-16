@@ -83,9 +83,26 @@ if ($installer.Length -le 0 -or $installer.Length -gt 1GB) {
     throw 'The updater installer size is outside the supported 1 GiB limit.'
 }
 $installerVersion = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($installer.FullName)
-if ($installerVersion.ProductVersion -cne $Version -or
-    $installerVersion.FileVersion -cne $PackageVersion) {
-    throw "The installer product/file versions must exactly match $Version and $PackageVersion."
+try {
+    $embeddedProductVersion = [Version]::Parse($installerVersion.ProductVersion)
+    $embeddedPackageVersion = [Version]::Parse($installerVersion.FileVersion)
+}
+catch {
+    throw "The installer product/file versions are not numeric: '$($installerVersion.ProductVersion)' and '$($installerVersion.FileVersion)'."
+}
+$normalizedEmbeddedProductVersion = [Version]::new(
+    $embeddedProductVersion.Major,
+    $embeddedProductVersion.Minor,
+    [Math]::Max($embeddedProductVersion.Build, 0),
+    [Math]::Max($embeddedProductVersion.Revision, 0))
+$normalizedReleaseVersion = [Version]::new(
+    $releaseVersion.Major,
+    $releaseVersion.Minor,
+    $releaseVersion.Build,
+    0)
+if ($normalizedEmbeddedProductVersion -ne $normalizedReleaseVersion -or
+    $embeddedPackageVersion -ne $packageVersionValue) {
+    throw "The installer product/file versions '$($installerVersion.ProductVersion)' and '$($installerVersion.FileVersion)' must numerically match $Version and $PackageVersion."
 }
 
 $publishedAtUtc = [DateTimeOffset]::UtcNow

@@ -903,8 +903,10 @@ public sealed class AppUpdateService : IDisposable
         try
         {
             var versionInfo = FileVersionInfo.GetVersionInfo(path);
-            if (!string.Equals(versionInfo.ProductVersion, manifest.Version, StringComparison.Ordinal) ||
-                !string.Equals(versionInfo.FileVersion, manifest.PackageVersion, StringComparison.Ordinal))
+            if (!UpdatePolicy.MatchesInstallerVersionResource(
+                    versionInfo.ProductVersion,
+                    versionInfo.FileVersion,
+                    manifest))
             {
                 return new InstallerVerificationResult(false, "The installer version does not match the release manifest.");
             }

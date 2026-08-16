@@ -416,7 +416,7 @@ if (-not $updatePolicyText.Contains('minimum supported version') -or
     -not $appUpdateText.Contains('InstallerTrustVerifier.Verify') -or
     -not $appUpdateText.Contains('UpdateManifestSignatureVerifier.Verify') -or
     -not $appUpdateText.Contains('ManifestSignatureBase64') -or
-    -not $appUpdateText.Contains('versionInfo.FileVersion, manifest.PackageVersion') -or
+    -not $appUpdateText.Contains('UpdatePolicy.MatchesInstallerVersionResource') -or
     -not $installerTrustText.Contains('WinVerifyTrust') -or
     -not $installerTrustText.Contains('AchievementRelay.UpdatePublisherCertificateSha256') -or
     -not $manifestTrustText.Contains('rsa-sha256-pkcs1') -or
@@ -424,7 +424,7 @@ if (-not $updatePolicyText.Contains('minimum supported version') -or
     -not $buildMsixText.Contains('-p:AchievementRelayPackageVersion=') -or
     -not $buildReleaseText.Contains('New-UpdateManifest.ps1') -or
     -not $buildReleaseText.Contains('-PackageVersion $Version') -or
-    -not $newUpdateManifestText.Contains('$installerVersion.FileVersion -cne $PackageVersion') -or
+    -not $newUpdateManifestText.Contains('$embeddedPackageVersion -ne $packageVersionValue') -or
     -not $newUpdateManifestText.Contains('$installerCertificateSha256 -cne $certificateSha256') -or
     -not $mainWindowText.Contains('EnforceRequiredUpdateAsync') -or
     -not $mainWindowText.Contains('Monitoring is paused until the verified update is installed')) {

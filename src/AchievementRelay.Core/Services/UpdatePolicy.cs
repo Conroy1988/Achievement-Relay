@@ -177,6 +177,37 @@ public static partial class UpdatePolicy
         return $"{normalized.Major}.{normalized.Minor}.{normalized.Build}.{normalized.Revision}";
     }
 
+    public static bool MatchesInstallerVersionResource(
+        string? productVersion,
+        string? packageVersion,
+        UpdateManifest manifest)
+    {
+        ArgumentNullException.ThrowIfNull(manifest);
+        if (string.IsNullOrEmpty(productVersion) ||
+            !ProductVersionResourcePattern().IsMatch(productVersion) ||
+            string.IsNullOrEmpty(packageVersion) ||
+            !PackageVersionPattern().IsMatch(packageVersion))
+        {
+            return false;
+        }
+
+        try
+        {
+            var embeddedProduct = NormalizeVersion(Version.Parse(productVersion));
+            var embeddedPackage = NormalizePackageVersion(Version.Parse(packageVersion));
+            return embeddedProduct == ParseVersion(manifest.Version, "release version") &&
+                   embeddedPackage == ParsePackageVersion(manifest.PackageVersion);
+        }
+        catch (Exception exception) when (exception is
+            FormatException or
+            OverflowException or
+            ArgumentException or
+            InvalidDataException)
+        {
+            return false;
+        }
+    }
+
     private static Version NormalizeVersion(Version version) =>
         new(version.Major, version.Minor, Math.Max(version.Build, 0));
 
@@ -192,6 +223,9 @@ public static partial class UpdatePolicy
 
     [GeneratedRegex(@"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$", RegexOptions.CultureInvariant)]
     private static partial Regex PackageVersionPattern();
+
+    [GeneratedRegex(@"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\.0)?$", RegexOptions.CultureInvariant)]
+    private static partial Regex ProductVersionResourcePattern();
 
     [GeneratedRegex("^[0-9a-fA-F]{64}$", RegexOptions.CultureInvariant)]
     private static partial Regex Sha256Pattern();

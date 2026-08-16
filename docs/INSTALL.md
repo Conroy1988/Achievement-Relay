@@ -18,8 +18,8 @@ Release packages are self-contained; .NET does not need to be installed separate
 4. Choose **Connect Discord now; add OpenXBL optionally** or **Skip — I will do this later**.
 5. If connecting now, paste the required Discord webhook. Paste an OpenXBL key only if using Xbox; leave it blank for Steam-only setup.
 6. Toggle **Create a desktop shortcut** and select **Install**.
-7. If SmartScreen appears while the new publisher builds reputation, verify the download came from the official release, choose **More info**, review the publisher, then **Run anyway**.
-8. Approve the normal Windows installation prompt if shown.
+7. If SmartScreen appears, verify the download came from this repository's official release, choose **More info**, then **Run anyway** only if you intended to install Achievement Relay.
+8. Approve the one-time administrator prompt that adds the public **Achievement Relay Open Source** package certificate to **Local Computer → Trusted People**. Later releases use this same identity and do not need the certificate added again.
 
 Setup contains x64 and Arm64 MSIX packages, selects the native main app, installs for the signed-in user, creates/removes the optional desktop shortcut, and launches Achievement Relay. The soundtrack is extracted only to Setup's temporary directory, loops through a private Windows Media Player instance at 10% volume with an independently limited MCI fallback, does not alter Windows master volume, stops on every exit path, and is not installed with the app. Both packages contain a small isolated x64 Steamworks helper; Windows 11 on Arm runs that helper under x64 emulation. On Windows 10 Arm64 the app reports Steam as unavailable instead of entering a retry loop, while Xbox remains supported.
 
@@ -27,9 +27,11 @@ The optional credentials are never added to PowerShell arguments. Setup passes t
 
 ## Signing notice
 
-Official releases require the repository's persistent production code-signing certificate and an RFC 3161 timestamp. The release workflow stops before packaging if the PFX, password, or timestamp service is unavailable; it does not fall back to an untrusted certificate. Both architecture packages, `AchievementRelay_Setup.exe`, and the update manifest are signed from that same publisher identity. Setup otherwise operates per user.
+Official v0.4.x releases use one persistent project-owned, self-signed code-signing certificate plus RFC 3161 timestamping. Its public half is committed as [`release/AchievementRelay.Publisher.cer`](../release/AchievementRelay.Publisher.cer), and its reviewed SHA-256 fingerprint is `38b45563afe0a876ed676963a271c113883437d9db7ef5d6965c8226e975df69`. The release workflow stops before packaging if the protected PFX or password is unavailable, if the PFX does not match that public certificate, or if timestamping/signature validation fails. It never falls back to a new signing identity.
 
-Pull-request artifacts and explicit local builds may still use a temporary development certificate for testing. Those bundles include only its public `.cer`, and `Install.ps1` can import it into **Local Computer → Trusted People** with administrator approval. Development packages are not the public update channel, and one independently signed test build must never be allowed to authenticate another. SmartScreen can still warn while a valid new production certificate builds reputation.
+Because this is an open-source project certificate rather than a certificate issued by a Windows-trusted commercial authority, the first installer can show Microsoft Defender SmartScreen and must ask for administrator approval once to add the included public certificate to **Local Computer → Trusted People**, the store [Microsoft specifies for a self-signed MSIX leaf](https://learn.microsoft.com/windows/msix/app-installer/troubleshoot-appinstaller-issues#trusted-certificates). That prompt is the user's trust decision. It does not install a certificate authority and cannot be used to trust unrelated certificates. Both architecture packages, `AchievementRelay_Setup.exe`, and the update manifest use the same code-signing-only identity. Setup otherwise operates per user. Once the certificate is trusted, the app can authenticate and install later automatic updates signed by that identity without repeating the certificate-import prompt.
+
+Pull-request artifacts and explicit local builds still use temporary development certificates for testing. Those bundles include only their public `.cer`, and `Install.ps1` can import it into **Local Computer → Trusted People** with administrator approval. Development packages are not the public update channel, and one independently signed test build must never authenticate another. SmartScreen reputation is separate from cryptographic verification and may continue to warn for a low-volume self-signed app.
 
 ## Manual fallback bundle
 
@@ -46,11 +48,11 @@ If the `.exe` installer is blocked by local policy:
 
 Add `-CreateDesktopShortcut` if wanted. The manual path does not collect credentials; complete Setup when the app opens.
 
-The execution-policy flag applies only to that PowerShell process. The script selects the package, imports an included development certificate only for an explicitly downloaded test bundle, installs the MSIX, optionally creates the shortcut, and launches the app. Official release bundles rely on the normal production signature and do not include a development `.cer`.
+The execution-policy flag applies only to that PowerShell process. The script selects the package, imports the included official publisher certificate or a temporary development certificate when needed, installs the MSIX, optionally creates the shortcut, and launches the app. The official ZIP includes `AchievementRelay.Publisher.cer`; it never includes the private key.
 
 ## Direct MSIX installation
 
-1. For an explicitly downloaded development/test package only, import `AchievementRelay.Development.cer` into **Local Computer → Trusted People** if included. Official packages do not need this file.
+1. Import `AchievementRelay.Publisher.cer` into **Local Computer → Trusted People** for an official package, or `AchievementRelay.Development.cer` for an explicitly downloaded test package. The recommended Setup executable performs this step automatically with administrator approval.
 2. Double-click the MSIX matching the processor.
 3. Select **Install**.
 4. Launch Achievement Relay from Start and complete the four-step Setup flow.
@@ -83,4 +85,4 @@ Use **Settings → Apps → Installed apps → Achievement Relay → Uninstall**
 .\Uninstall.ps1 -RemoveLocalData
 ```
 
-If uninstalling directly through Windows Settings, manually remove a desktop shortcut if Windows leaves it behind. An obsolete development/test certificate may be removed from **Manage computer certificates → Trusted People → Certificates** after all packages signed by it are gone.
+If uninstalling directly through Windows Settings, manually remove a desktop shortcut if Windows leaves it behind. An obsolete development/test certificate may be removed from **Manage computer certificates → Trusted People → Certificates** after all packages signed by it are gone. Remove the **Achievement Relay Open Source** publisher certificate only after uninstalling Achievement Relay and deciding not to accept future updates signed by that identity.

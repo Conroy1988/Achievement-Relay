@@ -40,15 +40,19 @@ See the [full v0.4.0 release notes](docs/RELEASE-NOTES-0.4.0.md) and [changelog]
 > [!IMPORTANT]
 > **Moving from a pre-official 0.3.x updater test:** install v0.4.0 once from this repository's official release page. The 0.3.x test builds used an intentionally temporary signing identity whose private key was destroyed, so they cannot authenticate the new permanent release channel. Your encrypted connections, settings, baselines, pending deliveries, and preferences remain in place. Automatic verified updates take over from v0.4.0 onward.
 
+> [!IMPORTANT]
+> **First-install Windows trust:** v0.4.0 uses a persistent, project-owned self-signed certificate. SmartScreen may appear, and Setup asks for administrator approval once to add only the public **Achievement Relay Open Source** certificate to Windows Trusted People. Later automatic updates reuse that exact pinned identity. See the [signing notice](docs/INSTALL.md#signing-notice) and its [public fingerprint](release/publisher-certificate.json).
+
 > [!NOTE]
 > Xbox support uses OpenXBL, an independent and unofficial provider that requires your own key and is subject to its availability, limits, and terms. Achievement Relay is not affiliated with Microsoft, Xbox, Valve, Steam, OpenXBL, or Discord.
 
 ## Install in minutes
 
 1. Download [`AchievementRelay_Setup.exe`](https://github.com/Conroy1988/Achievement-Relay/releases/latest/download/AchievementRelay_Setup.exe).
-2. Choose Xbox, Steam, or both. You may connect now or finish in the app's step-by-step Setup screen.
-3. Add the Discord webhook for the channel that should receive achievements. Add an OpenXBL key only if you want Xbox monitoring.
-4. Finish setup and play normally. Achievement Relay stays in the notification area and posts only newly proven unlocks.
+2. Approve the one-time Windows certificate-trust prompt if this PC has not installed an official Achievement Relay release before.
+3. Choose Xbox, Steam, or both. You may connect now or finish in the app's step-by-step Setup screen.
+4. Add the Discord webhook for the channel that should receive achievements. Add an OpenXBL key only if you want Xbox monitoring.
+5. Finish setup and play normally. Achievement Relay stays in the notification area and posts only newly proven unlocks.
 
 The installer selects x64 or Arm64 automatically. Release packages are self-contained, so users do not need to install .NET. See [Getting Started](GETTING_STARTED.md) for the walkthrough and [Installation](docs/INSTALL.md) for signing, SmartScreen, architecture, and manual fallback details.
 
@@ -85,7 +89,7 @@ Achievement Relay checks the official stable GitHub release on launch and period
 
 Optional updates found while running are prepared without interrupting play and open on the next launch. A reviewed, authenticated release can raise the minimum supported version; only then does monitoring pause and the updater open immediately. Offline checks, unsigned manifests, altered files, and failed validation never invent a required update.
 
-The full trust model and certificate-rotation rules are documented in [Installation](docs/INSTALL.md), [Security](SECURITY.md), and [Release Process](docs/RELEASING.md).
+The first install explicitly trusts the project's public leaf certificate; later installers must pass Windows validation and the independent certificate pin above. The full trust model and certificate-rotation rules are documented in [Installation](docs/INSTALL.md), [Security](SECURITY.md), and [Release Process](docs/RELEASING.md).
 
 ## Privacy and security
 

@@ -71,15 +71,35 @@ try {
         throw "No compatible Achievement Relay MSIX was found in $scriptDirectory."
     }
 
+    $publisherCertificate = Get-ChildItem -LiteralPath $scriptDirectory -Filter 'AchievementRelay.Publisher.cer' |
+        Select-Object -First 1
     $developmentCertificate = Get-ChildItem -LiteralPath $scriptDirectory -Filter 'AchievementRelay.Development.cer' |
         Select-Object -First 1
-    if ($developmentCertificate) {
-        Write-Host 'This test build uses a project development certificate.' -ForegroundColor Yellow
-        $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($developmentCertificate.FullName)
+    $packageCertificate = if ($publisherCertificate) { $publisherCertificate } else { $developmentCertificate }
+    if ($packageCertificate) {
+        if ($publisherCertificate) {
+            Write-Host 'This official open-source build uses the persistent Achievement Relay publisher certificate.' -ForegroundColor Yellow
+        }
+        else {
+            Write-Host 'This test build uses a temporary project development certificate.' -ForegroundColor Yellow
+        }
+
+        $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($packageCertificate.FullName)
+        if ($publisherCertificate) {
+            $expectedPublisherCertificateSha256 = '38b45563afe0a876ed676963a271c113883437d9db7ef5d6965c8226e975df69'
+            $actualPublisherCertificateSha256 = (Get-FileHash `
+                -LiteralPath $publisherCertificate.FullName `
+                -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actualPublisherCertificateSha256 -cne $expectedPublisherCertificateSha256 -or
+                $certificate.Subject -cne 'CN=Achievement Relay Open Source') {
+                throw 'The included official publisher certificate does not match the reviewed Achievement Relay identity.'
+            }
+        }
+
         $trustedCertificatePath = "Cert:\LocalMachine\TrustedPeople\$($certificate.Thumbprint)"
         if (-not (Test-Path -LiteralPath $trustedCertificatePath)) {
             Write-Host 'Windows will request administrator approval once to trust the package certificate for this PC.'
-            $importCommand = "Import-Certificate -FilePath `"$($developmentCertificate.FullName)`" -CertStoreLocation 'Cert:\LocalMachine\TrustedPeople' | Out-Null"
+            $importCommand = "Import-Certificate -FilePath `"$($packageCertificate.FullName)`" -CertStoreLocation 'Cert:\LocalMachine\TrustedPeople' | Out-Null"
             $encodedCommand = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($importCommand))
             $importProcess = Start-Process `
                 -FilePath 'powershell.exe' `
@@ -88,7 +108,7 @@ try {
                 -Wait `
                 -PassThru
             if ($importProcess.ExitCode -ne 0) {
-                throw 'The development certificate was not trusted. Installation was cancelled.'
+                throw 'The Achievement Relay package certificate was not trusted. Installation was cancelled.'
             }
         }
     }

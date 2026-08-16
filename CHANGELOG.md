@@ -16,6 +16,7 @@ No changes yet.
 - Added persistent **Community & Support** actions in the sidebar and Help screen using the TKB community Discord invite
 - Added automatic verified update handling at launch and during runtime, including authenticated required-update enforcement, safe monitoring suspension, and update-loop protection
 - Added complete official-release documentation, GitHub artwork, release notes, signing guidance, and the one-time pre-official v0.3.x transition path
+- Established a persistent RSA-3072 project-owned signing identity, a reviewed public-certificate fingerprint, and the explicit one-time Windows Trusted People import used by every later automatic update
 
 ### Added
 
@@ -60,7 +61,7 @@ No changes yet.
 
 ### Distribution
 
-- Official packages now require the persistent production signing PFX and RFC 3161 timestamp; the release workflow fails closed instead of publishing a development-signed updater
+- Official packages now require the persistent project signing PFX, an exact match with the committed public certificate, and RFC 3161 timestamping; the release workflow fails closed instead of publishing a development-signed or identity-mismatched updater
 - Pre-official v0.3.x updater-test builds require one manual v0.4.0 install because their deliberately ephemeral signing key was destroyed; encrypted settings and relay state are preserved
 
 ## [0.3.2] - 2026-08-16

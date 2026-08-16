@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "subject": "CN=Achievement Relay Open Source",
+  "certificateSha256": "38b45563afe0a876ed676963a271c113883437d9db7ef5d6965c8226e975df69",
+  "serialNumber": "7BFE33369BD61FD9FFC303D9F98D9AB5C3FA2F6B",
+  "notBeforeUtc": "2026-08-16T18:05:05Z",
+  "notAfterUtc": "2036-08-13T18:05:05Z",
+  "publicKey": "RSA-3072",
+  "signatureHash": "SHA-256",
+  "enhancedKeyUsage": "1.3.6.1.5.5.7.3.3",
+  "trustModel": "persistent-project-self-signed"
+}

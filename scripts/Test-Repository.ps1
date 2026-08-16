@@ -46,6 +46,8 @@ $requiredFiles = @(
     'scripts\New-UpdateManifest.ps1',
     'scripts\Protect-InstallerSetup.ps1',
     'release\update-policy.json',
+    'release\AchievementRelay.Publisher.cer',
+    'release\publisher-certificate.json',
     'release\live-update-test-policy.json',
     '.github\workflows\live-update-test.yml',
     'docs\LIVE-UPDATE-TEST.md',
@@ -141,6 +143,9 @@ if (-not $installerText.Contains("'{param:UPDATE|0}'") -or
     -not $installerText.Contains("Parameters := Parameters + ' -Update -PreserveDesktopShortcut'")) {
     throw 'The verified updater must reuse the branded installer while skipping onboarding and preserving user choices.'
 }
+if (-not $installerText.Contains('administrator approval once to trust the included public package certificate')) {
+    throw 'The first-run installer must disclose the one-time package-certificate trust step before installation.'
+}
 
 $installScriptText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'scripts\Install.ps1') -Raw
 $shutdownFunctionMatch = [regex]::Match(
@@ -164,7 +169,11 @@ if (-not $shutdownFunctionMatch.Success -or
 }
 if (-not $installScriptText.Contains('[switch] $PreserveDesktopShortcut') -or
     -not $installScriptText.Contains('[switch] $Update') -or
-    -not $installScriptText.Contains('-not $PreserveDesktopShortcut')) {
+    -not $installScriptText.Contains('-not $PreserveDesktopShortcut') -or
+    -not $installScriptText.Contains("Filter 'AchievementRelay.Publisher.cer'") -or
+    -not $installScriptText.Contains('if ($publisherCertificate) { $publisherCertificate } else { $developmentCertificate }') -or
+    -not $installScriptText.Contains('38b45563afe0a876ed676963a271c113883437d9db7ef5d6965c8226e975df69') -or
+    -not $installScriptText.Contains('Cert:\LocalMachine\TrustedPeople')) {
     throw 'Package updates must preserve the existing desktop shortcut and relaunch the installed app.'
 }
 
@@ -440,9 +449,73 @@ if (-not $releaseWorkflowText.Contains("'.exe'") -or
     -not $releaseWorkflowText.Contains("'.json'") -or
     -not $releaseWorkflowText.Contains("'.sig'") -or
     -not $releaseWorkflowText.Contains('AchievementRelay.SteamBridge.exe --self-test') -or
-    -not $releaseWorkflowText.Contains('Official self-updating releases require the persistent signing PFX') -or
+    -not $releaseWorkflowText.Contains('Official self-updating releases require the persistent project signing PFX') -or
+    -not $releaseWorkflowText.Contains('AllowUntrustedProjectCertificate = $true') -or
+    -not $releaseWorkflowText.Contains('Cert:\LocalMachine\TrustedPeople') -or
+    -not $releaseWorkflowText.Contains('http://timestamp.digicert.com') -or
+    -not $releaseWorkflowText.Contains('AchievementRelay.Publisher.cer') -or
     -not $releaseWorkflowText.Contains('RELEASE-NOTES-$version.md')) {
     throw 'The release workflow must verify the Steam bridge and publish a persistently signed updater plus manifest.'
+}
+
+$publisherCertificatePath = Join-Path $repositoryRoot 'release\AchievementRelay.Publisher.cer'
+$publisherCertificateMetadata = Get-Content `
+    -LiteralPath (Join-Path $repositoryRoot 'release\publisher-certificate.json') `
+    -Raw | ConvertFrom-Json
+$publisherCertificateSha256 = (Get-FileHash -LiteralPath $publisherCertificatePath -Algorithm SHA256).Hash.ToLowerInvariant()
+$expectedPublisherCertificateSha256 = '38b45563afe0a876ed676963a271c113883437d9db7ef5d6965c8226e975df69'
+$publisherCertificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($publisherCertificatePath)
+try {
+    $publisherCodeSigningAllowed = $false
+    $publisherIsCertificateAuthority = $false
+    $publisherAllowsDigitalSignature = $false
+    foreach ($extension in $publisherCertificate.Extensions) {
+        if ($extension -is [System.Security.Cryptography.X509Certificates.X509EnhancedKeyUsageExtension]) {
+            foreach ($usage in $extension.EnhancedKeyUsages) {
+                if ($usage.Value -eq '1.3.6.1.5.5.7.3.3') {
+                    $publisherCodeSigningAllowed = $true
+                }
+            }
+        }
+        elseif ($extension -is [System.Security.Cryptography.X509Certificates.X509BasicConstraintsExtension]) {
+            $publisherIsCertificateAuthority = $extension.CertificateAuthority
+        }
+        elseif ($extension -is [System.Security.Cryptography.X509Certificates.X509KeyUsageExtension]) {
+            $publisherAllowsDigitalSignature = ($extension.KeyUsages -band
+                [System.Security.Cryptography.X509Certificates.X509KeyUsageFlags]::DigitalSignature) -ne 0
+        }
+    }
+
+    $publisherRsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPublicKey($publisherCertificate)
+    try {
+        if ($publisherCertificate.HasPrivateKey -or
+            $publisherCertificate.Subject -cne 'CN=Achievement Relay Open Source' -or
+            $publisherCertificate.Issuer -cne $publisherCertificate.Subject -or
+            -not $publisherRsa -or $publisherRsa.KeySize -ne 3072 -or
+            -not $publisherCodeSigningAllowed -or
+            -not $publisherAllowsDigitalSignature -or
+            $publisherIsCertificateAuthority -or
+            $publisherCertificateSha256 -cne $expectedPublisherCertificateSha256 -or
+            $publisherCertificateMetadata.schemaVersion -ne 1 -or
+            $publisherCertificateMetadata.subject -cne $publisherCertificate.Subject -or
+            $publisherCertificateMetadata.certificateSha256 -cne $publisherCertificateSha256 -or
+            $publisherCertificateMetadata.serialNumber -cne $publisherCertificate.SerialNumber -or
+            $publisherCertificateMetadata.notBeforeUtc -cne $publisherCertificate.NotBefore.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ') -or
+            $publisherCertificateMetadata.notAfterUtc -cne $publisherCertificate.NotAfter.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ') -or
+            $publisherCertificateMetadata.publicKey -cne 'RSA-3072' -or
+            $publisherCertificateMetadata.enhancedKeyUsage -cne '1.3.6.1.5.5.7.3.3' -or
+            $publisherCertificateMetadata.trustModel -cne 'persistent-project-self-signed') {
+            throw 'The reviewed persistent publisher certificate or its public metadata is invalid.'
+        }
+    }
+    finally {
+        if ($publisherRsa) {
+            $publisherRsa.Dispose()
+        }
+    }
+}
+finally {
+    $publisherCertificate.Dispose()
 }
 
 $officialUpdatePolicy = Get-Content -LiteralPath (Join-Path $repositoryRoot 'release\update-policy.json') -Raw |
@@ -507,6 +580,9 @@ if (-not $updatePolicyText.Contains('minimum supported version') -or
     -not $buildReleaseText.Contains('New-UpdateManifest.ps1') -or
     -not $buildReleaseText.Contains('-PackageVersion $Version') -or
     -not $buildReleaseText.Contains('-PolicyPath $UpdatePolicyPath') -or
+    -not $buildReleaseText.Contains('[switch] $AllowUntrustedProjectCertificate') -or
+    -not $buildReleaseText.Contains('release\AchievementRelay.Publisher.cer') -or
+    -not $buildReleaseText.Contains('does not match release/AchievementRelay.Publisher.cer') -or
     -not $buildReleaseText.Contains('$AllowUntrustedDevelopmentCertificate -and (-not $PfxPath -or $TimestampUrl)') -or
     -not $newUpdateManifestText.Contains('$embeddedPackageVersion -ne $packageVersionValue') -or
     -not $newUpdateManifestText.Contains('$embeddedProductVersionText = ([string] $installerVersion.ProductVersion).Trim()') -or

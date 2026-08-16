@@ -18,9 +18,13 @@
   #define RepositoryRoot ".."
 #endif
 
+#ifndef CertificateFileName
+  #define CertificateFileName "AchievementRelay.Development.cer"
+#endif
+
 #define X64Package PackageDirectory + "\AchievementRelay_" + MsixVersion + "_x64.msix"
 #define Arm64Package PackageDirectory + "\AchievementRelay_" + MsixVersion + "_arm64.msix"
-#define CertificatePath PackageDirectory + "\AchievementRelay.Development.cer"
+#define CertificatePath PackageDirectory + "\" + CertificateFileName
 
 [Setup]
 AppId=AchievementRelay.Setup
@@ -372,7 +376,8 @@ begin
     WizardForm.WelcomeLabel1.Caption := 'ENTER THE ACHIEVEMENT RELAY';
     WizardForm.WelcomeLabel2.Caption :=
       'Relay new Xbox and Steam achievements to Discord from one focused Windows gaming companion.' + #13#10 + #13#10 +
-      'Setup selects the correct x64 or Arm64 package. Steam works locally without an API key. You can add Discord and optional OpenXBL now, or use the app''s step-by-step Setup later.';
+      'Setup selects the correct x64 or Arm64 package. Steam works locally without an API key. You can add Discord and optional OpenXBL now, or use the app''s step-by-step Setup later.' + #13#10 + #13#10 +
+      'On a clean PC, Windows asks for administrator approval once to trust the included public package certificate. Later official updates reuse that same identity.';
   end;
 
   SetupChoicePage := CreateInputOptionPage(wpWelcome,

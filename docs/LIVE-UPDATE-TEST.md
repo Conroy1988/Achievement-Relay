@@ -1,6 +1,6 @@
 # Controlled live-update test
 
-The `Controlled live updater test` workflow proves the complete production discovery and automatic updater-launch route without reusing or publishing a private production signing key. It builds two installers from the reviewed triggering commit on one disposable Windows runner:
+The `Controlled live updater test` workflow proves the complete production discovery and automatic updater-launch route without reusing or publishing the private official publisher key. It builds two installers from the reviewed triggering commit on one disposable Windows runner:
 
 - corrected bridge baseline product `0.3.1`, package `0.3.1.1`, containing the version-resource normalization and automatic updater and compiled to preserve the existing installation without reopening onboarding;
 - required target product/package `0.3.2` / `0.3.2.0`.

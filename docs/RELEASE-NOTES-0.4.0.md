@@ -8,6 +8,8 @@ For most users, download **`AchievementRelay_Setup.exe`** below. Setup automatic
 
 The versioned ZIP is a manual fallback for environments where the setup executable is restricted. Individual MSIX packages are also attached for managed or advanced installation.
 
+> **First installation:** this open-source release uses a persistent project-owned self-signed certificate. Microsoft Defender SmartScreen may appear, and Setup asks for administrator approval once to add only the public **Achievement Relay Open Source** certificate to Windows Trusted People. From then on, automatic updates reuse and independently pin that same identity.
+
 ## Highlights
 
 - **A completely redesigned command-red interface.** The Home, Setup, Activity, Settings, and Help screens now use a crisp black, warm-white, and crimson visual system with clearer hierarchy and status language.
@@ -39,7 +41,7 @@ See [Getting Started](https://github.com/Conroy1988/Achievement-Relay/blob/main/
 - Steam must be running before a Steam unlock. Offline Steam achievements join the next silent baseline by design.
 - Steam games must expose achievements through Steamworks. Steam monitoring on Arm64 requires Windows 11 x64 emulation.
 - Xbox delivery depends on Xbox sync and OpenXBL availability and allowance. OpenXBL is independent and unofficial.
-- A new code-signing certificate may still trigger a Microsoft Defender SmartScreen reputation warning even when its signature is valid. Confirm the publisher and download only from this repository.
+- The project-owned certificate does not chain to a commercial Windows trust root. First install therefore requires the disclosed one-time certificate-trust prompt, and SmartScreen may still warn. Download only from this repository.
 - Achievement Relay is not affiliated with Microsoft, Xbox, Valve, Steam, OpenXBL, or Discord.
 
 ## Release assets
@@ -47,6 +49,7 @@ See [Getting Started](https://github.com/Conroy1988/Achievement-Relay/blob/main/
 - `AchievementRelay_Setup.exe` — recommended architecture-selecting installer and updater
 - `AchievementRelay_Update.json` — signed-manifest payload with versions, asset identity, size, and SHA-256
 - `AchievementRelay_Update.sig` — detached RSA signature envelope for the exact manifest bytes
+- `AchievementRelay.Publisher.cer` — public project certificate used for the one-time Windows trust step
 - `AchievementRelay_0.4.0.0_x64.msix` — x64 Windows package
 - `AchievementRelay_0.4.0.0_arm64.msix` — Arm64 Windows package
 - `AchievementRelay_0.4.0.0_installer.zip` — manual installation fallback

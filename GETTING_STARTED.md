@@ -30,14 +30,15 @@ Discord's [official webhook guide](https://support.discord.com/hc/en-us/articles
 ## 2. Run the installer
 
 1. Download `AchievementRelay_Setup.exe` from the [latest GitHub Release](https://github.com/Conroy1988/Achievement-Relay/releases/latest).
-2. If Microsoft Defender SmartScreen appears while the new publisher certificate builds reputation, confirm the file came from the official repository, choose **More info**, review the publisher, then **Run anyway**.
-3. **Relay Online** by CRNY starts locally at 10% volume. Use the lower-left **Pause music**/**Play music** control at any time; the adjacent SoundCloud button opens the [direct track page](https://soundcloud.com/daniel-conroy-224318319/crny-relay-online) only when selected.
-4. On **Connect your relay**, choose one option:
+2. If Microsoft Defender SmartScreen appears, confirm the file came from this repository's official release, choose **More info**, then **Run anyway** only if you intended to install Achievement Relay.
+3. Approve the one-time administrator prompt to trust the included public **Achievement Relay Open Source** package certificate. It is a project-owned self-signed certificate, not a certificate authority; later official updates reuse the same pinned identity.
+4. **Relay Online** by CRNY starts locally at 10% volume. Use the lower-left **Pause music**/**Play music** control at any time; the adjacent SoundCloud button opens the [direct track page](https://soundcloud.com/daniel-conroy-224318319/crny-relay-online) only when selected.
+5. On **Connect your relay**, choose one option:
    - **Connect Discord now; add OpenXBL optionally (recommended)**; or
    - **Skip — I will do this later in Setup**.
-5. If connecting now, paste the Discord webhook. Paste an OpenXBL key only if you also want Xbox monitoring. Setup validates supplied values; the app performs live checks on first launch.
-6. On **Player options**, toggle **Create a desktop shortcut** as preferred.
-7. Select **Install** and approve the normal Windows installation prompt if shown.
+6. If connecting now, paste the Discord webhook. Paste an OpenXBL key only if you also want Xbox monitoring. Setup validates supplied values; the app performs live checks on first launch.
+7. On **Player options**, toggle **Create a desktop shortcut** as preferred.
+8. Select **Install**.
 
 The installer never places either secret on a command line or in its log. It uses a one-time DPAPI-encrypted file under `%USERPROFILE%\.achievement-relay` for the signed-in Windows user, clears the installer fields, and launches the app. The app saves fresh encrypted settings before it truncates and deletes that handoff. Steam creates no secret handoff.
 
@@ -108,7 +109,7 @@ This one-time manual signing transition preserves the encrypted Discord webhook,
 
 Achievement Relay checks the latest stable release on the official GitHub repository at startup and about every six hours. A normal newer release is optional. A release is required only when its reviewed, publisher-signed manifest raises `minimumSupportedVersion`; once that policy is successfully authenticated, Xbox and Steam monitoring pause until the update is installed. A failed, unsigned, tampered, or offline check never invents a requirement.
 
-Select **Update now** on Home or **Help & support**. The app downloads the exact GitHub release asset to `%LOCALAPPDATA%\AchievementRelay\Updates`, verifies its declared size, SHA-256, signed product/package versions, matching executable product/file versions, Windows Authenticode trust, and the publisher-certificate fingerprint pinned into the running build, then opens the branded updater. The updater uses the same CRNY music at 10% volume with Play/Pause and the direct SoundCloud link. It keeps encrypted connections, settings, provider baselines, pending deliveries, startup behavior, and the existing desktop-shortcut choice. Cancelling before installation leaves the running app untouched.
+Select **Update now** on Home or **Help & support**. The app downloads the exact GitHub release asset to `%LOCALAPPDATA%\AchievementRelay\Updates`, verifies its declared size, SHA-256, signed product/package versions, matching executable product/file versions, Windows Authenticode trust, and the publisher-certificate fingerprint pinned into the running build, then opens the branded updater. Because first installation trusted that same persistent certificate, normal later updates do not repeat the certificate-import prompt. The updater uses the same CRNY music at 10% volume with Play/Pause and the direct SoundCloud link. It keeps encrypted connections, settings, provider baselines, pending deliveries, startup behavior, and the existing desktop-shortcut choice. Cancelling before installation leaves the running app untouched.
 
 ## What cannot be automated
 

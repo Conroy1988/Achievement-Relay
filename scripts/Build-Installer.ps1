@@ -18,6 +18,9 @@ param(
 
     [string] $TimestampUrl,
 
+    [ValidateSet('AchievementRelay.Development.cer', 'AchievementRelay.Publisher.cer')]
+    [string] $CertificateFileName = 'AchievementRelay.Development.cer',
+
     [switch] $ForceUpdateMode
 )
 
@@ -74,7 +77,8 @@ $compilerArguments = @(
     "/DMsixVersion=$MsixVersion",
     "/DPackageDirectory=$PackageDirectory",
     "/DOutputDirectory=$OutputDirectory",
-    "/DRepositoryRoot=$repositoryRoot"
+    "/DRepositoryRoot=$repositoryRoot",
+    "/DCertificateFileName=$CertificateFileName"
 )
 if ($ForceUpdateMode) {
     $compilerArguments += '/DForceUpdateMode=1'

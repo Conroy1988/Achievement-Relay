@@ -79,13 +79,6 @@ jobs:
           Import-Certificate `
             -FilePath $cerPath `
             -CertStoreLocation 'Cert:\CurrentUser\TrustedPeople' | Out-Null
-          # SignTool performs full chain validation even though the test leaf is
-          # also accepted from Trusted People. The runner is disposable, so trust
-          # this one ephemeral self-signed certificate as its own root as well.
-          & certutil.exe -user -addstore -f Root $cerPath | Out-Null
-          if ($LASTEXITCODE -ne 0) {
-            throw 'The ephemeral test certificate could not be trusted by SignTool.'
-          }
 
           $certificateSha256 = (Get-FileHash -LiteralPath $cerPath -Algorithm SHA256).Hash.ToLowerInvariant()
           "TEST_SIGNING_PFX=$pfxPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
@@ -110,6 +103,7 @@ jobs:
               ApplicationVersion = $ApplicationVersion
               PfxPath = $env:TEST_SIGNING_PFX
               PfxPassword = $env:TEST_SIGNING_PASSWORD
+              AllowUntrustedDevelopmentCertificate = $true
             }
             if ($UpdatePolicyPath) {
               $releaseArguments.UpdatePolicyPath = $UpdatePolicyPath
@@ -148,6 +142,12 @@ jobs:
 
           $baselineRoot = Join-Path $env:GITHUB_WORKSPACE 'baseline'
           $targetRoot = Join-Path $env:GITHUB_WORKSPACE 'target'
+          # The pinned baseline supplies the old app/UI. Use the current reviewed
+          # release orchestrator so both halves receive the same test-only trust gate.
+          Copy-Item `
+            -LiteralPath (Join-Path $targetRoot 'scripts\Build-Release.ps1') `
+            -Destination (Join-Path $baselineRoot 'scripts\Build-Release.ps1') `
+            -Force
           Build-ControlledPackage `
             -RepositoryRoot $baselineRoot `
             -ApplicationVersion $env:BASELINE_VERSION `

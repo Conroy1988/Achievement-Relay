@@ -435,7 +435,7 @@ if ($liveUpdatePolicy.schemaVersion -ne 1 -or
     -not $liveUpdateWorkflowText.Contains('ed80821ed8ec351fb5a010c7324eaa1a31cd2f5d') -or
     -not $liveUpdateWorkflowText.Contains('TARGET_VERSION: 0.3.1') -or
     -not $liveUpdateWorkflowText.Contains('release\live-update-test-policy.json') -or
-    -not $liveUpdateWorkflowText.Contains('certutil.exe -user -addstore -f Root') -or
+    -not $liveUpdateWorkflowText.Contains('AllowUntrustedDevelopmentCertificate = $true') -or
     -not $liveUpdateWorkflowText.Contains('AchievementRelay_Baseline_Setup.exe') -or
     -not $liveUpdateWorkflowText.Contains('gh release create') -or
     -not $liveUpdateWorkflowText.Contains('/releases/latest') -or
@@ -467,6 +467,7 @@ if (-not $updatePolicyText.Contains('minimum supported version') -or
     -not $buildReleaseText.Contains('New-UpdateManifest.ps1') -or
     -not $buildReleaseText.Contains('-PackageVersion $Version') -or
     -not $buildReleaseText.Contains('-PolicyPath $UpdatePolicyPath') -or
+    -not $buildReleaseText.Contains('$AllowUntrustedDevelopmentCertificate -and (-not $PfxPath -or $TimestampUrl)') -or
     -not $newUpdateManifestText.Contains('$embeddedPackageVersion -ne $packageVersionValue') -or
     -not $newUpdateManifestText.Contains('$installerCertificateSha256 -cne $certificateSha256') -or
     -not $mainWindowText.Contains('EnforceRequiredUpdateAsync') -or

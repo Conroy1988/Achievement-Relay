@@ -15,13 +15,19 @@ param(
 
     [string] $TimestampUrl,
 
-    [string] $UpdatePolicyPath
+    [string] $UpdatePolicyPath,
+
+    [switch] $AllowUntrustedDevelopmentCertificate
 )
 
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $outputDirectory = Join-Path $repositoryRoot 'artifacts'
 New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
+
+if ($AllowUntrustedDevelopmentCertificate -and (-not $PfxPath -or $TimestampUrl)) {
+    throw 'The untrusted-development-certificate path requires an explicit PFX and forbids production timestamping.'
+}
 
 if (-not $UpdatePolicyPath) {
     $UpdatePolicyPath = Join-Path $repositoryRoot 'release\update-policy.json'
@@ -98,7 +104,7 @@ try {
         -PfxPath $PfxPath `
         -PfxPassword $PfxPassword
 
-    if (-not $publicCertificate) {
+    if (-not $publicCertificate -and -not $AllowUntrustedDevelopmentCertificate) {
         $signTool = & (Join-Path $PSScriptRoot 'Get-WindowsSdkTool.ps1') -Name 'signtool.exe'
         & $signTool verify /pa /all (Join-Path $outputDirectory 'AchievementRelay_Setup.exe')
         if ($LASTEXITCODE -ne 0) {

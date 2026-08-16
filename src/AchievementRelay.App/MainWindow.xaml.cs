@@ -1757,11 +1757,17 @@ public partial class MainWindow : Window
         }
         finally
         {
-            await Dispatcher.InvokeAsync(() =>
-            {
-                _updateInstallerStarted = false;
-                ApplyUpdateState(_services.UpdateService.Snapshot);
-            });
+            await Dispatcher.InvokeAsync(RestoreAfterUpdaterExitAsync).Task.Unwrap();
+        }
+    }
+
+    private async Task RestoreAfterUpdaterExitAsync()
+    {
+        _updateInstallerStarted = false;
+        ApplyUpdateState(_services.UpdateService.Snapshot);
+        if (!_services.UpdateService.IsUpdateRequired)
+        {
+            await ResumeMonitoringAfterUpdatePolicyAsync();
         }
     }
 

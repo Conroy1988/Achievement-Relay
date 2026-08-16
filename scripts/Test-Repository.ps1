@@ -450,6 +450,7 @@ if ($liveUpdatePolicy.schemaVersion -ne 1 -or
 
 $updatePolicyText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.Core\Services\UpdatePolicy.cs') -Raw
 $appUpdateText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\AppUpdateService.cs') -Raw
+$appStartupText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\App.xaml.cs') -Raw
 $installerTrustText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\InstallerTrustVerifier.cs') -Raw
 $manifestTrustText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.Core\Services\UpdateManifestSignatureVerifier.cs') -Raw
 $buildReleaseText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'scripts\Build-Release.ps1') -Raw
@@ -481,6 +482,8 @@ if (-not $updatePolicyText.Contains('minimum supported version') -or
     -not $mainWindowText.Contains('EnforceRequiredUpdateAsync') -or
     -not $mainWindowText.Contains('TryStartAutomaticUpdateOnLaunchAsync') -or
     -not $mainWindowText.Contains('_automaticUpdateFailureVersions') -or
+    -not $mainWindowText.Contains('RestoreAfterUpdaterExitAsync') -or
+    -not $appStartupText.Contains('_services.UpdateService.StartAutomaticChecks()') -or
     -not $mainWindowText.Contains('Monitoring is paused until the verified update is installed')) {
     throw 'The updater must enforce release identity, explicit support policy, SHA-256, pinned Authenticode trust, automatic launch, loop protection and required-update monitoring suspension.'
 }

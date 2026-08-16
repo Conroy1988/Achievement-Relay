@@ -229,7 +229,8 @@ jobs:
           3. Windows may request administrator approval once to trust the temporary test certificate.
           4. When the baseline app launches, do not select **Update now**. Confirm it automatically discovers, downloads and verifies required v$($env:TARGET_VERSION), pauses monitoring, and opens the updater.
           5. Confirm the updater starts the CRNY soundtrack at 10% volume and provides Pause/Play plus the direct SoundCloud link.
-          6. Complete the updater and confirm Achievement Relay v$($env:TARGET_VERSION) opens with settings, state, startup preference and shortcut preserved.
+          6. Cancel Setup once. Confirm the baseline stays open, remains paused because this update is required, and does not automatically relaunch Setup in a loop.
+          7. Select **Install update**, complete the updater, and confirm Achievement Relay v$($env:TARGET_VERSION) opens with settings, state, startup preference and shortcut preserved.
 
           Baseline setup SHA-256: $baselineSha256
 

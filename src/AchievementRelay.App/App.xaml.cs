@@ -78,6 +78,7 @@ public partial class App : System.Windows.Application
         if (automaticUpdaterStarted)
         {
             _mainWindow.RefreshStatus();
+            _services.UpdateService.StartAutomaticChecks();
             return;
         }
 

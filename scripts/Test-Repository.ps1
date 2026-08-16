@@ -454,6 +454,8 @@ if (-not $releaseWorkflowText.Contains("'.exe'") -or
     -not $releaseWorkflowText.Contains('Cert:\LocalMachine\TrustedPeople') -or
     -not $releaseWorkflowText.Contains('http://timestamp.digicert.com') -or
     -not $releaseWorkflowText.Contains('AchievementRelay.Publisher.cer') -or
+    -not $releaseWorkflowText.Contains('publish_release:') -or
+    -not $releaseWorkflowText.Contains('Retain signed release candidate') -or
     -not $releaseWorkflowText.Contains('RELEASE-NOTES-$version.md')) {
     throw 'The release workflow must verify the Steam bridge and publish a persistently signed updater plus manifest.'
 }

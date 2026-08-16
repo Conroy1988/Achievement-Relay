@@ -11,6 +11,11 @@ on:
         required: true
         default: v0.4.0
         type: string
+      publish_release:
+        description: Publish the immutable GitHub Release after signing checks pass
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -123,7 +128,24 @@ jobs:
             }
           }
 
+      - name: Retain signed release candidate
+        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.publish_release }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: AchievementRelay-${{ env.RELEASE_TAG }}-signed-candidate
+          path: |
+            artifacts/AchievementRelay_Setup.exe
+            artifacts/AchievementRelay_*.msix
+            artifacts/AchievementRelay_*_installer.zip
+            artifacts/AchievementRelay.Publisher.cer
+            artifacts/AchievementRelay_Update.json
+            artifacts/AchievementRelay_Update.sig
+          if-no-files-found: error
+          retention-days: 2
+          compression-level: 0
+
       - name: Publish GitHub release
+        if: ${{ github.event_name == 'push' || inputs.publish_release }}
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}

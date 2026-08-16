@@ -74,7 +74,7 @@ try {
     $developmentCertificate = Get-ChildItem -LiteralPath $scriptDirectory -Filter 'AchievementRelay.Development.cer' |
         Select-Object -First 1
     if ($developmentCertificate) {
-        Write-Host 'This alpha build uses a project development certificate.' -ForegroundColor Yellow
+        Write-Host 'This test build uses a project development certificate.' -ForegroundColor Yellow
         $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($developmentCertificate.FullName)
         $trustedCertificatePath = "Cert:\LocalMachine\TrustedPeople\$($certificate.Thumbprint)"
         if (-not (Test-Path -LiteralPath $trustedCertificatePath)) {

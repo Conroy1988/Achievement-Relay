@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Community & Support
+    url: https://discord.gg/3ZdXhYjgDm
+    about: Get setup help, ask a question, share feedback, or meet the TKB community.
+  - name: Private security report
+    url: https://github.com/Conroy1988/Achievement-Relay/security/advisories/new
+    about: Report a vulnerability privately; never disclose credentials in a public issue.

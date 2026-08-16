@@ -8,9 +8,9 @@
     <LangVersion>latest</LangVersion>
     <AssemblyName>AchievementRelay.SteamBridge</AssemblyName>
     <RootNamespace>AchievementRelay.SteamBridge</RootNamespace>
-    <Version>0.3.0</Version>
-    <FileVersion>0.3.0.0</FileVersion>
-    <AssemblyVersion>0.3.0.0</AssemblyVersion>
+    <Version>0.4.0</Version>
+    <FileVersion>0.4.0.0</FileVersion>
+    <AssemblyVersion>0.4.0.0</AssemblyVersion>
     <Description>Read-only local Steam achievement observation bridge for Achievement Relay.</Description>
   </PropertyGroup>
 

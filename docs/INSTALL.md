@@ -18,8 +18,8 @@ Release packages are self-contained; .NET does not need to be installed separate
 4. Choose **Connect Discord now; add OpenXBL optionally** or **Skip — I will do this later**.
 5. If connecting now, paste the required Discord webhook. Paste an OpenXBL key only if using Xbox; leave it blank for Steam-only setup.
 6. Toggle **Create a desktop shortcut** and select **Install**.
-7. If SmartScreen appears for this beta, verify the download came from the official release, choose **More info**, then **Run anyway**.
-8. If prompted, approve the one-time development-certificate trust operation.
+7. If SmartScreen appears while the new publisher builds reputation, verify the download came from the official release, choose **More info**, review the publisher, then **Run anyway**.
+8. Approve the normal Windows installation prompt if shown.
 
 Setup contains x64 and Arm64 MSIX packages, selects the native main app, installs for the signed-in user, creates/removes the optional desktop shortcut, and launches Achievement Relay. The soundtrack is extracted only to Setup's temporary directory, loops through a private Windows Media Player instance at 10% volume with an independently limited MCI fallback, does not alter Windows master volume, stops on every exit path, and is not installed with the app. Both packages contain a small isolated x64 Steamworks helper; Windows 11 on Arm runs that helper under x64 emulation. On Windows 10 Arm64 the app reports Steam as unavailable instead of entering a retry loop, while Xbox remains supported.
 
@@ -27,9 +27,9 @@ The optional credentials are never added to PowerShell arguments. Setup passes t
 
 ## Signing notice
 
-When a production certificate is not configured, the release workflow creates a temporary development signing certificate and includes only its public `.cer`. `Install.ps1` imports that public certificate into **Local Computer → Trusted People** with administrator approval so Windows can validate the MSIX. Setup itself otherwise operates per user.
+Official releases require the repository's persistent production code-signing certificate and an RFC 3161 timestamp. The release workflow stops before packaging if the PFX, password, or timestamp service is unavailable; it does not fall back to an untrusted certificate. Both architecture packages, `AchievementRelay_Setup.exe`, and the update manifest are signed from that same publisher identity. Setup otherwise operates per user.
 
-Development signing is suitable for beta testers, not a final distribution channel. SmartScreen can warn until the project uses a trusted certificate and builds reputation. A build signed by a different development certificate may require uninstalling the older package first.
+Pull-request artifacts and explicit local builds may still use a temporary development certificate for testing. Those bundles include only its public `.cer`, and `Install.ps1` can import it into **Local Computer → Trusted People** with administrator approval. Development packages are not the public update channel, and one independently signed test build must never be allowed to authenticate another. SmartScreen can still warn while a valid new production certificate builds reputation.
 
 ## Manual fallback bundle
 
@@ -46,11 +46,11 @@ If the `.exe` installer is blocked by local policy:
 
 Add `-CreateDesktopShortcut` if wanted. The manual path does not collect credentials; complete Setup when the app opens.
 
-The execution-policy flag applies only to that PowerShell process. The script selects the package, imports the included development certificate if necessary, installs the MSIX, optionally creates the shortcut, and launches the app.
+The execution-policy flag applies only to that PowerShell process. The script selects the package, imports an included development certificate only for an explicitly downloaded test bundle, installs the MSIX, optionally creates the shortcut, and launches the app. Official release bundles rely on the normal production signature and do not include a development `.cer`.
 
 ## Direct MSIX installation
 
-1. Import `AchievementRelay.Development.cer` into **Local Computer → Trusted People** if included.
+1. For an explicitly downloaded development/test package only, import `AchievementRelay.Development.cer` into **Local Computer → Trusted People** if included. Official packages do not need this file.
 2. Double-click the MSIX matching the processor.
 3. Select **Install**.
 4. Launch Achievement Relay from Start and complete the four-step Setup flow.
@@ -59,13 +59,15 @@ The execution-policy flag applies only to that PowerShell process. The script se
 
 Run the newer `.exe` installer. The package identity preserves `%LOCALAPPDATA%\AchievementRelay`.
 
-From version 0.3 onward, the app checks the official GitHub Releases feed automatically. At app launch, a newer verified release downloads and opens the updater automatically. If an optional update appears while Achievement Relay is already running, it downloads and verifies quietly, then opens on the next launch; if that signed release is required, monitoring pauses and the updater opens immediately. Home and **Help & support** always show the current state and retain an explicit Retry/Install action. One failed or cancelled automatic attempt is not repeated again during the same app session, preventing update loops.
+From official version 0.4 onward, the app checks the official GitHub Releases feed automatically. At app launch, a newer verified release downloads and opens the updater automatically. If an optional update appears while Achievement Relay is already running, it downloads and verifies quietly, then opens on the next launch; if that signed release is required, monitoring pauses and the updater opens immediately. Home and **Help & support** always show the current state and retain an explicit Retry/Install action. One failed or cancelled automatic attempt is not repeated again during the same app session, preventing update loops.
 
 Before Setup can open, the app verifies the manifest's detached RSA signature against the publisher certificate pinned into the installed build. It also requires the release tag and signed product/package versions to agree, bounds the download, verifies its SHA-256 and exact product/file version resources, asks Windows to validate its Authenticode signature, and matches the signer against the same publisher pin. Legitimate leading or trailing padding returned by Windows for an Inno Setup version resource is removed before the numeric comparison; whitespace or text inside a version remains invalid. Monitoring pauses only when an authenticated release manifest explicitly raises the minimum supported product version above the installed version.
 
 The verified executable opens this same installer in update mode. Update mode plays **Relay Online** through the same private 10% volume paths and exposes the same Pause/Play and direct SoundCloud controls, but skips credentials and player options. It preserves `%LOCALAPPDATA%\AchievementRelay`, the current startup preference, and whether the desktop shortcut already exists. If Setup is cancelled before deployment, the current app remains running. If package deployment fails after closing it, Setup attempts to relaunch the still-installed version.
 
 Upgrading from 0.1.x retains the encrypted Discord webhook and preferences, then reopens Setup so a current source can be selected. Upgrading from 0.2 retains Xbox/Discord settings and cursors. Steam is enabled locally and gives every Steam account/game pair a silent first baseline, so the upgrade cannot post old Steam history.
+
+Pre-official 0.3.x updater-test builds require one manual v0.4.0 installation from the official release page. Their temporary signing key was intentionally destroyed, so those installed builds cannot authenticate the official persistent publisher as a silent update. Running v0.4.0 Setup over the existing installation preserves encrypted connections, settings, provider baselines, pending deliveries, startup behavior, and the desktop-shortcut choice. Verified automatic updates then continue from v0.4.0 onward.
 
 ## Uninstall
 
@@ -81,4 +83,4 @@ Use **Settings → Apps → Installed apps → Achievement Relay → Uninstall**
 .\Uninstall.ps1 -RemoveLocalData
 ```
 
-If uninstalling directly through Windows Settings, manually remove a desktop shortcut if Windows leaves it behind. An obsolete beta certificate may be removed from **Manage computer certificates → Trusted People → Certificates** after all packages signed by it are gone.
+If uninstalling directly through Windows Settings, manually remove a desktop shortcut if Windows leaves it behind. An obsolete development/test certificate may be removed from **Manage computer certificates → Trusted People → Certificates** after all packages signed by it are gone.

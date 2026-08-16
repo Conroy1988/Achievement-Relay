@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "0.3.0"
+  #define AppVersion "0.4.0"
 #endif
 
 #ifndef MsixVersion
@@ -372,7 +372,7 @@ begin
     WizardForm.WelcomeLabel1.Caption := 'ENTER THE ACHIEVEMENT RELAY';
     WizardForm.WelcomeLabel2.Caption :=
       'Relay new Xbox and Steam achievements to Discord from one focused Windows gaming companion.' + #13#10 + #13#10 +
-      'Setup selects the correct x64 or Arm64 package. Steam works locally without an API key. You can add Discord and optional OpenXBL now, or use Guided setup later.';
+      'Setup selects the correct x64 or Arm64 package. Steam works locally without an API key. You can add Discord and optional OpenXBL now, or use the app''s step-by-step Setup later.';
   end;
 
   SetupChoicePage := CreateInputOptionPage(wpWelcome,
@@ -380,7 +380,7 @@ begin
     'Configure Discord and your achievement sources now or later.',
     'Choose one option, then select Next.', True, False);
   SetupChoicePage.Add('&Connect Discord now; add OpenXBL optionally (recommended)');
-  SetupChoicePage.Add('&Skip — I will do this later in Guided setup');
+  SetupChoicePage.Add('&Skip — I will do this later in the app');
   SetupChoicePage.Values[0] := True;
 
   CredentialsPage := CreateInputQueryPage(SetupChoicePage.ID,

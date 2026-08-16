@@ -1,6 +1,6 @@
 # Contributing
 
-Thank you for helping make Xbox achievements on Discord more reliable.
+Thank you for helping make Xbox and Steam achievements on Discord more reliable.
 
 ## Before opening an issue
 

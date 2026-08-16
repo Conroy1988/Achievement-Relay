@@ -11,9 +11,9 @@
     <ApplicationIcon>Assets\AchievementRelay.ico</ApplicationIcon>
     <AssemblyName>AchievementRelay.App</AssemblyName>
     <RootNamespace>AchievementRelay.App</RootNamespace>
-    <Version>0.3.0</Version>
-    <FileVersion>0.3.0.0</FileVersion>
-    <AssemblyVersion>0.3.0.0</AssemblyVersion>
+    <Version>0.4.0</Version>
+    <FileVersion>0.4.0.0</FileVersion>
+    <AssemblyVersion>0.4.0.0</AssemblyVersion>
     <Description>Automatically relay new Xbox and Steam achievements to Discord.</Description>
     <UpdatePublisherCertificateSha256 Condition="'$(UpdatePublisherCertificateSha256)' == ''"></UpdatePublisherCertificateSha256>
     <AchievementRelayPackageVersion Condition="'$(AchievementRelayPackageVersion)' == ''">$(FileVersion)</AchievementRelayPackageVersion>

@@ -4,6 +4,19 @@ All notable changes to Achievement Relay are documented here. The project follow
 
 ## [Unreleased]
 
+No changes yet.
+
+## [0.4.0] - 2026-08-16
+
+### Release highlights
+
+- Declared the first official Achievement Relay release and established its persistent, certificate-pinned update channel
+- Rebuilt the full application around a crisp black, warm-white, and command-red theme with native dark window chrome and clearer readable status hierarchy
+- Introduced the new shield-and-trophy Achievement Relay identity across the app, tray, package, installer, and GitHub artwork
+- Added persistent **Community & Support** actions in the sidebar and Help screen using the TKB community Discord invite
+- Added automatic verified update handling at launch and during runtime, including authenticated required-update enforcement, safe monitoring suspension, and update-loop protection
+- Added complete official-release documentation, GitHub artwork, release notes, signing guidance, and the one-time pre-official v0.3.x transition path
+
 ### Added
 
 - Added the original CRNY track **Relay Online** to Setup with local 10% playback, looping, persistent Play/Pause controls, clean shutdown, and a user-initiated SoundCloud link
@@ -45,9 +58,29 @@ All notable changes to Achievement Relay are documented here. The project follow
 - Requested Discord webhook responses with `wait=true`, honored both forms of `Retry-After`, canonicalized legacy webhook hosts, and disabled credential-bearing redirects
 - Documented the researched OpenXBL response families, failure policy, security boundary, automated matrix, and real-Windows release gates
 
-### Planned
+### Distribution
 
-- Stable code signing and update channel
+- Official packages now require the persistent production signing PFX and RFC 3161 timestamp; the release workflow fails closed instead of publishing a development-signed updater
+- Pre-official v0.3.x updater-test builds require one manual v0.4.0 install because their deliberately ephemeral signing key was destroyed; encrypted settings and relay state are preserved
+
+## [0.3.2] - 2026-08-16
+
+### Fixed
+
+- Published the corrected isolated automatic-update bridge after the v0.3.1 installer's padded Windows version resource exposed a strict comparison failure
+- Kept the matched baseline and target on one temporary test identity so the complete GitHub latest-release discovery, manifest verification, required-update, download, and musical updater path could be exercised safely
+
+## [0.3.1] - 2026-08-16
+
+### Test release
+
+- Introduced the isolated end-to-end automatic-update test baseline; superseded by v0.3.2 after the immutable installed updater revealed version-resource padding behavior
+
+## [0.3.0] - 2026-08-16
+
+### Test milestone
+
+- Introduced local Steam achievement monitoring and the first certificate-pinned GitHub updater implementation before the official v0.4.0 channel was established
 
 ## [0.2.1] - 2026-08-15
 
@@ -122,7 +155,11 @@ All notable changes to Achievement Relay are documented here. The project follow
 - x64/Arm64 MSIX packaging, installer scripts, development signing, CI, and tagged release workflow
 - User, privacy, security, troubleshooting, architecture, contributor, and release documentation
 
-[Unreleased]: https://github.com/Conroy1988/Achievement-Relay/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/Conroy1988/Achievement-Relay/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.4.0
+[0.3.2]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.3.2
+[0.3.1]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.3.1
+[0.3.0]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.3.0
 [0.2.1]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.2.1
 [0.2.0]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.2.0
 [0.1.1]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.1.1

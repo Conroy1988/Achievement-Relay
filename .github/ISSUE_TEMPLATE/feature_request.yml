@@ -3,6 +3,11 @@ description: Suggest a focused improvement or provider.
 title: "[Feature]: "
 labels: [enhancement]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Want to explore the idea with other players first? Join [Community & Support on Discord](https://discord.gg/3ZdXhYjgDm).
+
   - type: textarea
     id: problem
     attributes:

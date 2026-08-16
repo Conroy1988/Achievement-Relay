@@ -5,7 +5,7 @@ $ErrorActionPreference = 'Stop'
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $manifestPath = Join-Path $repositoryRoot 'src\AchievementRelay.Package\AppxManifest.xml'
 $manifestText = Get-Content -LiteralPath $manifestPath -Raw
-$manifestText = $manifestText.Replace('__VERSION__', '0.3.0.0').Replace('__ARCHITECTURE__', 'x64')
+$manifestText = $manifestText.Replace('__VERSION__', '0.4.0.0').Replace('__ARCHITECTURE__', 'x64')
 [xml] $manifest = $manifestText
 
 $namespaceManager = [System.Xml.XmlNamespaceManager]::new($manifest.NameTable)
@@ -32,10 +32,12 @@ if (-not $unvirtualizedAppData -or -not $excludedAppData -or -not $unvirtualized
 
 $requiredFiles = @(
     'README.md',
+    'CHANGELOG.md',
     'GETTING_STARTED.md',
     'PRIVACY.md',
     'SECURITY.md',
     'THIRD-PARTY-NOTICES.md',
+    '.github\ISSUE_TEMPLATE\config.yml',
     'NuGet.config',
     'installer\AchievementRelay.iss',
     'installer\assets\wizard-large.png',
@@ -47,6 +49,10 @@ $requiredFiles = @(
     'release\live-update-test-policy.json',
     '.github\workflows\live-update-test.yml',
     'docs\LIVE-UPDATE-TEST.md',
+    'docs\RELEASE-NOTES-0.4.0.md',
+    'docs\images\achievement-relay-banner.png',
+    'docs\images\achievement-relay-interface.png',
+    'docs\images\achievement-relay-social-preview.png',
     'src\AchievementRelay.SteamBridge\AchievementRelay.SteamBridge.csproj',
     'src\AchievementRelay.SteamBridge\Program.cs',
     'src\AchievementRelay.Core\Services\SteamAchievementDeltaDetector.cs',
@@ -434,8 +440,23 @@ if (-not $releaseWorkflowText.Contains("'.exe'") -or
     -not $releaseWorkflowText.Contains("'.json'") -or
     -not $releaseWorkflowText.Contains("'.sig'") -or
     -not $releaseWorkflowText.Contains('AchievementRelay.SteamBridge.exe --self-test') -or
-    -not $releaseWorkflowText.Contains('Official self-updating releases require the persistent signing PFX')) {
+    -not $releaseWorkflowText.Contains('Official self-updating releases require the persistent signing PFX') -or
+    -not $releaseWorkflowText.Contains('RELEASE-NOTES-$version.md')) {
     throw 'The release workflow must verify the Steam bridge and publish a persistently signed updater plus manifest.'
+}
+
+$officialUpdatePolicy = Get-Content -LiteralPath (Join-Path $repositoryRoot 'release\update-policy.json') -Raw |
+    ConvertFrom-Json
+$appProjectText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\AchievementRelay.App.csproj') -Raw
+$bridgeProjectText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.SteamBridge\AchievementRelay.SteamBridge.csproj') -Raw
+if ($officialUpdatePolicy.schemaVersion -ne 1 -or
+    $officialUpdatePolicy.minimumSupportedVersion -cne '0.4.0' -or
+    @($officialUpdatePolicy.additionalPublisherCertificateSha256).Count -ne 0 -or
+    -not $appProjectText.Contains('<Version>0.4.0</Version>') -or
+    -not $appProjectText.Contains('<FileVersion>0.4.0.0</FileVersion>') -or
+    -not $bridgeProjectText.Contains('<Version>0.4.0</Version>') -or
+    -not $bridgeProjectText.Contains('<FileVersion>0.4.0.0</FileVersion>')) {
+    throw 'The official application, Steam bridge, and required-update policy must agree on v0.4.0.'
 }
 
 $liveUpdatePolicy = Get-Content -LiteralPath (Join-Path $repositoryRoot 'release\live-update-test-policy.json') -Raw |
@@ -500,8 +521,9 @@ if (-not $updatePolicyText.Contains('minimum supported version') -or
 }
 
 $ciWorkflowText = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github\workflows\ci.yml') -Raw
-if (-not $ciWorkflowText.Contains('0.2.2.${{ github.run_number }}') -or
-    -not $ciWorkflowText.Contains('APPLICATION_VERSION: "0.3.0"') -or
+if (-not $ciWorkflowText.Contains('0.3.99.${{ github.run_number }}') -or
+    -not $ciWorkflowText.Contains('APPLICATION_VERSION: "0.4.0"') -or
+    -not $ciWorkflowText.Contains('AchievementRelay-v0.4.0-r${{ github.run_number }}-windows-test') -or
     -not $ciWorkflowText.Contains('-ApplicationVersion $env:APPLICATION_VERSION') -or
     -not $ciWorkflowText.Contains('artifacts/AchievementRelay_Update.json') -or
     -not $ciWorkflowText.Contains('artifacts/AchievementRelay_Update.sig') -or

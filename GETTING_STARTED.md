@@ -30,14 +30,14 @@ Discord's [official webhook guide](https://support.discord.com/hc/en-us/articles
 ## 2. Run the installer
 
 1. Download `AchievementRelay_Setup.exe` from the [latest GitHub Release](https://github.com/Conroy1988/Achievement-Relay/releases/latest).
-2. If Microsoft Defender SmartScreen appears for this beta, confirm the file came from the official repository, choose **More info**, then **Run anyway**.
+2. If Microsoft Defender SmartScreen appears while the new publisher certificate builds reputation, confirm the file came from the official repository, choose **More info**, review the publisher, then **Run anyway**.
 3. **Relay Online** by CRNY starts locally at 10% volume. Use the lower-left **Pause music**/**Play music** control at any time; the adjacent SoundCloud button opens the [direct track page](https://soundcloud.com/daniel-conroy-224318319/crny-relay-online) only when selected.
 4. On **Connect your relay**, choose one option:
    - **Connect Discord now; add OpenXBL optionally (recommended)**; or
    - **Skip — I will do this later in Setup**.
 5. If connecting now, paste the Discord webhook. Paste an OpenXBL key only if you also want Xbox monitoring. Setup validates supplied values; the app performs live checks on first launch.
 6. On **Player options**, toggle **Create a desktop shortcut** as preferred.
-7. Select **Install**. A development-signed beta may request administrator approval once to trust its public package certificate.
+7. Select **Install** and approve the normal Windows installation prompt if shown.
 
 The installer never places either secret on a command line or in its log. It uses a one-time DPAPI-encrypted file under `%USERPROFILE%\.achievement-relay` for the signed-in Windows user, clears the installer fields, and launches the app. The app saves fresh encrypted settings before it truncates and deletes that handoff. Steam creates no secret handoff.
 
@@ -88,7 +88,7 @@ If nothing arrives:
 1. open **Help & support**;
 2. select **Sync Xbox now**;
 3. read **Last sync error** and **Activity**; and
-4. continue with [Troubleshooting](docs/TROUBLESHOOTING.md).
+4. continue with [Troubleshooting](docs/TROUBLESHOOTING.md), or select **Join Discord** for [Community & Support](https://discord.gg/3ZdXhYjgDm).
 
 ## Upgrading from 0.1.x
 
@@ -96,9 +96,15 @@ Version 0.1.x depended on Windows Notification Center and cannot detect a Game B
 
 ## Upgrading from 0.2.x
 
-Version 0.3 preserves the Xbox cursor, processed-event ledger, encrypted OpenXBL key, encrypted Discord webhook, and preferences. Steam monitoring is enabled by default and waits locally for the next Steam game. Each Steam account/game pair receives its own first complete silent baseline, so upgrading cannot dump the Steam library's achievement history into Discord.
+Version 0.4 preserves the Xbox cursor, processed-event ledger, encrypted OpenXBL key, encrypted Discord webhook, and preferences. Steam monitoring is enabled by default and waits locally for the next Steam game. Each Steam account/game pair receives its own first complete silent baseline, so upgrading cannot dump the Steam library's achievement history into Discord.
 
-## Automatic updates from 0.3 onward
+## Moving from a pre-official 0.3.x test
+
+Install v0.4.0 once from the [official GitHub release](https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.4.0). The isolated 0.3.x updater exercise used a deliberately temporary certificate whose private key was destroyed after the test. That build therefore cannot authenticate the new persistent publisher identity automatically.
+
+This one-time manual signing transition preserves the encrypted Discord webhook, OpenXBL key, source selection, Xbox and Steam baselines, event ledger, pending deliveries, startup preference, and desktop-shortcut choice. Do not uninstall or remove local data first.
+
+## Automatic updates from 0.4 onward
 
 Achievement Relay checks the latest stable release on the official GitHub repository at startup and about every six hours. A normal newer release is optional. A release is required only when its reviewed, publisher-signed manifest raises `minimumSupportedVersion`; once that policy is successfully authenticated, Xbox and Steam monitoring pause until the update is installed. A failed, unsigned, tampered, or offline check never invents a requirement.
 
@@ -111,7 +117,7 @@ Select **Update now** on Home or **Help & support**. The app downloads the exact
 | Create/connect an OpenXBL account | OpenXBL owns its account, Xbox authorization, terms, and API-key lifecycle. |
 | Create a Discord webhook | A Discord member with permission must choose the server and channel. |
 | Sign in to Steam and launch the game | The local Steam client owns the account session and chooses the active app context. Achievement Relay never asks for Steam credentials. |
-| Approve a development certificate | Windows requires administrator consent for an untrusted beta signing certificate. Production signing removes this step. |
+| Approve Windows installation or SmartScreen prompts | Windows controls installation and reputation prompts. Verify that the installer came from the official release before continuing. |
 | Earn and sync an achievement | The game and Xbox service decide when the unlock is awarded and visible. |
 
 After those choices, polling, baseline protection, filtering, deduplication, formatting, retry, secure storage, startup, and Discord posting are automatic.

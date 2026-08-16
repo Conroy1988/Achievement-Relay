@@ -11,7 +11,7 @@ $scriptDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
 function Stop-AchievementRelayProcess {
     $currentSessionId = (Get-Process -Id $PID).SessionId
     $runningProcesses = @(
-        Get-Process -Name 'AchievementRelay.App' -ErrorAction SilentlyContinue |
+        Get-Process -Name 'AchievementRelay.App', 'AchievementRelay.SteamBridge' -ErrorAction SilentlyContinue |
             Where-Object { $_.SessionId -eq $currentSessionId }
     )
 
@@ -26,7 +26,7 @@ function Stop-AchievementRelayProcess {
 
     $runningProcesses | Wait-Process -Timeout 3 -ErrorAction SilentlyContinue
     $remainingProcesses = @(
-        Get-Process -Name 'AchievementRelay.App' -ErrorAction SilentlyContinue |
+        Get-Process -Name 'AchievementRelay.App', 'AchievementRelay.SteamBridge' -ErrorAction SilentlyContinue |
             Where-Object { $_.SessionId -eq $currentSessionId }
     )
     if ($remainingProcesses.Count -gt 0) {
@@ -105,7 +105,7 @@ try {
         $shortcut = $shell.CreateShortcut($desktopShortcut)
         $shortcut.TargetPath = Join-Path $env:WINDIR 'explorer.exe'
         $shortcut.Arguments = "shell:AppsFolder\$($installedPackage.PackageFamilyName)!AchievementRelay"
-        $shortcut.Description = 'Relay Xbox achievements to Discord'
+        $shortcut.Description = 'Relay new Xbox and Steam achievements to Discord'
         $shortcut.IconLocation = "$(Join-Path $installedPackage.InstallLocation 'AchievementRelay.App.exe'),0"
         $shortcut.Save()
         Write-Host 'Desktop shortcut created.'

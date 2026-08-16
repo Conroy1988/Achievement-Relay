@@ -12,8 +12,16 @@ public sealed class AppServices : IDisposable
         SettingsStore = new SettingsStore(Paths);
         EventLedger = new EventLedger(Paths);
         WebhookClient = new DiscordWebhookClient();
+        AchievementDeliveryService = new AchievementDeliveryService(
+            WebhookProtector,
+            EventLedger,
+            WebhookClient,
+            ActivityLog);
         OpenXblClient = new OpenXblClient();
         SyncStateStore = new XboxSyncStateStore(Paths);
+        SteamSyncStateStore = new SteamSyncStateStore(Paths);
+        SteamGameDetector = new SteamGameDetector();
+        SteamRarityClient = new SteamRarityClient();
         InstallerSetupImporter = new InstallerSetupImporter(
             Paths,
             WebhookProtector,
@@ -27,8 +35,14 @@ public sealed class AppServices : IDisposable
             SettingsStore,
             WebhookProtector,
             SyncStateStore,
-            EventLedger,
-            WebhookClient,
+            AchievementDeliveryService,
+            ActivityLog);
+        SteamMonitorCoordinator = new SteamMonitorCoordinator(
+            SteamGameDetector,
+            SteamSyncStateStore,
+            SteamRarityClient,
+            SettingsStore,
+            AchievementDeliveryService,
             ActivityLog);
     }
 
@@ -44,9 +58,17 @@ public sealed class AppServices : IDisposable
 
     public DiscordWebhookClient WebhookClient { get; }
 
+    public AchievementDeliveryService AchievementDeliveryService { get; }
+
     public OpenXblClient OpenXblClient { get; }
 
     public XboxSyncStateStore SyncStateStore { get; }
+
+    public SteamSyncStateStore SteamSyncStateStore { get; }
+
+    public SteamGameDetector SteamGameDetector { get; }
+
+    public SteamRarityClient SteamRarityClient { get; }
 
     public InstallerSetupImporter InstallerSetupImporter { get; }
 
@@ -54,10 +76,15 @@ public sealed class AppServices : IDisposable
 
     public RelayCoordinator RelayCoordinator { get; }
 
+    public SteamMonitorCoordinator SteamMonitorCoordinator { get; }
+
     public void Dispose()
     {
+        SteamMonitorCoordinator.Dispose();
         RelayCoordinator.Dispose();
+        AchievementDeliveryService.Dispose();
         OpenXblClient.Dispose();
+        SteamRarityClient.Dispose();
         WebhookClient.Dispose();
     }
 }

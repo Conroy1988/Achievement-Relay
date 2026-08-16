@@ -1,5 +1,6 @@
 using System.Threading;
 using System.Windows;
+using AchievementRelay.Core.Services;
 
 namespace AchievementRelay.App;
 
@@ -64,8 +65,16 @@ public partial class App : System.Windows.Application
             }
         }
 
-        var relayStarted = settings.SetupCompleted && await _services.RelayCoordinator.StartAsync();
-        var setupReady = settings.SetupCompleted && relayStarted;
+        var apiKey = _services.WebhookProtector.TryUnprotectOpenXblApiKey(settings.ProtectedOpenXblApiKey);
+        var webhookValue = _services.WebhookProtector.TryUnprotect(settings.ProtectedWebhookUrl);
+        var webhookConfigured = WebhookUrlValidator.TryNormalize(webhookValue, out _, out _);
+        var xboxConfigured = OpenXblApiKeyValidator.TryNormalize(apiKey, out _, out _) &&
+                             !string.IsNullOrWhiteSpace(settings.XboxUserId);
+        var xboxStarted = settings.SetupCompleted && webhookConfigured && xboxConfigured &&
+                          await _services.RelayCoordinator.StartAsync();
+        var steamStarted = settings.SetupCompleted && webhookConfigured && settings.SteamEnabled &&
+                            await _services.SteamMonitorCoordinator.StartAsync();
+        var setupReady = settings.SetupCompleted && (xboxStarted || steamStarted);
         var startMinimized = e.Args.Contains("--minimized", StringComparer.OrdinalIgnoreCase) &&
                              setupReady &&
                              settings.StartMinimized;

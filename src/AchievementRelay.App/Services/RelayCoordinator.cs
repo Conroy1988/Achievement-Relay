@@ -15,8 +15,7 @@ public sealed class RelayCoordinator(
     SettingsStore settingsStore,
     SecureWebhookProtector secretProtector,
     XboxSyncStateStore syncStateStore,
-    EventLedger eventLedger,
-    DiscordWebhookClient webhookClient,
+    AchievementDeliveryService deliveryService,
     ActivityLog activityLog) : IDisposable
 {
     private static readonly TimeSpan FutureClockTolerance = TimeSpan.FromMinutes(5);
@@ -24,7 +23,6 @@ public sealed class RelayCoordinator(
     private static readonly TimeSpan MaximumProviderBackoff = TimeSpan.FromHours(2);
 
     private readonly SemaphoreSlim _syncGate = new(1, 1);
-    private readonly SemaphoreSlim _relayGate = new(1, 1);
     private readonly object _lifecycleGate = new();
     private readonly object _statusGate = new();
     private CancellationTokenSource? _lifetimeCancellation;
@@ -171,7 +169,6 @@ public sealed class RelayCoordinator(
         finally
         {
             _syncGate.Dispose();
-            _relayGate.Dispose();
         }
     }
 
@@ -407,8 +404,8 @@ public sealed class RelayCoordinator(
                 foreach (var achievement in delta.NewAchievements.Select(item =>
                              PrepareForDelivery(item, selectedWork.Name, now)))
                 {
-                    var handling = await ProcessAsync(achievement, settings, cancellationToken);
-                    if (handling == AchievementHandlingResult.RetryRequired)
+                    var handling = await deliveryService.DeliverAsync(achievement, settings, cancellationToken);
+                    if (handling == AchievementDeliveryResult.RetryRequired)
                     {
                         await SaveProgressAsync(state.LastSuccessfulPollUtc);
                         return SetError(
@@ -416,7 +413,7 @@ public sealed class RelayCoordinator(
                             manual);
                     }
 
-                    if (handling == AchievementHandlingResult.Posted)
+                    if (handling == AchievementDeliveryResult.Posted)
                     {
                         posted++;
                     }
@@ -501,77 +498,6 @@ public sealed class RelayCoordinator(
         {
             _syncGate.Release();
         }
-    }
-
-    private async Task<AchievementHandlingResult> ProcessAsync(
-        AchievementEvent achievement,
-        AppSettings settings,
-        CancellationToken cancellationToken)
-    {
-        await _relayGate.WaitAsync(cancellationToken);
-        try
-        {
-            if (await eventLedger.ContainsAsync(achievement.Id, cancellationToken))
-            {
-                return AchievementHandlingResult.Handled;
-            }
-
-            if (settings.PostRareOnly && !achievement.IsRare)
-            {
-                await eventLedger.MarkProcessedAsync(achievement.Id, cancellationToken);
-                activityLog.Info($"Skipped common achievement because Rare Only is enabled: {achievement.Name}.");
-                return AchievementHandlingResult.Handled;
-            }
-
-            var webhookValue = secretProtector.TryUnprotect(settings.ProtectedWebhookUrl);
-            if (!WebhookUrlValidator.TryNormalize(webhookValue, out var webhookUri, out _) || webhookUri is null)
-            {
-                activityLog.Warning($"Found {achievement.Name}, but Discord is not configured.");
-                return AchievementHandlingResult.RetryRequired;
-            }
-
-            activityLog.Info($"Xbox achievement detected: {achievement.Name}.");
-            var payload = DiscordWebhookPayloadFactory.Create(achievement, settings);
-            var result = await SendWithRetryAsync(webhookUri, payload, cancellationToken);
-            if (!result.Success)
-            {
-                activityLog.Error($"Could not relay {achievement.Name}: {result.Message}");
-                return AchievementHandlingResult.RetryRequired;
-            }
-
-            await eventLedger.MarkProcessedAsync(achievement.Id, cancellationToken);
-            activityLog.Success($"Posted {achievement.Name} to Discord.");
-            return AchievementHandlingResult.Posted;
-        }
-        finally
-        {
-            _relayGate.Release();
-        }
-    }
-
-    private async Task<RelayResult> SendWithRetryAsync(
-        Uri webhookUri,
-        string payload,
-        CancellationToken cancellationToken)
-    {
-        var delays = new[] { TimeSpan.Zero, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(12) };
-        RelayResult result = RelayResult.Fail("Delivery did not start.");
-
-        foreach (var delay in delays)
-        {
-            if (delay > TimeSpan.Zero)
-            {
-                await Task.Delay(delay, cancellationToken);
-            }
-
-            result = await webhookClient.SendAsync(webhookUri, payload, cancellationToken);
-            if (result.Success || result.StatusCode is >= 400 and < 500 and not 429)
-            {
-                break;
-            }
-        }
-
-        return result;
     }
 
     private XboxSyncOutcome SetError(string message, bool log, TimeSpan? retryAfter = null)
@@ -705,10 +631,4 @@ public sealed class RelayCoordinator(
         };
     }
 
-    private enum AchievementHandlingResult
-    {
-        Handled,
-        Posted,
-        RetryRequired
-    }
 }

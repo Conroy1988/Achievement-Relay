@@ -9,8 +9,8 @@ $apiKey = $env:ACHIEVEMENT_RELAY_OPENXBL_KEY
 $webhookUrl = $env:ACHIEVEMENT_RELAY_DISCORD_WEBHOOK
 
 try {
-    if ([string]::IsNullOrWhiteSpace($apiKey) -or [string]::IsNullOrWhiteSpace($webhookUrl)) {
-        throw 'The optional account settings were not available to the secure handoff process.'
+    if ([string]::IsNullOrWhiteSpace($webhookUrl)) {
+        throw 'The Discord setting was not available to the secure handoff process.'
     }
 
     Add-Type -AssemblyName System.Security
@@ -38,11 +38,18 @@ try {
         }
     }
 
-    $payload = [ordered]@{
-        schemaVersion = 1
-        protectedOpenXblApiKey = Protect-CurrentUserValue `
+    $protectedApiKey = if ([string]::IsNullOrWhiteSpace($apiKey)) {
+        ''
+    }
+    else {
+        Protect-CurrentUserValue `
             -Value $apiKey `
             -Entropy 'AchievementRelay.OpenXBL.v1'
+    }
+
+    $payload = [ordered]@{
+        schemaVersion = 1
+        protectedOpenXblApiKey = $protectedApiKey
         protectedWebhookUrl = Protect-CurrentUserValue `
             -Value $webhookUrl `
             -Entropy 'AchievementRelay.Webhook.v1'

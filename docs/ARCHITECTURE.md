@@ -1,13 +1,14 @@
 # Architecture
 
-Achievement Relay is a local Windows desktop app with two projects:
+Achievement Relay is a local Windows desktop app with three projects:
 
-- `AchievementRelay.Core` contains platform-neutral OpenXBL response parsing, API-key/webhook validation, deterministic event identity, settings models, and Discord payload construction.
-- `AchievementRelay.App` contains the WPF/tray UI, OpenXBL and Discord HTTP clients, DPAPI secret storage, account polling, baseline/cursor state, event ledger, installer import, startup integration, and logging.
+- `AchievementRelay.Core` contains platform-neutral OpenXBL parsing, Xbox and Steam delta rules, PNG encoding, validation, deterministic event identity, settings models, and Discord payload construction.
+- `AchievementRelay.App` contains the WPF/tray UI, provider coordinators, OpenXBL/Steam-rarity/Discord HTTP clients, Steam game detection, DPAPI secret storage, durable provider state, the shared event ledger, installer import, startup integration, and logging.
+- `AchievementRelay.SteamBridge` is a minimal x64 .NET Framework helper that reads the active App ID's local Steamworks achievement state and emits versioned complete snapshots over redirected standard I/O. It has no Discord, settings, or write-to-Steam responsibility.
 
-The MSIX manifest supplies package identity, `internetClient`, `runFullTrust`, the packaged startup task, and unvirtualized per-user AppData. The app's durable state remains under `%LOCALAPPDATA%\AchievementRelay`, with both the legacy full-trust declaration and an explicit Windows 11 virtualization exclusion. The one-time installer handoff uses `%USERPROFILE%\.achievement-relay` instead, which is outside AppData virtualization. Version 0.2 intentionally has no `userNotificationListener` capability.
+The MSIX manifest supplies package identity, `internetClient`, `runFullTrust`, the packaged startup task, and unvirtualized per-user AppData. The app's durable state remains under `%LOCALAPPDATA%\AchievementRelay`, with both the legacy full-trust declaration and an explicit Windows 11 virtualization exclusion. The one-time installer handoff uses `%USERPROFILE%\.achievement-relay` instead, which is outside AppData virtualization. Version 0.3 has no `userNotificationListener` capability.
 
-## Poll and delivery path
+## Xbox poll and delivery path
 
 ```mermaid
 sequenceDiagram
@@ -34,6 +35,31 @@ sequenceDiagram
 
 `OpenXblClient` sends the user-supplied key only in the `X-Authorization` header to OpenXBL's `https://api.xbl.io/` service. The client tries the documented `/api/v2/` current-account operations first and can fall back to the provider's live `/v2/` compatibility paths. Account and title-history routes are cached after readable JSON; per-title detail routes are cached only after their parsed unlocked count reaches the title-history count. Requests time out after 20 seconds and response buffering is capped at 20 MiB. Provider and network failures become user-safe messages; the key is never included.
 
+## Steam observation and delivery path
+
+```mermaid
+sequenceDiagram
+    participant G as Steam game
+    participant A as Achievement Relay
+    participant B as Isolated Steam bridge
+    participant L as Local state
+    participant D as Discord
+    G->>A: Active App ID / running process
+    A->>B: Start helper for App ID
+    B->>B: Initialize local Steamworks context
+    B-->>A: Complete achievement snapshot
+    alt First account + App ID snapshot
+        A->>L: Store unlocked API names silently
+    else Directly proven new unlock
+        A->>L: Compare monotonic unlocked-ID set
+        A->>D: Embed + optional PNG attachment
+        D-->>A: Confirmed webhook response
+        A->>L: Mark processed + advance Steam state
+    end
+```
+
+The app detects `RunningAppID`, parses Steam libraries/manifests, and has a cached running-executable fallback. The helper uses the signed-in local Steam client and never asks for a Web API key or account credential. Changed state is sampled every 500 ms and a complete heartbeat is emitted every 15 seconds. The helper is restarted after bounded failures and exits with the parent app.
+
 ## Baseline, recovery, and duplicates
 
 On the first verified account connection, `XboxSyncStateStore` records the first successful title-progress snapshot and a baseline timestamp. Summary counts are never treated as verified identity sets. Detailed stable identities are established gradually in the background or when each title first changes, and every pre-existing identity is recorded without posting.
@@ -49,6 +75,8 @@ Every outbound OpenXBL request is admitted by two budgets. A detail operation ca
 Once a title's identity baseline is verified, offline recovery has no time window: after several days offline, every genuinely new stable ID remains a candidate even when its provider timestamp is missing. An unverified title deliberately fails closed and baselines an old or missing-time identity rather than risk sending historical history.
 
 Event IDs are SHA-256 hashes over a version marker, account XUID, service configuration, title, and achievement identifier. Upstream corrections to an unlock timestamp therefore cannot create a duplicate post. The ledger is capped at 1,000 entries and 90 days.
+
+Steam uses a separate state file with the same fail-closed philosophy. The x64 helper waits for Steam's current-user-stats callback and three stable nonempty schema reads before producing its first snapshot; it resets that in-memory baseline whenever Steam unloads the stats. A monotonic unload generation is observed even when unload/reload callbacks occur between polling ticks, and a changed Steam account ID is an independent reset boundary. Its event ID hashes a Steam marker, Steam account ID, App ID, and achievement API name. Every helper session marks its first complete snapshot as history. Eligibility requires both an API name absent from the durable monotonic unlocked set and direct live proof from either the helper's in-memory locked-to-unlocked observation or Steam's completed-achievement callback during that helper lifetime. That callback closes the launch-to-first-snapshot race; timestamps are display metadata and never authorize a post. Proven transitions repeat on complete helper heartbeats until the main app persists them. Eligible identities are written to a durable pending set before Discord is called and are removed only after the shared delivery service accepts, filters, or deduplicates them. Relocks and regressive snapshots never remove saved IDs.
 
 ## Parsing boundary
 
@@ -68,6 +96,7 @@ The parser never interprets response data as code and does not log raw provider 
 |---|---|
 | `settings.json` | Preferences, XUID, gamertag, and current-user DPAPI ciphertext for OpenXBL/Discord secrets |
 | `xbox-sync-state.json` | Account ID, first-run baseline, poll/background timestamps, per-title count/Gamerscore/stable-ID snapshots, and the durable pending-title queue |
+| `steam-sync-state.json` | Steam account ID and per-App-ID monitoring time, last observation, game name, monotonic unlocked API-name set, and pending live deliveries |
 | `processed-events.json` | Bounded deterministic IDs and processed timestamps |
 | `achievement-relay.log` | Size-bounded operational messages; no intentional credentials or raw JSON |
 
@@ -75,7 +104,7 @@ The parser never interprets response data as code and does not log raw provider 
 
 ## Installer handoff
 
-The Inno Setup UI accepts optional credentials in password-masked controls. It does not add them to a process command line. Instead:
+The Inno Setup UI requires Discord when configure-now is chosen and accepts an optional OpenXBL key in password-masked controls. Steam needs no credential. Setup does not add secrets to a process command line. Instead:
 
 1. short-lived process environment variables are inherited by `Protect-InstallerSetup.ps1`;
 2. that process applies current-user DPAPI using the same per-secret entropy as the app;
@@ -84,14 +113,14 @@ The Inno Setup UI accepts optional credentials in password-masked controls. It d
 5. `InstallerSetupImporter` decrypts and validates the file;
 6. normal settings are durably saved with fresh DPAPI ciphertext;
 7. the handoff is truncated and deleted; and
-8. only then does the importer verify OpenXBL and Discord.
+8. only then does the importer verify Discord and any supplied OpenXBL key.
 
 If durable settings storage fails, the encrypted handoff is retained for the next launch. Version 0.2.1 also reads the legacy `%LOCALAPPDATA%\AchievementRelay` handoff path for compatibility. If setup is skipped, no handoff file is created.
 
 ## Upgrade behavior
 
-Settings schema 1 is migrated to schema 2 while retaining the existing encrypted Discord webhook and preferences. `SetupCompleted` is reset so a 0.1.x user must explicitly connect OpenXBL. Legacy notification capture classes and manifest permissions are removed.
+Settings schema 1 is migrated through schema 2 to schema 3 while retaining encrypted secrets and preferences. A completed 0.2 Xbox/Discord setup remains complete; Steam is added without resetting the Xbox cursor. A 0.1.x user must still choose a current achievement source. Legacy notification capture classes and manifest permissions remain removed.
 
 Xbox sync-state schemas 2–4 migrate to schema 5 without discarding saved counts, Gamerscore, cursors, or verified identity sets. Schema 5 adds the durable pending-title queue and last background-work time. Schema-3 zero-count snapshots are reopened as unverified because they were created without a detail request. The first complete detail response stores the full ID set; only a trustworthy timestamp after the monitoring baseline can post during that transition, and count/Gamerscore inference is forbidden.
 
-The full provider research, failure matrix, and Windows release gates are maintained in [OpenXBL reliability research](OPENXBL-RELIABILITY.md).
+The provider research, failure matrices, and Windows release gates are maintained in [OpenXBL reliability research](OPENXBL-RELIABILITY.md) and [Steam integration research](STEAM-INTEGRATION.md).

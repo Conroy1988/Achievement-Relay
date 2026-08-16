@@ -7,6 +7,7 @@ namespace AchievementRelay.Core.Services;
 public static class DiscordWebhookPayloadFactory
 {
     private const int XboxGreen = 0x107C10;
+    private const int SteamBlue = 0x1B6E9F;
     private const int RareGold = 0xF2C94C;
 
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web)
@@ -31,14 +32,36 @@ public static class DiscordWebhookPayloadFactory
             fields.Add(new { name = "Gamerscore", value = $"+{achievement.Gamerscore}G", inline = true });
         }
 
-        if (achievement.IsRare)
+        if (achievement.RarityPercentage is { } rarityPercentage)
+        {
+            fields.Add(new
+            {
+                name = "Rarity",
+                value = achievement.IsRare
+                    ? $"💎 Rare achievement • {rarityPercentage:0.##}% of players"
+                    : $"{rarityPercentage:0.##}% of players",
+                inline = true
+            });
+        }
+        else if (achievement.IsRare)
         {
             fields.Add(new { name = "Rarity", value = "💎 Rare achievement", inline = true });
         }
 
-        if (!string.IsNullOrWhiteSpace(settings.DisplayName))
+        var playerName = string.IsNullOrWhiteSpace(settings.DisplayName)
+            ? achievement.PlayerName
+            : settings.DisplayName;
+        if (!string.IsNullOrWhiteSpace(playerName))
         {
-            fields.Add(new { name = "Player", value = Truncate(settings.DisplayName, 1024), inline = true });
+            fields.Add(new { name = "Player", value = Truncate(playerName, 1024), inline = true });
+        }
+
+        if (!string.IsNullOrWhiteSpace(achievement.SourceProvider))
+        {
+            var platform = string.Equals(achievement.SourceProvider, "OpenXBL", StringComparison.OrdinalIgnoreCase)
+                ? "Xbox"
+                : achievement.SourceProvider;
+            fields.Add(new { name = "Platform", value = Truncate(platform, 1024), inline = true });
         }
 
         var description = settings.IncludeRawDetailsWhenUncertain
@@ -49,12 +72,16 @@ public static class DiscordWebhookPayloadFactory
         var embed = new Dictionary<string, object?>
         {
             ["title"] = Truncate($"🏆 {achievement.Name}", 256),
-            ["color"] = achievement.IsRare ? RareGold : XboxGreen,
+            ["color"] = achievement.IsRare
+                ? RareGold
+                : string.Equals(achievement.SourceProvider, "Steam", StringComparison.OrdinalIgnoreCase)
+                    ? SteamBlue
+                    : XboxGreen,
             ["timestamp"] = (achievement.UnlockedAt ?? DateTimeOffset.UtcNow).ToUniversalTime().ToString("O"),
             ["footer"] = new
             {
                 text = unlockTimeEstimated
-                    ? "Relayed by Achievement Relay • detected time shown (Xbox supplied no unlock time)"
+                    ? "Relayed by Achievement Relay • detected time shown (the platform supplied no unlock time)"
                     : "Relayed by Achievement Relay"
             }
         };
@@ -69,7 +96,11 @@ public static class DiscordWebhookPayloadFactory
             embed["fields"] = fields;
         }
 
-        if (Uri.TryCreate(achievement.ImageUrl, UriKind.Absolute, out var imageUri) &&
+        if (achievement.ImageBytes is { Length: > 0 } && !string.IsNullOrWhiteSpace(achievement.ImageFileName))
+        {
+            embed["thumbnail"] = new { url = $"attachment://{achievement.ImageFileName}" };
+        }
+        else if (Uri.TryCreate(achievement.ImageUrl, UriKind.Absolute, out var imageUri) &&
             (imageUri.Scheme == Uri.UriSchemeHttps || imageUri.Scheme == Uri.UriSchemeHttp))
         {
             embed["thumbnail"] = new { url = imageUri.ToString() };
@@ -98,7 +129,7 @@ public static class DiscordWebhookPayloadFactory
                 new
                 {
                     title = "✅ Achievement Relay connected",
-                    description = "This channel is ready. Your next detected Xbox achievement will appear here automatically.",
+                    description = "This channel is ready. Your next detected Xbox or Steam achievement will appear here automatically.",
                     color = XboxGreen,
                     footer = new { text = "Every achievement. Reliably shared." },
                     timestamp = DateTimeOffset.UtcNow.ToString("O")

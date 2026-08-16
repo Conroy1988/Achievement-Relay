@@ -31,7 +31,10 @@ public sealed class SettingsStore(AppPaths paths)
                 ? settings with
                 {
                     SchemaVersion = AppSettings.CurrentSchemaVersion,
-                    SetupCompleted = false
+                    // Schema 3 adds an optional, keyless Steam source. A user
+                    // whose schema-2 Xbox/Discord setup is complete must not be
+                    // forced through setup again merely because Steam arrived.
+                    SetupCompleted = settings.SchemaVersion >= 2 && settings.SetupCompleted
                 }
                 : settings;
         }

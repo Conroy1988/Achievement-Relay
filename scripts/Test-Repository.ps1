@@ -5,7 +5,7 @@ $ErrorActionPreference = 'Stop'
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $manifestPath = Join-Path $repositoryRoot 'src\AchievementRelay.Package\AppxManifest.xml'
 $manifestText = Get-Content -LiteralPath $manifestPath -Raw
-$manifestText = $manifestText.Replace('__VERSION__', '0.2.1.0').Replace('__ARCHITECTURE__', 'x64')
+$manifestText = $manifestText.Replace('__VERSION__', '0.3.0.0').Replace('__ARCHITECTURE__', 'x64')
 [xml] $manifest = $manifestText
 
 $namespaceManager = [System.Xml.XmlNamespaceManager]::new($manifest.NameTable)
@@ -36,10 +36,17 @@ $requiredFiles = @(
     'PRIVACY.md',
     'SECURITY.md',
     'THIRD-PARTY-NOTICES.md',
+    'NuGet.config',
     'installer\AchievementRelay.iss',
     'installer\assets\wizard-large.png',
     'scripts\Build-Installer.ps1',
     'scripts\Protect-InstallerSetup.ps1',
+    'src\AchievementRelay.SteamBridge\AchievementRelay.SteamBridge.csproj',
+    'src\AchievementRelay.SteamBridge\Program.cs',
+    'src\AchievementRelay.Core\Services\SteamAchievementDeltaDetector.cs',
+    'src\AchievementRelay.Core\Services\RgbaPngEncoder.cs',
+    'third_party\Facepunch.Steamworks.LICENSE.txt',
+    'third_party\packages\Facepunch.Steamworks.2.5.2.nupkg',
     'src\AchievementRelay.App\MainWindow.xaml',
     'src\AchievementRelay.App\Assets\AchievementRelay.ico',
     'src\AchievementRelay.App\Assets\RelayCommandDeck.png',
@@ -69,6 +76,10 @@ if (-not $installerText.Contains('desktopicon')) {
 if (-not $installerText.Contains('SetEnvironmentVariable')) {
     throw 'The setup bootstrapper is missing the short-lived credential handoff.'
 }
+if (-not $installerText.Contains('OpenXBL API key (optional') -or
+    -not $installerText.Contains('(Length(ApiKey) > 0)')) {
+    throw 'The installer must support a Steam-only setup without requiring an OpenXBL key.'
+}
 if (-not $installerText.Contains("GetEnv('USERPROFILE')") -or
     -not $installerText.Contains('.achievement-relay\pending-installer-setup.json')) {
     throw 'The installer handoff must use the non-virtualized per-user profile path.'
@@ -88,7 +99,7 @@ $packageInstallMatch = [regex]::Match(
     '(?m)^[ \t]*Add-AppxPackage[^\r\n]*-ForceApplicationShutdown[ \t]*\r?$')
 $packageInstallIndex = if ($packageInstallMatch.Success) { $packageInstallMatch.Index } else { -1 }
 if (-not $shutdownFunctionMatch.Success -or
-    -not $shutdownFunctionText.Contains("Get-Process -Name 'AchievementRelay.App'") -or
+    -not $shutdownFunctionText.Contains("Get-Process -Name 'AchievementRelay.App', 'AchievementRelay.SteamBridge'") -or
     -not $shutdownFunctionText.Contains('(Get-Process -Id $PID).SessionId') -or
     -not $shutdownFunctionText.Contains('Where-Object { $_.SessionId -eq $currentSessionId }') -or
     -not $shutdownFunctionText.Contains('Stop-Process') -or
@@ -105,6 +116,10 @@ if (-not $protectionScriptText.Contains('[Security.Cryptography.ProtectedData]::
 if (-not $protectionScriptText.Contains('AchievementRelay.OpenXBL.v1') -or
     -not $protectionScriptText.Contains('AchievementRelay.Webhook.v1')) {
     throw 'The installer and app secret-protection entropy contract is incomplete.'
+}
+if (-not $protectionScriptText.Contains("if ([string]::IsNullOrWhiteSpace(`$apiKey))") -or
+    -not $protectionScriptText.Contains("protectedOpenXblApiKey = `$protectedApiKey")) {
+    throw 'The encrypted installer handoff must safely represent an omitted optional OpenXBL key.'
 }
 
 $pathsText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\AppPaths.cs') -Raw
@@ -123,6 +138,12 @@ if ($durableSaveIndex -lt 0 -or $accountRequestIndex -lt 0 -or $discordRequestIn
     $durableSaveIndex -gt $accountRequestIndex -or $durableSaveIndex -gt $discordRequestIndex) {
     throw 'Installer secrets must be durably saved before handoff deletion or network verification.'
 }
+if (-not $importerText.Contains('var hasApiKey = !string.IsNullOrWhiteSpace(pendingApiKey)') -or
+    -not $importerText.Contains('SteamEnabled = currentSettings.SteamEnabled') -or
+    -not $importerText.Contains('var providerReady = nextSettings.SteamEnabled') -or
+    -not $importerText.Contains('var completed = webhookResult.Success && providerReady')) {
+    throw 'Installer import must complete a Steam-only setup after Discord verification.'
+}
 
 $mainWindowText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\MainWindow.xaml.cs') -Raw
 $mainWindowXaml = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\MainWindow.xaml') -Raw
@@ -133,6 +154,14 @@ if (-not $mainWindowText.Contains('PopulateSecretControls()') -or
     -not $mainWindowXaml.Contains('Content="Reveal Key"') -or
     -not $mainWindowXaml.Contains('Content="Reveal Webhook"')) {
     throw 'Stored OpenXBL and Discord secrets must appear masked and provide explicit reveal controls.'
+}
+if (-not $mainWindowText.Contains('SteamMonitorCoordinator.StatusChanged') -or
+    -not $mainWindowText.Contains('RefreshSteam_Click') -or
+    -not $mainWindowText.Contains('await _services.SteamMonitorCoordinator.StartAsync();') -or
+    -not $mainWindowXaml.Contains('SetupSteamEnabledCheckBox') -or
+    -not $mainWindowXaml.Contains('SettingsSteamEnabledCheckBox') -or
+    -not $mainWindowXaml.Contains('x:Name="SteamStatusText"')) {
+    throw 'Steam setup, settings, refresh and live dashboard status controls are incomplete.'
 }
 
 $openXblParserText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.Core\Services\OpenXblResponseParser.cs') -Raw
@@ -221,18 +250,91 @@ if (-not $openXblParserText.Contains('ParseContinuationToken') -or
 
 $appProjectText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\AchievementRelay.App.csproj') -Raw
 if (-not $appProjectText.Contains('THIRD-PARTY-NOTICES.md') -or
+    -not $appProjectText.Contains('Facepunch.Steamworks.LICENSE.txt') -or
     -not $appProjectText.Contains('RelayCommandDeck.png')) {
     throw 'The packaged app must include its art notice and premium dashboard artwork.'
 }
 
+$steamDeltaText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.Core\Services\SteamAchievementDeltaDetector.cs') -Raw
+$steamMonitorText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\SteamMonitorCoordinator.cs') -Raw
+$steamBridgeText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.SteamBridge\Program.cs') -Raw
+$buildMsixText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'scripts\Build-Msix.ps1') -Raw
+$steamMutationPattern = '(?m)\b(?:achievement|new\s+Achievement\s*\([^)]*\))\s*\.\s*(?:Trigger|Clear)\s*\(|\bSteamUserStats\s*\.\s*(?:StoreStats|ResetAll)\s*\('
+if (-not $steamDeltaText.Contains('Merely appearing unlocked is always history') -or
+    -not $steamDeltaText.Contains('Unlock timestamps are display metadata') -or
+    -not $steamDeltaText.Contains('previousUnlockedApiNames is null') -or
+    -not $steamDeltaText.Contains('transitionIds.Contains(item.ApiName)') -or
+    $steamDeltaText.Contains('item.UnlockedAt is') -or
+    -not $steamMonitorText.Contains('previous?.UnlockedAchievementApiNames') -or
+    -not $steamMonitorText.Contains('PendingAchievementApiNames') -or
+    -not $steamMonitorText.Contains('GetDeliveryBackoff') -or
+    -not $steamMonitorText.Contains('Steam observation processing failed safely') -or
+    -not $steamMonitorText.Contains('Keep draining the trusted helper') -or
+    -not $steamMonitorText.Contains('var teardownToken = CancellationToken.None') -or
+    -not $steamMonitorText.Contains('Steam returned an invalid observation timestamp') -or
+    $steamMonitorText.Contains('.Where(unlockedIds.Contains)') -or
+    -not $steamMonitorText.Contains('.Where(item => pendingIds.Contains(item.ApiName))') -or
+    -not $steamMonitorText.Contains('accounts[snapshot.SteamId]') -or
+    -not $steamMonitorText.Contains('await PersistStateAsync();') -or
+    -not $steamMonitorText.Contains('SteamAchievementDeltaDetector.Detect') -or
+    -not $steamMonitorText.Contains('OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000)') -or
+    -not $steamBridgeText.Contains('if (!schemaReady || names.Length == 0)') -or
+    -not $steamBridgeText.Contains('stableSchemaReads >= 3') -or
+    -not $steamBridgeText.Contains('SteamUserStats.OnUserStatsReceived += statsReceived') -or
+    -not $steamBridgeText.Contains('SteamUserStats.OnUserStatsUnloaded += statsUnloaded') -or
+    -not $steamBridgeText.Contains('SteamUserStats.OnAchievementProgress += achievementProgress') -or
+    -not $steamBridgeText.Contains('SteamUserStats.OnAchievementProgress -= achievementProgress') -or
+    -not $steamBridgeText.Contains('currentProgress == 0 && maximumProgress == 0') -or
+    -not $steamBridgeText.Contains('sessionTransitions.Add(achievement.Identifier)') -or
+    -not $steamBridgeText.Contains('sessionTransitions.Add(apiName)') -or
+    -not $steamBridgeText.Contains('sessionTransitions.Clear()') -or
+    -not $steamBridgeText.Contains('Interlocked.Increment(ref statsGeneration)') -or
+    -not $steamBridgeText.Contains('currentStatsGeneration != observedStatsGeneration') -or
+    -not $steamBridgeText.Contains('getStatsGeneration() != currentStatsGeneration') -or
+    -not $steamBridgeText.Contains('!string.Equals(observedSteamId, currentSteamId, StringComparison.Ordinal)') -or
+    -not $steamBridgeText.Contains('steamId.Equals(SteamClient.SteamId)') -or
+    -not $steamBridgeText.Contains('if (!statsReady.IsSet)') -or
+    -not $steamBridgeText.Contains('statsWereReady') -or
+    -not $steamBridgeText.Contains('InitialSnapshot = previous == null') -or
+    -not $steamBridgeText.Contains('TransitionedApiNames = newlyUnlocked') -or
+    -not $steamBridgeText.Contains('previous.TryGetValue(item.Key, out var wasUnlocked)') -or
+    -not $steamBridgeText.Contains('MaximumSnapshotIconBytes') -or
+    -not $steamBridgeText.Contains('icon.Value.Width > 512') -or
+    -not $steamBridgeText.Contains('SteamUserStats.Achievements') -or
+    $steamBridgeText -match $steamMutationPattern) {
+    throw 'Steam monitoring must require stable complete snapshots, live transition proof, and durable pending delivery before relaying changes.'
+}
+$persistIndex = $steamMonitorText.IndexOf('await PersistStateAsync();')
+$deliverIndex = $steamMonitorText.IndexOf('deliveryService.DeliverAsync')
+if ($persistIndex -lt 0 -or $deliverIndex -lt 0 -or $persistIndex -ge $deliverIndex) {
+    throw 'Steam transitions must be persisted before any Discord delivery attempt.'
+}
+if (-not $buildMsixText.Contains('AchievementRelay.SteamBridge.csproj') -or
+    -not $buildMsixText.Contains("'Facepunch.Steamworks.Win64.dll'") -or
+    -not $buildMsixText.Contains("'steam_api64.dll'") -or
+    -not $buildMsixText.Contains("Join-Path `$layoutDirectory 'SteamBridge'") -or
+    -not $buildMsixText.Contains('Copy-Item -LiteralPath (Join-Path $steamBridgePublishDirectory $requiredBridgeFile)')) {
+    throw 'Every MSIX architecture must include the isolated x64 Steamworks bridge and its native dependency.'
+}
+
+$steamworksPackage = Join-Path $repositoryRoot 'third_party\packages\Facepunch.Steamworks.2.5.2.nupkg'
+$steamworksPackageHash = (Get-FileHash -LiteralPath $steamworksPackage -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($steamworksPackageHash -ne '11e12d1b34d22a6c7ed6b5f70fd145f4794fc9b4c5fc9c5b380eb73b02b7571e') {
+    throw 'The vendored official Facepunch.Steamworks 2.5.2 package hash does not match the reviewed release asset.'
+}
+
 $releaseWorkflowText = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github\workflows\release.yml') -Raw
-if (-not $releaseWorkflowText.Contains("'.exe'")) {
-    throw 'The release workflow does not publish the setup executable.'
+if (-not $releaseWorkflowText.Contains("'.exe'") -or
+    -not $releaseWorkflowText.Contains('AchievementRelay.SteamBridge.exe --self-test')) {
+    throw 'The release workflow must verify the Steam bridge and publish the setup executable.'
 }
 
 $ciWorkflowText = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github\workflows\ci.yml') -Raw
-if (-not $ciWorkflowText.Contains('0.2.1.${{ github.run_number }}') -or
-    -not $ciWorkflowText.Contains('-Version $env:TEST_MSIX_VERSION')) {
+if (-not $ciWorkflowText.Contains('0.2.2.${{ github.run_number }}') -or
+    -not $ciWorkflowText.Contains('APPLICATION_VERSION: "0.3.0"') -or
+    -not $ciWorkflowText.Contains('-ApplicationVersion $env:APPLICATION_VERSION') -or
+    -not $ciWorkflowText.Contains('AchievementRelay.SteamBridge.exe --self-test') -or
+    -not $ciWorkflowText.Contains('"protocolVersion":1')) {
     throw 'Pull-request installers must use a monotonically increasing MSIX test revision.'
 }
 

@@ -9,7 +9,7 @@ on:
       version:
         description: Release tag in vX.Y.Z format
         required: true
-        default: v0.2.1
+        default: v0.3.0
         type: string
 
 permissions:
@@ -36,6 +36,10 @@ jobs:
         run: |
           dotnet build .\AchievementRelay.sln --configuration Release
           dotnet run --project .\tests\AchievementRelay.Core.Tests --configuration Release --no-build
+          $bridgeOutput = & .\src\AchievementRelay.SteamBridge\bin\Release\net48\AchievementRelay.SteamBridge.exe --self-test
+          if ($LASTEXITCODE -ne 0 -or $bridgeOutput -notmatch '"protocolVersion":1' -or $bridgeOutput -notmatch '"status":"self-test"' -or $bridgeOutput -notmatch '"message":"ok"') {
+            throw "Steam bridge self-test failed: $bridgeOutput"
+          }
           .\scripts\Test-Repository.ps1
 
       - name: Build signed packages

@@ -1,7 +1,10 @@
 [CmdletBinding()]
 param(
     [ValidatePattern('^\d+\.\d+\.\d+\.\d+$')]
-    [string] $Version = '0.2.1.0',
+    [string] $Version = '0.3.0.0',
+
+    [ValidatePattern('^$|^\d+\.\d+\.\d+$')]
+    [string] $ApplicationVersion = '',
 
     [ValidateSet('x64', 'arm64')]
     [string[]] $Architectures = @('x64', 'arm64'),
@@ -48,6 +51,7 @@ try {
         & (Join-Path $PSScriptRoot 'Build-Msix.ps1') `
             -Architecture $architecture `
             -Version $Version `
+            -ApplicationVersion $ApplicationVersion `
             -Configuration Release `
             -OutputDirectory $outputDirectory `
             -PfxPath $PfxPath `
@@ -59,9 +63,11 @@ try {
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Uninstall.ps1') -Destination $outputDirectory -Force
     Copy-Item -LiteralPath (Join-Path $repositoryRoot 'docs\INSTALL.md') -Destination (Join-Path $outputDirectory 'INSTALL.md') -Force
 
-    $applicationVersion = ($Version.Split('.')[0..2] -join '.')
+    if (-not $ApplicationVersion) {
+        $ApplicationVersion = ($Version.Split('.')[0..2] -join '.')
+    }
     & (Join-Path $PSScriptRoot 'Build-Installer.ps1') `
-        -Version $applicationVersion `
+        -Version $ApplicationVersion `
         -MsixVersion $Version `
         -PackageDirectory $outputDirectory `
         -OutputDirectory $outputDirectory `

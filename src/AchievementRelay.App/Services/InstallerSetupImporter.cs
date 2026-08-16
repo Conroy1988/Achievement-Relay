@@ -98,9 +98,11 @@ public sealed class InstallerSetupImporter(
 
         var pendingApiKey = secretProtector.TryUnprotectOpenXblApiKey(pendingSetup.ProtectedOpenXblApiKey);
         var pendingWebhook = secretProtector.TryUnprotect(pendingSetup.ProtectedWebhookUrl);
-        if (!OpenXblApiKeyValidator.TryNormalize(
+        var hasApiKey = !string.IsNullOrWhiteSpace(pendingApiKey);
+        var apiKey = string.Empty;
+        if (hasApiKey && !OpenXblApiKeyValidator.TryNormalize(
                 pendingApiKey,
-                out var apiKey,
+                out apiKey,
                 out var keyError))
         {
             DeletePendingSetupFiles(pendingFiles);
@@ -128,15 +130,23 @@ public sealed class InstallerSetupImporter(
         var storedSettings = currentSettings with
         {
             SchemaVersion = AppSettings.CurrentSchemaVersion,
-            ProtectedOpenXblApiKey = secretProtector.ProtectOpenXblApiKey(apiKey),
+            ProtectedOpenXblApiKey = hasApiKey
+                ? secretProtector.ProtectOpenXblApiKey(apiKey)
+                : currentSettings.ProtectedOpenXblApiKey,
+            XboxUserId = hasApiKey ? string.Empty : currentSettings.XboxUserId,
+            XboxGamertag = hasApiKey ? string.Empty : currentSettings.XboxGamertag,
             ProtectedWebhookUrl = secretProtector.Protect(webhookUri.ToString()),
+            // New and migrated settings default to Steam on, while an explicit
+            // schema-3 user choice to disable it survives a repair/upgrade.
+            SteamEnabled = currentSettings.SteamEnabled,
             SetupCompleted = false
         };
 
         try
         {
-            // Persist both re-encrypted secrets before any network request. A failed or
-            // interrupted OpenXBL/Discord test must never force the user to re-enter them.
+            // Persist supplied ciphertext before any network request. A failed or
+            // interrupted OpenXBL/Discord test must never force re-entry, and an
+            // installer upgrade with no new Xbox key must preserve the old one.
             await settingsStore.SaveAsync(storedSettings, cancellationToken);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
@@ -153,34 +163,38 @@ public sealed class InstallerSetupImporter(
         var nextSettings = storedSettings;
         try
         {
-            var accountResult = await openXblClient.GetAccountAsync(apiKey, cancellationToken);
+            OpenXblAccountResult? accountResult = null;
             OpenXblTitleProgressResult? titleProgressResult = null;
-            if (accountResult.Success && accountResult.Account is not null)
+            if (hasApiKey)
             {
-                titleProgressResult = await openXblClient.GetTitleProgressAsync(
-                    apiKey,
-                    accountResult.Account.Xuid,
-                    cancellationToken);
-                nextSettings = nextSettings with
+                accountResult = await openXblClient.GetAccountAsync(apiKey, cancellationToken);
+                if (accountResult.Success && accountResult.Account is not null)
                 {
-                    XboxUserId = accountResult.Account.Xuid,
-                    XboxGamertag = accountResult.Account.Gamertag,
-                    DisplayName = string.IsNullOrWhiteSpace(nextSettings.DisplayName)
-                        ? accountResult.Account.Gamertag
-                        : nextSettings.DisplayName
-                };
-
-                if (titleProgressResult.Success && titleProgressResult.Titles is not null)
-                {
-                    var state = await syncStateStore.LoadAsync(cancellationToken);
-                    if (state.BaselineUtc is null ||
-                        !string.Equals(state.AccountXuid, accountResult.Account.Xuid, StringComparison.Ordinal))
+                    titleProgressResult = await openXblClient.GetTitleProgressAsync(
+                        apiKey,
+                        accountResult.Account.Xuid,
+                        cancellationToken);
+                    nextSettings = nextSettings with
                     {
-                        await syncStateStore.ResetAsync(
-                            accountResult.Account.Xuid,
-                            DateTimeOffset.UtcNow,
-                            titleProgressResult.Titles,
-                            cancellationToken);
+                        XboxUserId = accountResult.Account.Xuid,
+                        XboxGamertag = accountResult.Account.Gamertag,
+                        DisplayName = string.IsNullOrWhiteSpace(nextSettings.DisplayName)
+                            ? accountResult.Account.Gamertag
+                            : nextSettings.DisplayName
+                    };
+
+                    if (titleProgressResult.Success && titleProgressResult.Titles is not null)
+                    {
+                        var state = await syncStateStore.LoadAsync(cancellationToken);
+                        if (state.BaselineUtc is null ||
+                            !string.Equals(state.AccountXuid, accountResult.Account.Xuid, StringComparison.Ordinal))
+                        {
+                            await syncStateStore.ResetAsync(
+                                accountResult.Account.Xuid,
+                                DateTimeOffset.UtcNow,
+                                titleProgressResult.Titles,
+                                cancellationToken);
+                        }
                     }
                 }
             }
@@ -189,28 +203,44 @@ public sealed class InstallerSetupImporter(
                 webhookUri,
                 DiscordWebhookPayloadFactory.CreateConnectionTest(nextSettings),
                 cancellationToken);
-            var completed = accountResult.Success &&
-                            accountResult.Account is not null &&
-                            titleProgressResult?.Success == true &&
-                            webhookResult.Success;
+            var xboxVerified = !hasApiKey ||
+                               (accountResult?.Success == true &&
+                                accountResult.Account is not null &&
+                                titleProgressResult?.Success == true);
+            // Steam is a complete, keyless source, so a working Discord webhook
+            // is enough to finish setup even when an optional Xbox connection
+            // needs another attempt later.
+            var providerReady = nextSettings.SteamEnabled ||
+                                (!string.IsNullOrWhiteSpace(nextSettings.ProtectedOpenXblApiKey) &&
+                                 !string.IsNullOrWhiteSpace(nextSettings.XboxUserId));
+            var completed = webhookResult.Success && providerReady;
             nextSettings = nextSettings with { SetupCompleted = completed };
             await settingsStore.SaveAsync(nextSettings, cancellationToken);
 
             if (completed)
             {
+                var message = !hasApiKey
+                    ? nextSettings.SteamEnabled
+                        ? "Installer settings were stored securely. Steam and Discord are ready; existing Steam unlocks will be baselined silently."
+                        : "Installer settings were stored securely. The existing Xbox source and Discord are ready; Steam remains disabled by your saved preference."
+                    : xboxVerified
+                        ? nextSettings.SteamEnabled
+                            ? "Installer settings were stored securely. Xbox, Steam and Discord were verified, and monitoring is ready."
+                            : "Installer settings were stored securely. Xbox and Discord were verified; Steam remains disabled by your saved preference."
+                        : "Installer settings were stored securely. Steam and Discord are ready; the optional Xbox connection was saved and can be retried in Guided setup.";
                 return new InstallerSetupImportResult(
                     nextSettings,
                     true,
                     true,
-                    "Installer settings were stored securely. Xbox and Discord were verified, and account monitoring is ready.");
+                    message);
             }
 
             var details = new List<string>();
-            if (!accountResult.Success)
+            if (hasApiKey && accountResult?.Success != true)
             {
-                details.Add(accountResult.Message);
+                details.Add(accountResult?.Message ?? "The Xbox account could not be verified.");
             }
-            else if (titleProgressResult?.Success != true)
+            else if (hasApiKey && titleProgressResult?.Success != true)
             {
                 details.Add(titleProgressResult?.Message ?? "The Xbox achievement feed could not be verified.");
             }
@@ -218,6 +248,11 @@ public sealed class InstallerSetupImporter(
             if (!webhookResult.Success)
             {
                 details.Add(webhookResult.Message);
+            }
+
+            if (!providerReady)
+            {
+                details.Add("No verified achievement source is enabled. Enable Steam or connect Xbox.");
             }
 
             return new InstallerSetupImportResult(

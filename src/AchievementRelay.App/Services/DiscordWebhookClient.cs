@@ -19,9 +19,18 @@ public sealed class DiscordWebhookClient : IDisposable
         Timeout = TimeSpan.FromSeconds(15)
     };
 
+    public Task<RelayResult> SendAsync(
+        Uri webhookUri,
+        string jsonPayload,
+        CancellationToken cancellationToken) =>
+        SendAsync(webhookUri, jsonPayload, null, null, null, cancellationToken);
+
     public async Task<RelayResult> SendAsync(
         Uri webhookUri,
         string jsonPayload,
+        byte[]? attachment = null,
+        string? attachmentFileName = null,
+        string? attachmentContentType = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(webhookUri);
@@ -32,8 +41,21 @@ public sealed class DiscordWebhookClient : IDisposable
             try
             {
                 using var request = new HttpRequestMessage(HttpMethod.Post, AddWaitParameter(webhookUri));
-                request.Headers.UserAgent.Add(new ProductInfoHeaderValue("AchievementRelay", "0.2.1"));
-                request.Content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+                request.Headers.UserAgent.Add(new ProductInfoHeaderValue("AchievementRelay", "0.3.0"));
+                if (attachment is { Length: > 0 } && !string.IsNullOrWhiteSpace(attachmentFileName))
+                {
+                    var multipart = new MultipartFormDataContent();
+                    multipart.Add(new StringContent(jsonPayload, Encoding.UTF8, "application/json"), "payload_json");
+                    var file = new ByteArrayContent(attachment);
+                    file.Headers.ContentType = new MediaTypeHeaderValue(
+                        string.IsNullOrWhiteSpace(attachmentContentType) ? "image/png" : attachmentContentType);
+                    multipart.Add(file, "files[0]", attachmentFileName);
+                    request.Content = multipart;
+                }
+                else
+                {
+                    request.Content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+                }
 
                 using var response = await _httpClient.SendAsync(request, cancellationToken);
                 if (response.IsSuccessStatusCode)

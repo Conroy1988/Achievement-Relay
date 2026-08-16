@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <Description>Platform-neutral Xbox achievement API parsing, validation, identity and Discord payloads for Achievement Relay.</Description>
+    <Description>Platform-neutral Xbox and Steam achievement validation, identity, image encoding and Discord payloads for Achievement Relay.</Description>
   </PropertyGroup>
 </Project>

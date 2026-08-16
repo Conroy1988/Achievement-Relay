@@ -82,16 +82,16 @@
                 <StackPanel Width="490" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="28,18,0,18">
                   <TextBlock Style="{StaticResource EyebrowText}" Text="LIVE ACHIEVEMENT NETWORK" />
                   <TextBlock Text="YOUR WINS.&#x0a;BROADCAST." FontFamily="Bahnschrift SemiBold, Segoe UI Variable Display, Segoe UI" FontWeight="Bold" FontSize="34" LineHeight="34" Margin="0,10,0,8" />
-                  <TextBlock Text="Xbox account unlocks travel through one secure relay and land in your Discord channel." Foreground="#CFD8E8" FontSize="13" MaxWidth="440" HorizontalAlignment="Left" />
+                  <TextBlock Text="Xbox and Steam unlocks travel through one secure relay and land in your Discord channel." Foreground="#CFD8E8" FontSize="13" MaxWidth="440" HorizontalAlignment="Left" />
                   <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
-                    <Button Content="SYNC NOW" Style="{StaticResource PrimaryButton}" Click="SyncNow_Click" Padding="18,8" Margin="0,0,9,0" />
+                    <Button Content="SYNC XBOX" Style="{StaticResource PrimaryButton}" Click="SyncNow_Click" Padding="18,8" Margin="0,0,9,0" />
                     <Button Content="GUIDED SETUP" Click="ShowSetup_Click" Padding="18,8" />
                   </StackPanel>
                 </StackPanel>
 
                 <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,16,18,0" Background="#D00A101B" BorderBrush="#6B52F2AD" BorderThickness="1" CornerRadius="8" Padding="11,7">
                   <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="XBOX" FontWeight="Bold" FontSize="10" />
+                    <TextBlock Text="XBOX + STEAM" FontWeight="Bold" FontSize="10" />
                     <TextBlock Text="  ➜  RELAY  ➜  " Foreground="{StaticResource AccentBrush}" FontWeight="Bold" FontSize="10" />
                     <TextBlock Text="DISCORD" Foreground="#AAB2FF" FontWeight="Bold" FontSize="10" />
                   </StackPanel>
@@ -102,9 +102,11 @@
             <Grid Margin="0,0,0,20">
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="16" />
+                <ColumnDefinition Width="12" />
                 <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="16" />
+                <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="12" />
                 <ColumnDefinition Width="*" />
               </Grid.ColumnDefinitions>
 
@@ -131,6 +133,23 @@
                     <ColumnDefinition Width="44" />
                     <ColumnDefinition Width="*" />
                   </Grid.ColumnDefinitions>
+                  <Border Width="34" Height="34" CornerRadius="9" Background="#21366F8A" BorderBrush="#7466C0F4" BorderThickness="1" VerticalAlignment="Top">
+                    <TextBlock Text="S" Foreground="#8FD8FF" FontSize="18" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                  </Border>
+                  <StackPanel Grid.Column="1">
+                    <TextBlock Text="STEAM" Foreground="{StaticResource MutedTextBrush}" FontSize="10" FontWeight="Bold" />
+                    <TextBlock x:Name="SteamStatusText" Text="Checking…" FontSize="17" FontWeight="SemiBold" Margin="0,6,0,3" />
+                    <TextBlock x:Name="SteamStatusDetail" Text="Local Steam client" Foreground="{StaticResource MutedTextBrush}" FontSize="11" TextTrimming="CharacterEllipsis" />
+                  </StackPanel>
+                </Grid>
+              </Border>
+
+              <Border Grid.Column="4" Style="{StaticResource Card}">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="44" />
+                    <ColumnDefinition Width="*" />
+                  </Grid.ColumnDefinitions>
                   <Border Width="34" Height="34" CornerRadius="9" Background="#255865F2" BorderBrush="#725865F2" BorderThickness="1" VerticalAlignment="Top">
                     <TextBlock Text="◈" Foreground="#B9C0FF" FontSize="22" HorizontalAlignment="Center" VerticalAlignment="Center" />
                   </Border>
@@ -142,7 +161,7 @@
                 </Grid>
               </Border>
 
-              <Border Grid.Column="4" Style="{StaticResource Card}">
+              <Border Grid.Column="6" Style="{StaticResource Card}">
                 <Grid>
                   <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="44" />
@@ -154,7 +173,7 @@
                   <StackPanel Grid.Column="1">
                     <TextBlock Text="RELAY CORE" Foreground="{StaticResource MutedTextBrush}" FontSize="10" FontWeight="Bold" />
                     <TextBlock x:Name="RelayStatusText" Text="Checking…" FontSize="17" FontWeight="SemiBold" Margin="0,6,0,3" />
-                    <TextBlock Text="One-minute account sync" Foreground="{StaticResource MutedTextBrush}" FontSize="11" />
+                    <TextBlock x:Name="RelayStatusDetail" Text="Multi-platform monitoring" Foreground="{StaticResource MutedTextBrush}" FontSize="11" />
                   </StackPanel>
                 </Grid>
               </Border>
@@ -168,12 +187,13 @@
                 </Grid.ColumnDefinitions>
                 <StackPanel>
                   <TextBlock Text="Quick actions" FontSize="17" FontWeight="SemiBold" />
-                  <TextBlock Text="Check Xbox now, test Discord or review the guided setup." Foreground="{StaticResource MutedTextBrush}" Margin="0,4,0,0" />
+                  <TextBlock Text="Check Xbox, refresh Steam detection, test Discord or review setup." Foreground="{StaticResource MutedTextBrush}" Margin="0,4,0,0" />
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal">
                   <Button Content="Guided setup" Click="ShowSetup_Click" Margin="0,0,8,0" />
                   <Button Content="Send test" Click="SendSampleAchievement_Click" Margin="0,0,8,0" />
-                  <Button Content="Sync now" Style="{StaticResource PrimaryButton}" Click="SyncNow_Click" />
+                  <Button Content="Refresh Steam" Click="RefreshSteam_Click" Margin="0,0,8,0" />
+                  <Button Content="Sync Xbox" Style="{StaticResource PrimaryButton}" Click="SyncNow_Click" />
                 </StackPanel>
               </Grid>
             </Border>
@@ -205,7 +225,7 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <StackPanel Margin="34,30,34,50">
             <TextBlock Style="{StaticResource PageTitle}" Text="Guided setup" />
-            <TextBlock Style="{StaticResource PageSubtitle}" Text="Complete these three steps once. Existing achievements are baselined and will never flood your Discord." />
+            <TextBlock Style="{StaticResource PageSubtitle}" Text="Choose Xbox, Steam or both. Every source is baselined first, so old achievements never flood Discord." />
 
             <Border Style="{StaticResource Card}" Margin="0,0,0,14">
               <Grid>
@@ -217,7 +237,7 @@
                   <TextBlock Text="1" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold" />
                 </Border>
                 <StackPanel Grid.Column="1" Margin="4,0,0,0">
-                  <TextBlock Text="Connect your Xbox account through OpenXBL" FontSize="18" FontWeight="SemiBold" />
+                  <TextBlock Text="Connect Xbox through OpenXBL (optional)" FontSize="18" FontWeight="SemiBold" />
                   <TextBlock Text="OpenXBL is an unofficial Xbox API provider. Create a personal key, paste it below, and Achievement Relay will verify the account and securely encrypt the key for this Windows user." Foreground="{StaticResource MutedTextBrush}" Margin="0,5,0,12" />
                   <Grid>
                     <Grid.ColumnDefinitions>
@@ -246,8 +266,26 @@
                   <ColumnDefinition Width="52" />
                   <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
-                <Border Width="38" Height="38" CornerRadius="19" Background="{StaticResource DiscordBrush}" VerticalAlignment="Top">
+                <Border Width="38" Height="38" CornerRadius="19" Background="#234A7A91" BorderBrush="#7566C0F4" BorderThickness="1" VerticalAlignment="Top">
                   <TextBlock Text="2" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold" />
+                </Border>
+                <StackPanel Grid.Column="1" Margin="4,0,0,0">
+                  <TextBlock Text="Enable automatic Steam monitoring" FontSize="18" FontWeight="SemiBold" />
+                  <TextBlock Text="No Steam API key or account ID is needed. Achievement Relay detects the local Steam client and a running game, records its current unlocks as a silent baseline, then posts only directly proven live unlocks." Foreground="{StaticResource MutedTextBrush}" Margin="0,5,0,12" TextWrapping="Wrap" />
+                  <CheckBox x:Name="SetupSteamEnabledCheckBox" Content="Monitor Steam achievements automatically" IsChecked="True" />
+                  <TextBlock x:Name="SetupSteamStatus" Text="Status: checking the local Steam installation" Margin="0,10,0,0" FontWeight="SemiBold" />
+                </StackPanel>
+              </Grid>
+            </Border>
+
+            <Border Style="{StaticResource Card}" Margin="0,0,0,14">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="52" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border Width="38" Height="38" CornerRadius="19" Background="{StaticResource DiscordBrush}" VerticalAlignment="Top">
+                  <TextBlock Text="3" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold" />
                 </Border>
                 <StackPanel Grid.Column="1" Margin="4,0,0,0">
                   <TextBlock Text="Connect a Discord channel" FontSize="18" FontWeight="SemiBold" />
@@ -283,11 +321,11 @@
                   <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <Border Width="38" Height="38" CornerRadius="19" Background="{StaticResource AccentDarkBrush}" VerticalAlignment="Top">
-                  <TextBlock Text="3" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold" />
+                  <TextBlock Text="4" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold" />
                 </Border>
                 <StackPanel Grid.Column="1" Margin="4,0,0,0">
                   <TextBlock Text="Choose your preferences and finish" FontSize="18" FontWeight="SemiBold" />
-                  <TextBlock Text="The connected gamertag is used automatically unless you enter another display name. Achievement Relay can also configure Windows startup." Foreground="{StaticResource MutedTextBrush}" Margin="0,5,0,12" />
+                  <TextBlock Text="The connected Xbox gamertag or local Steam name is used unless you enter another display name. Achievement Relay can also configure Windows startup." Foreground="{StaticResource MutedTextBrush}" Margin="0,5,0,12" />
                   <TextBlock Text="Player name shown in Discord" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,5" />
                   <TextBox x:Name="SetupDisplayNameTextBox" MaxLength="80" Width="360" HorizontalAlignment="Left" />
                   <CheckBox x:Name="SetupStartWithWindowsCheckBox" Content="Start Achievement Relay automatically with Windows" IsChecked="True" />
@@ -339,7 +377,7 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <StackPanel Margin="34,30,34,44">
             <TextBlock Style="{StaticResource PageTitle}" Text="Settings" />
-            <TextBlock Style="{StaticResource PageSubtitle}" Text="Manage the Xbox account, Discord destination and Windows behaviour." />
+            <TextBlock Style="{StaticResource PageSubtitle}" Text="Manage Xbox, Steam, the Discord destination and Windows behaviour." />
 
             <Border Style="{StaticResource Card}" Margin="0,0,0,14">
               <StackPanel>
@@ -355,6 +393,17 @@
                   <Button Content="Get API key" Click="OpenOpenXbl_Click" Margin="0,0,8,0" />
                   <Button Content="Retry / replace" Click="SaveAndTestSettingsOpenXbl_Click" Margin="0,0,8,0" />
                   <Button Content="Disconnect Xbox account" Click="RemoveOpenXbl_Click" />
+                </WrapPanel>
+              </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource Card}" Margin="0,0,0,14">
+              <StackPanel>
+                <TextBlock Text="Steam · local automatic monitoring" FontSize="18" FontWeight="SemiBold" />
+                <TextBlock x:Name="SettingsSteamStatus" Text="Checking the local Steam installation" Foreground="{StaticResource MutedTextBrush}" Margin="0,5,0,12" TextWrapping="Wrap" />
+                <CheckBox x:Name="SettingsSteamEnabledCheckBox" Content="Monitor Steam achievements automatically (no API key required)" />
+                <WrapPanel Margin="0,10,0,0">
+                  <Button Content="Refresh Steam detection" Click="RefreshSteam_Click" />
                 </WrapPanel>
               </StackPanel>
             </Border>
@@ -382,7 +431,7 @@
                 <TextBlock Text="Achievement posts" FontSize="18" FontWeight="SemiBold" />
                 <TextBlock Text="Player name shown in Discord" Foreground="{StaticResource MutedTextBrush}" Margin="0,12,0,5" />
                 <TextBox x:Name="SettingsDisplayNameTextBox" MaxLength="80" />
-                <CheckBox x:Name="SettingsRareOnlyCheckBox" Content="Only post achievements marked rare by Xbox" />
+                <CheckBox x:Name="SettingsRareOnlyCheckBox" Content="Only post achievements confirmed rare by the source provider" />
                 <CheckBox x:Name="SettingsRawDetailsCheckBox" Content="Include the unlocked achievement description" />
               </StackPanel>
             </Border>
@@ -407,7 +456,7 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <StackPanel Margin="34,30,34,44">
             <TextBlock Style="{StaticResource PageTitle}" Text="Diagnostics" />
-            <TextBlock Style="{StaticResource PageSubtitle}" Text="Check the complete Xbox → Achievement Relay → Discord path without waiting for another unlock." />
+            <TextBlock Style="{StaticResource PageSubtitle}" Text="Check Xbox, Steam and Discord without waiting for another unlock." />
 
             <Border Style="{StaticResource Card}" Margin="0,0,0,14">
               <StackPanel>
@@ -419,9 +468,10 @@
             <Border Style="{StaticResource Card}" Margin="0,0,0,14">
               <StackPanel>
                 <TextBlock Text="Connection checks" FontSize="18" FontWeight="SemiBold" />
-                <TextBlock Text="Sync now asks OpenXBL for the latest account achievements. Send sample tests only the Discord webhook." Foreground="{StaticResource MutedTextBrush}" Margin="0,6,0,14" />
+                <TextBlock Text="Sync Xbox now asks OpenXBL for the latest account achievements. Refresh Steam rechecks the local client and running game. Send sample tests only Discord." Foreground="{StaticResource MutedTextBrush}" Margin="0,6,0,14" />
                 <WrapPanel>
                   <Button Content="Sync Xbox now" Style="{StaticResource PrimaryButton}" Click="SyncNow_Click" Margin="0,0,8,8" />
+                  <Button Content="Refresh Steam" Click="RefreshSteam_Click" Margin="0,0,8,8" />
                   <Button Content="Send sample achievement" Click="SendSampleAchievement_Click" Margin="0,0,8,8" />
                   <Button Content="Open OpenXBL" Click="OpenOpenXbl_Click" Margin="0,0,8,8" />
                 </WrapPanel>
@@ -431,7 +481,7 @@
             <Border Style="{StaticResource Card}">
               <StackPanel>
                 <TextBlock Text="Support tools" FontSize="18" FontWeight="SemiBold" />
-                <TextBlock Text="The copied summary never contains the OpenXBL API key, Xbox user ID or Discord webhook token." Foreground="{StaticResource MutedTextBrush}" Margin="0,6,0,14" />
+                <TextBlock Text="The copied summary never contains the OpenXBL API key, Xbox user ID, Steam account ID or Discord webhook token." Foreground="{StaticResource MutedTextBrush}" Margin="0,6,0,14" />
                 <WrapPanel>
                   <Button Content="Open local data folder" Click="OpenDataFolder_Click" Margin="0,0,8,8" />
                   <Button Content="Copy support summary" Click="CopySupportSummary_Click" Margin="0,0,8,8" />
@@ -452,8 +502,8 @@
               <StackPanel>
                 <Image Source="Assets/AchievementRelay.png" Width="96" Height="96" HorizontalAlignment="Left" />
                 <TextBlock Text="Achievement Relay" FontSize="25" FontWeight="Bold" Margin="0,14,0,3" />
-                <TextBlock x:Name="AboutVersionText" Text="Version 0.2.1 beta" Foreground="{StaticResource AccentBrush}" FontWeight="SemiBold" />
-                <TextBlock Text="A Windows companion that checks an Xbox account for new achievements and sends rich unlock posts to a Discord channel chosen by the user." Foreground="{StaticResource MutedTextBrush}" Margin="0,14,0,0" MaxWidth="680" HorizontalAlignment="Left" />
+                <TextBlock x:Name="AboutVersionText" Text="Version 0.3.0 beta" Foreground="{StaticResource AccentBrush}" FontWeight="SemiBold" />
+                <TextBlock Text="A Windows companion that watches Xbox and local Steam games for new achievements and sends rich unlock posts to a Discord channel chosen by the user." Foreground="{StaticResource MutedTextBrush}" Margin="0,14,0,0" MaxWidth="680" HorizontalAlignment="Left" />
               </StackPanel>
             </Border>
 
@@ -474,10 +524,10 @@
             <Border Style="{StaticResource Card}">
               <StackPanel>
                 <TextBlock Text="Privacy and provider transparency" FontSize="18" FontWeight="SemiBold" />
-                <TextBlock Text="Achievement Relay stores the OpenXBL API key and Discord webhook with Windows account encryption. The key is sent only to OpenXBL; achievement details are sent only to the configured Discord webhook. OpenXBL is an independent, unofficial Xbox API provider." Foreground="{StaticResource MutedTextBrush}" Margin="0,7,0,14" />
+                <TextBlock Text="Achievement Relay encrypts the OpenXBL API key and Discord webhook for this Windows account. Steam monitoring is local and read-only: it uses the running game's Steamworks data and needs no personal API key. Only achievement details and optional artwork are sent to the configured Discord webhook. OpenXBL is an independent, unofficial Xbox API provider." Foreground="{StaticResource MutedTextBrush}" Margin="0,7,0,14" TextWrapping="Wrap" />
                 <WrapPanel>
                   <Button Content="View privacy policy" Click="OpenPrivacyPolicy_Click" Margin="0,0,8,0" />
-                  <Button Content="Art licences" Click="OpenArtLicenses_Click" Margin="0,0,8,0" />
+                  <Button Content="Third-party notices" Click="OpenArtLicenses_Click" Margin="0,0,8,0" />
                   <Button Content="Open GitHub" Click="OpenGitHub_Click" Margin="0,0,8,0" />
                   <Button Content="Open OpenXBL" Click="OpenOpenXbl_Click" />
                 </WrapPanel>

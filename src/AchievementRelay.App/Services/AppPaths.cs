@@ -34,6 +34,8 @@ public sealed class AppPaths
 
     public string XboxSyncStateFile => Path.Combine(DataDirectory, "xbox-sync-state.json");
 
+    public string SteamSyncStateFile => Path.Combine(DataDirectory, "steam-sync-state.json");
+
     /// <summary>
     /// One-time installer handoff outside AppData so MSIX virtualization cannot split the
     /// installer and packaged-app views of the file.

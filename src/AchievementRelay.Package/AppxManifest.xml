@@ -18,7 +18,7 @@
   <Properties>
     <DisplayName>Achievement Relay</DisplayName>
     <PublisherDisplayName>Achievement Relay Open Source</PublisherDisplayName>
-    <Description>Automatically relay Xbox account achievements to Discord.</Description>
+    <Description>Automatically relay new Xbox and Steam achievements to Discord.</Description>
     <Logo>Assets\StoreLogo.png</Logo>
     <desktop6:FileSystemWriteVirtualization>disabled</desktop6:FileSystemWriteVirtualization>
     <virtualization:FileSystemWriteVirtualization>
@@ -47,7 +47,7 @@
       <uap:VisualElements
         AppListEntry="default"
         DisplayName="Achievement Relay"
-        Description="Xbox account achievements for Discord"
+        Description="New Xbox and Steam achievements for Discord"
         BackgroundColor="#090D14"
         Square44x44Logo="Assets\Square44x44Logo.png"
         Square150x150Logo="Assets\Square150x150Logo.png">

@@ -4,10 +4,18 @@ All notable changes to Achievement Relay are documented here. The project follow
 
 ## [Unreleased]
 
+### Added
+
+- Added local, keyless Steam achievement monitoring through an isolated Steamworks helper; the app automatically detects the active game and requires no Steam Web API key or Steam64 ID
+- Added per-Steam-account/per-game complete snapshot baselines and monotonic unlocked-identity state, so an existing Steam library can never become a Discord history dump
+- Added strict Steam live-transition proof from locked-to-unlocked observation or Steam's completed-achievement callback—never timestamps—plus durable pending-delivery recovery, shared cross-provider Discord deduplication/retry, local icon-to-PNG attachments, public cached global rarity, and platform/player metadata
+- Added Steam-only installer and Guided setup paths: Discord is required, OpenXBL is optional, and Xbox plus Steam can run independently or together
+- Added live Steam dashboard/settings/diagnostics controls, a helper protocol self-test, pinned dependency hash checks, both-architecture packaging, full research notes, privacy boundaries, failure policy, and a real-Windows release matrix
+
 ### Fixed
 
 - Gave each pull-request installer an increasing MSIX revision so updated test builds install over earlier packages instead of failing with `0x80073CFB`
-- Attempted direct shutdown of the running tray process, then delegated any stubborn or elevated instance to Windows' package deployment broker instead of aborting the upgrade
+- Attempted direct shutdown of the running tray app and isolated Steam helper, then delegated any stubborn or elevated instance to Windows' package deployment broker instead of aborting the upgrade
 - Switched account verification from OpenXBL's legacy host to the provider's current `api.xbl.io` service so a saved key can resolve the Xbox profile and complete setup
 - Combined XUID and gamertag fields found across nested OpenXBL account envelopes instead of requiring both values in the same JSON object
 - Switched title polling to OpenXBL's current-account `player/titleHistory` operation instead of the XUID-specific route that returns 404 for the connected key owner
@@ -31,7 +39,6 @@ All notable changes to Achievement Relay are documented here. The project follow
 ### Planned
 
 - Stable code signing and update channel
-- Steam achievement provider research
 
 ## [0.2.1] - 2026-08-15
 

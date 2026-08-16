@@ -11,9 +11,10 @@ permissions:
 jobs:
   build-and-check:
     runs-on: windows-2022
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
-      TEST_MSIX_VERSION: "0.2.1.${{ github.run_number }}"
+      TEST_MSIX_VERSION: "0.2.2.${{ github.run_number }}"
+      APPLICATION_VERSION: "0.3.0"
 
     steps:
       - name: Check out source
@@ -33,19 +34,27 @@ jobs:
       - name: Run core contract checks
         run: dotnet run --project .\tests\AchievementRelay.Core.Tests --configuration Release --no-build
 
+      - name: Exercise Steam bridge protocol
+        shell: pwsh
+        run: |
+          $output = & .\src\AchievementRelay.SteamBridge\bin\Release\net48\AchievementRelay.SteamBridge.exe --self-test
+          if ($LASTEXITCODE -ne 0 -or $output -notmatch '"protocolVersion":1' -or $output -notmatch '"status":"self-test"' -or $output -notmatch '"message":"ok"') {
+            throw "Steam bridge self-test failed: $output"
+          }
+
       - name: Validate repository and MSIX manifest
         shell: pwsh
         run: .\scripts\Test-Repository.ps1
 
       - name: Create signed Windows test installer
         shell: pwsh
-        run: .\scripts\Build-Release.ps1 -Version $env:TEST_MSIX_VERSION
+        run: .\scripts\Build-Release.ps1 -Version $env:TEST_MSIX_VERSION -ApplicationVersion $env:APPLICATION_VERSION
 
       - name: Retain pull-request installer for Windows verification
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
-          name: AchievementRelay-v0.2.1-r${{ github.run_number }}-windows-test
+          name: AchievementRelay-v0.3.0-r${{ github.run_number }}-windows-test
           path: |
             artifacts/AchievementRelay_Setup.exe
             artifacts/AchievementRelay_${{ env.TEST_MSIX_VERSION }}_x64.msix

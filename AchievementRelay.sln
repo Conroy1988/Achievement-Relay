@@ -8,6 +8,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AchievementRelay.App", "src
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AchievementRelay.Core.Tests", "tests\AchievementRelay.Core.Tests\AchievementRelay.Core.Tests.csproj", "{E94F0AD5-9667-408C-A7B6-FEA9FBE7A472}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AchievementRelay.SteamBridge", "src\AchievementRelay.SteamBridge\AchievementRelay.SteamBridge.csproj", "{743D6EB6-394A-4EF6-8588-3F79D0D2739E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -26,5 +28,9 @@ Global
 		{E94F0AD5-9667-408C-A7B6-FEA9FBE7A472}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E94F0AD5-9667-408C-A7B6-FEA9FBE7A472}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{E94F0AD5-9667-408C-A7B6-FEA9FBE7A472}.Release|Any CPU.Build.0 = Release|Any CPU
+		{743D6EB6-394A-4EF6-8588-3F79D0D2739E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{743D6EB6-394A-4EF6-8588-3F79D0D2739E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{743D6EB6-394A-4EF6-8588-3F79D0D2739E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{743D6EB6-394A-4EF6-8588-3F79D0D2739E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

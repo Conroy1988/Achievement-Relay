@@ -2,7 +2,7 @@ namespace AchievementRelay.Core.Models;
 
 public sealed record AppSettings
 {
-    public const int CurrentSchemaVersion = 2;
+    public const int CurrentSchemaVersion = 3;
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
 
@@ -21,6 +21,13 @@ public sealed record AppSettings
     public bool StartMinimized { get; init; } = true;
 
     public bool PostRareOnly { get; init; }
+
+    /// <summary>
+    /// Enables local, read-only Steam achievement monitoring. Steam does not
+    /// require an API key; the companion waits for a Steam game and silently
+    /// baselines that game's existing unlocks before it relays anything.
+    /// </summary>
+    public bool SteamEnabled { get; init; } = true;
 
     public bool IncludeRawDetailsWhenUncertain { get; init; } = true;
 

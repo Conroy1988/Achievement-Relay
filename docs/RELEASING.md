@@ -2,16 +2,16 @@
 
 ## Versioning
 
-Use four-part numeric MSIX versions such as `0.2.1.0`. Create a matching Git tag such as `v0.2.1`. The release workflow converts a three-part tag to its four-part MSIX version.
+Use four-part numeric MSIX versions such as `0.3.0.0`. Create a matching Git tag such as `v0.3.0`. The release workflow converts a three-part tag to its four-part MSIX version.
 
-Pull-request artifacts use the workflow run number as the fourth MSIX component (for example, `0.2.1.26`) so a tester can install a newer artifact over an earlier build without removing the app or its settings. The next public release must advance the three-part version (for example, `v0.2.2`, which produces `0.2.2.0`) so it remains newer than every `0.2.1.x` test package.
+Steam-integration pull-request artifacts use the reserved pre-release package lane `0.2.2.<run>` while reporting product version `0.3.0`. Each test build upgrades over earlier `0.2.1.x`/`0.2.2.x` artifacts, while the public `0.3.0.0` package remains numerically newer than every test build. Do not move 0.3.0 test artifacts into a `0.3.0.<run>` package lane; that would make Windows treat the final `0.3.0.0` release as a downgrade.
 
 ## Local package
 
 On Windows with .NET 10, the Windows SDK, and Inno Setup 6:
 
 ```powershell
-.\scripts\Build-Release.ps1 -Version 0.2.1.0
+.\scripts\Build-Release.ps1 -Version 0.3.0.0
 ```
 
 Without signing parameters, the script creates a temporary two-year development certificate, signs both architecture packages and `AchievementRelay_Setup.exe`, exports only the public certificate, and deletes the private key file from its temporary folder. The versioned ZIP remains as a manual fallback.
@@ -20,7 +20,7 @@ For a production certificate whose subject matches `CN=Achievement Relay Open So
 
 ```powershell
 .\scripts\Build-Release.ps1 `
-  -Version 0.2.1.0 `
+  -Version 0.3.0.0 `
   -PfxPath C:\secure\AchievementRelay.pfx `
   -PfxPassword $env:ACHIEVEMENT_RELAY_PFX_PASSWORD
 ```
@@ -40,7 +40,7 @@ If either is absent, the workflow makes a development-signed alpha release and i
 1. Update application/file versions and release notes.
 2. Run the core contract checks and repository checks.
 3. Build and install both target packages on representative Windows devices where available.
-4. Verify installer connect-now/skip paths, encrypted handoff deletion, desktop-shortcut choice, first baseline, Discord test, and real Xbox account sync. Run two consecutive syncs and confirm that no pre-baseline or newly revealed historical achievement reaches Discord. Confirm historical titles remain queued and consume no more than one background detail slot per 15 minutes, while a genuinely new modern unlock and one untimestamped Xbox 360 unlock each post exactly once across tray close/reopen. Finish with startup, upgrade, and uninstall checks.
+4. Verify installer connect-now/skip and Steam-only paths, encrypted handoff deletion, desktop-shortcut choice, first baselines, Discord test, and real Xbox account sync. Run two consecutive Xbox syncs and confirm that no pre-baseline or newly revealed historical achievement reaches Discord. Confirm historical Xbox titles consume no more than one background detail slot per 15 minutes, while a genuinely new modern unlock and one untimestamped Xbox 360 unlock each post exactly once across tray close/reopen. For Steam, baseline a history-heavy game, observe one real live unlock, verify a restart/offline unlock stays silent, simulate a failed webhook and verify its pending live transition retries once, and exercise the x64 helper/package check on every supported architecture available. Finish with startup, running-app upgrade, and uninstall checks.
 5. Confirm the package certificate subject exactly matches the manifest publisher.
 6. Tag the verified commit with `v<major>.<minor>.<patch>` and push the tag, or run the **Release** workflow from GitHub Actions and enter that version. The manual workflow creates the tag at the selected commit when it publishes the release.
 7. Confirm `AchievementRelay_Setup.exe`, both MSIX packages, the manual ZIP, and the public `.cer` for development-signed builds are attached to the release.

@@ -1,6 +1,41 @@
 # Troubleshooting
 
-Start with **Diagnostics → Sync Xbox now**. It tests the real OpenXBL → Achievement Relay → Discord path. **Send sample achievement** tests Discord only.
+Start with **Diagnostics**. **Sync Xbox now** tests OpenXBL → Achievement Relay → Discord. **Refresh Steam** restarts local game detection/observation. **Send sample achievement** tests Discord only.
+
+## Steam says Ready instead of Monitoring
+
+**Ready** means the local observer is healthy but no game is detected. Start the game through the signed-in Windows Steam client and wait a few seconds. If the game is running:
+
+1. choose **Diagnostics → Refresh Steam**;
+2. confirm Diagnostics says the Steam installation and client were found;
+3. confirm the game has Steam achievements on its Steam store/community page; and
+4. copy the redacted support summary if the active game is still not detected.
+
+Achievement Relay checks Steam's active App ID first and then falls back to matching running executable paths against installed Steam manifests. Launchers and anti-cheat transitions get a ten-second grace period.
+
+## Steam baseline appeared but Discord stayed silent
+
+That is expected. The first complete snapshot for each Steam account and game is a history baseline. Achievement Relay stores every already-unlocked API name without posting it. Unlock a different achievement after Activity reports **Steam baseline established**.
+
+The first complete snapshot after an app/helper restart is also treated as history. A pre-baseline unlock qualifies only when Steam emits its direct completed-achievement callback during that helper session; a recent timestamp alone never qualifies. Steam achievements earned while Achievement Relay was closed are therefore silent by design, preventing an offline backlog from being mistaken for live unlocks.
+
+Never delete `steam-sync-state.json` to force a test: doing so deliberately creates another silent baseline. Use **Send sample achievement** to test Discord.
+
+## A new Steam achievement did not post
+
+1. Confirm Dashboard showed **Steam: Monitoring** before the unlock.
+2. Check Activity for a complete baseline, Steamworks retry, Discord failure, or rare-only message.
+3. Leave the game open and select **Refresh Steam**.
+4. If Activity already recorded the live transition before Discord failed, the durable pending delivery will retry; an unlock earned while Achievement Relay was closed is intentionally silent.
+5. If this was the first-ever monitored session and the unlock happened before the complete baseline, it remains silent by design because the app cannot safely distinguish it from old history.
+
+Some games do not publish achievements through Steamworks or have broken/delayed offline stats. Achievement Relay never guesses that an unobservable or pre-baseline history item is new.
+
+## Steamworks keeps retrying
+
+Keep the normal Steam desktop client signed in and launch the game through Steam. The helper initializes only for the detected active App ID. Steam family/account switching, Steam offline mode, a game update, anti-cheat, or a launcher can delay current-user stats. The helper retries without advancing state or posting history.
+
+If Diagnostics says the Steam monitoring component is missing, reinstall the same or newer complete `AchievementRelay_Setup.exe`; do not copy only the main executable. Every package must contain `SteamBridge\AchievementRelay.SteamBridge.exe`, `Facepunch.Steamworks.Win64.dll`, and `steam_api64.dll`.
 
 ## OpenXBL rejects the API key
 
@@ -62,7 +97,7 @@ When upgrading from a count-only build, or when OpenXBL reveals an old title tha
 
 ## Installer-provided credentials need attention
 
-Setup only validates the local shape; the app stores both secrets before performing live checks after launch. If one fails, Guided setup opens with status details. Stored fields show masked saved values: use **Reveal Key** or **Reveal Webhook** to inspect one, choose **Save and connect** or **Save and test** to retry it, or type a replacement.
+Setup only validates local shape; the app stores the Discord webhook and any optional Xbox key before performing live checks after launch. Steam-only setup leaves the OpenXBL field blank. If optional Xbox fails, Steam and Discord can still start while Guided setup retains the masked key for retry. Use **Reveal Key** or **Reveal Webhook** to inspect a stored value, choose the relevant retry action, or type a replacement.
 
 The one-time installer file contains DPAPI ciphertext, not plaintext. The app truncates and deletes it only after the normal encrypted settings file is safely written. If it remains after a crash, exit the app and remove `%USERPROFILE%\.achievement-relay\pending-installer-setup.json` (or the legacy `%LOCALAPPDATA%\AchievementRelay\pending-installer-setup.json`), then use Guided setup.
 
@@ -82,6 +117,6 @@ Successful event IDs are retained locally for 90 days, capped at 1,000. Do not d
 
 ## Safe support report
 
-Use **Diagnostics → Copy support summary**. It excludes the API key, webhook URL/token, XUID, and gamertag. Before posting, check it again for private data.
+Use **Diagnostics → Copy support summary**. It excludes the API key, webhook URL/token, XUID, gamertag, Steam account ID, and Steam player name. Before posting, check it again for private data.
 
-Never attach `settings.json`, `pending-installer-setup.json`, raw provider responses, or screenshots containing credentials. Revoke any secret that was exposed.
+Never attach `settings.json`, `pending-installer-setup.json`, `steam-sync-state.json`, raw provider responses, or screenshots containing credentials/account identifiers. Revoke any secret that was exposed.

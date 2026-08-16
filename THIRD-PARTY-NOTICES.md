@@ -1,4 +1,15 @@
-# Third-party art notices
+# Third-party notices
+
+## Software
+
+| Component | Author | Version | Licence | Source | Use |
+|---|---|---:|---|---|---|
+| Facepunch.Steamworks | Garry Newman / Facepunch | 2.5.2 | [MIT](third_party/Facepunch.Steamworks.LICENSE.txt) | [GitHub](https://github.com/Facepunch/Facepunch.Steamworks) | Local, read-only Steamworks bridge for Windows x64. |
+| `steam_api64.dll` | Valve Corporation | bundled with Facepunch.Steamworks 2.5.2 | Steamworks SDK redistribution terms | [Steamworks SDK](https://partner.steamgames.com/doc/sdk/api) | Native local Steam client interface required by the bridge. |
+
+The reviewed NuGet package is committed under `third_party/packages`; its expected SHA-256 is documented and enforced in `scripts/Test-Repository.ps1`. The MIT licence covers Facepunch's wrapper code, not Valve's separately owned native Steamworks binary or trademarks. Steam and Steamworks are trademarks and technology of Valve Corporation. Valve does not endorse Achievement Relay.
+
+## Art
 
 Achievement Relay's cinematic relay artwork and installer artwork were generated with OpenAI image tooling from project-specific prompts, then cropped and optimized for the Windows interface. The logo and brand graphics were also created for this project. These assets do not copy or include third-party game characters, logos, screenshots, or distinctive franchise assets.
 

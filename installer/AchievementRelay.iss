@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "0.2.1"
+  #define AppVersion "0.3.0"
 #endif
 
 #ifndef MsixVersion
@@ -106,22 +106,22 @@ var
 begin
   WizardForm.WelcomeLabel1.Caption := 'ENTER THE ACHIEVEMENT RELAY';
   WizardForm.WelcomeLabel2.Caption :=
-    'Sync Xbox achievements to Discord from a focused Windows gaming companion.' + #13#10 + #13#10 +
-    'Setup selects the correct x64 or Arm64 package. You can connect OpenXBL and Discord now, or skip that step and use Guided setup later.';
+    'Relay new Xbox and Steam achievements to Discord from one focused Windows gaming companion.' + #13#10 + #13#10 +
+    'Setup selects the correct x64 or Arm64 package. Steam works locally without an API key. You can add Discord and optional OpenXBL now, or use Guided setup later.';
 
   SetupChoicePage := CreateInputOptionPage(wpWelcome,
     'CONNECT YOUR RELAY',
-    'Configure the Xbox-to-Discord link now or later.',
+    'Configure Discord and your achievement sources now or later.',
     'Choose one option, then select Next.', True, False);
-  SetupChoicePage.Add('&Connect OpenXBL and Discord now (recommended)');
+  SetupChoicePage.Add('&Connect Discord now; add OpenXBL optionally (recommended)');
   SetupChoicePage.Add('&Skip — I will do this later in Guided setup');
   SetupChoicePage.Values[0] := True;
 
   CredentialsPage := CreateInputQueryPage(SetupChoicePage.ID,
     'PLAYER CONNECTIONS',
-    'Add the two private values used by Achievement Relay.',
-    'Setup encrypts both values for this Windows user before the app receives them. On first launch, the app saves fresh encrypted settings before deleting the one-time handoff and running connection tests.');
-  CredentialsPage.Add('&OpenXBL API key:', True);
+    'Add Discord and, if wanted, Xbox through OpenXBL.',
+    'The Discord webhook is required here. The OpenXBL key is optional because Steam monitoring is local and keyless. Setup encrypts supplied values for this Windows user before the app receives them.');
+  CredentialsPage.Add('&OpenXBL API key (optional — leave blank for Steam only):', True);
   CredentialsPage.Add('&Discord webhook URL:', True);
   CredentialsPage.Edits[0].MaxLength := 512;
   CredentialsPage.Edits[1].MaxLength := 2048;
@@ -191,10 +191,10 @@ begin
   ApiKey := Trim(CredentialsPage.Values[0]);
   WebhookUrl := Trim(CredentialsPage.Values[1]);
 
-  if (Length(ApiKey) = 0) or (Length(ApiKey) > 512) or
-     ContainsWhitespaceOrControl(ApiKey) then
+  if (Length(ApiKey) > 0) and
+     ((Length(ApiKey) > 512) or ContainsWhitespaceOrControl(ApiKey)) then
   begin
-    MsgBox('Paste a valid OpenXBL API key, or go back and choose Skip.',
+    MsgBox('The optional OpenXBL key is not valid. Correct it, leave it blank for Steam only, or go back and choose Skip.',
       mbError, MB_OK);
     Result := False;
     Exit;
@@ -285,7 +285,7 @@ begin
     if SetupChoicePage.Values[0] and not CreateProtectedPendingSetup() then
       RaiseException('Setup could not prepare the optional account settings. No credentials were installed.');
 
-    WizardForm.StatusLabel.Caption := 'Deploying the Xbox achievement relay...';
+    WizardForm.StatusLabel.Caption := 'Deploying the Xbox and Steam achievement relay...';
     PowerShellPath := ExpandConstant('{sysnative}\WindowsPowerShell\v1.0\powershell.exe');
     ErrorFile := ExpandConstant('{tmp}\AchievementRelay-InstallError.txt');
     Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' +

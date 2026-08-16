@@ -39,6 +39,15 @@ var tests = new (string Name, Action Run)[]
     ("OpenXBL rate-limit reset pauses and recovers automatically", HonorsOpenXblRateLimitReset),
     ("Xbox sync work prioritizes live changes and throttles history", PrioritizesLiveXboxSyncWork),
     ("Pending Xbox sync work survives durable JSON state", PersistsPendingXboxSyncWork),
+    ("Steam first snapshot silently baselines old unlocks", SteamFirstSnapshotIsSilentBaseline),
+    ("Steam launch race posts only a callback-proven unlock", SteamLaunchRacePostsProvenUnlock),
+    ("Steam locked-to-unlocked transition posts once", SteamTransitionPostsOnce),
+    ("Steam restart silently baselines offline unlocks", SteamRestartBaselinesOfflineUnlocks),
+    ("Steam timestamps cannot bypass the baseline", SteamTimestampCannotAuthorizeUnlock),
+    ("Steam event identities are stable and account-specific", SteamEventIdentityIsStable),
+    ("Steam RGBA artwork is encoded as a PNG attachment", SteamArtworkEncodesAsPng),
+    ("Steam Discord payload identifies platform and attachment", SteamPayloadIncludesPlatformAndAttachment),
+    ("Xbox Discord payload labels the player platform", XboxPayloadUsesPlatformLabel),
     ("Webhook URL validation is strict", ValidatesWebhookUrls),
     ("Discord payload suppresses mentions", PayloadSuppressesMentions),
     ("Discord identifies estimated provider timestamps", PayloadLabelsEstimatedTimestamp),
@@ -868,6 +877,168 @@ static void ValidatesWebhookUrls()
     Assert(!WebhookUrlValidator.TryNormalize($"https://example.com/api/webhooks/{testWebhookId}/{testToken}", out _, out _), "Foreign host was accepted.");
 }
 
+static void SteamFirstSnapshotIsSilentBaseline()
+{
+    var detectedAt = new DateTimeOffset(2026, 8, 16, 10, 0, 0, TimeSpan.Zero);
+    var snapshot = new[]
+    {
+        SteamAchievement("old", true, detectedAt.AddYears(-2)),
+        SteamAchievement("locked", false, null)
+    };
+
+    var delta = SteamAchievementDeltaDetector.Detect(
+        null,
+        snapshot,
+        Array.Empty<string>(),
+        detectedAt.AddSeconds(2));
+
+    Assert(delta.BaselineEstablished, "The first complete Steam snapshot was not marked as a baseline.");
+    Assert(delta.NewAchievements.Count == 0, "A historical Steam unlock escaped the initial baseline.");
+    Assert(delta.CurrentUnlockedApiNames.SetEquals(new[] { "old" }), "The baseline did not retain the old unlock identity.");
+}
+
+static void SteamLaunchRacePostsProvenUnlock()
+{
+    var detectedAt = new DateTimeOffset(2026, 8, 16, 10, 0, 0, TimeSpan.Zero);
+    var delta = SteamAchievementDeltaDetector.Detect(
+        null,
+        new[]
+        {
+            SteamAchievement("old", true, detectedAt.AddYears(-1)),
+            SteamAchievement("just-unlocked", true, detectedAt.AddSeconds(1))
+        },
+        new[] { "just-unlocked" },
+        detectedAt.AddSeconds(2));
+
+    Assert(delta.BaselineEstablished, "The launch-race snapshot was not treated as the first baseline.");
+    Assert(delta.NewAchievements.Count == 1 && delta.NewAchievements[0].ApiName == "just-unlocked",
+        "The callback-proven Steam unlock was not isolated from history.");
+}
+
+static void SteamTransitionPostsOnce()
+{
+    var observedAt = new DateTimeOffset(2026, 8, 16, 10, 5, 0, TimeSpan.Zero);
+    var first = SteamAchievementDeltaDetector.Detect(
+        new[] { "known" },
+        new[]
+        {
+            SteamAchievement("known", true, observedAt.AddDays(-1)),
+            SteamAchievement("new", true, observedAt)
+        },
+        new[] { "new" },
+        observedAt);
+    Assert(first.NewAchievements.Count == 1 && first.NewAchievements[0].ApiName == "new",
+        "The Steam locked-to-unlocked identity change was not detected.");
+
+    var afterRestart = SteamAchievementDeltaDetector.Detect(
+        new[] { "known", "new" },
+        new[]
+        {
+            SteamAchievement("known", true, observedAt.AddDays(-1)),
+            SteamAchievement("new", true, observedAt)
+        },
+        Array.Empty<string>(),
+        observedAt.AddMinutes(1));
+    Assert(afterRestart.NewAchievements.Count == 0, "A known Steam identity would repost after restart.");
+
+    var schemaExpansion = SteamAchievementDeltaDetector.Detect(
+        new[] { "known" },
+        new[]
+        {
+            SteamAchievement("known", true, observedAt.AddDays(-1)),
+            SteamAchievement("newly-visible-history", true, observedAt.AddYears(-1))
+        },
+        Array.Empty<string>(),
+        observedAt);
+    Assert(schemaExpansion.NewAchievements.Count == 0,
+        "A newly visible schema identity without a live transition was mistaken for an unlock.");
+}
+
+static void SteamRestartBaselinesOfflineUnlocks()
+{
+    var detectedAt = new DateTimeOffset(2026, 8, 16, 10, 0, 0, TimeSpan.Zero);
+    var delta = SteamAchievementDeltaDetector.Detect(
+        new[] { "known" },
+        new[]
+        {
+            SteamAchievement("known", true, detectedAt.AddDays(-2)),
+            SteamAchievement("offline", true, detectedAt.AddHours(-1))
+        },
+        Array.Empty<string>(),
+        detectedAt.AddSeconds(2));
+
+    Assert(delta.NewAchievements.Count == 0, "An offline Steam unlock was mistaken for a live transition.");
+    Assert(delta.CurrentUnlockedApiNames.Contains("offline"), "The offline unlock was not silently added to the durable baseline.");
+}
+
+static void SteamTimestampCannotAuthorizeUnlock()
+{
+    var detectedAt = new DateTimeOffset(2026, 8, 16, 10, 0, 0, TimeSpan.Zero);
+    var delta = SteamAchievementDeltaDetector.Detect(
+        null,
+        new[] { SteamAchievement("recent-but-unproven", true, detectedAt.AddSeconds(1)) },
+        Array.Empty<string>(),
+        detectedAt.AddSeconds(2));
+    Assert(delta.NewAchievements.Count == 0, "A Steam timestamp authorized an unlock without a direct live transition.");
+}
+
+static void SteamEventIdentityIsStable()
+{
+    var first = SteamAchievementDeltaDetector.CreateEventId("76561198000000001", 123, "ACH_WIN");
+    var same = SteamAchievementDeltaDetector.CreateEventId("76561198000000001", 123, "ACH_WIN");
+    var otherAccount = SteamAchievementDeltaDetector.CreateEventId("76561198000000002", 123, "ACH_WIN");
+    var otherGame = SteamAchievementDeltaDetector.CreateEventId("76561198000000001", 124, "ACH_WIN");
+    Assert(first == same, "Steam event identity is not deterministic.");
+    Assert(first != otherAccount && first != otherGame, "Steam event identity is not scoped to the account and game.");
+}
+
+static void SteamArtworkEncodesAsPng()
+{
+    var png = RgbaPngEncoder.Encode(1, 1, new byte[] { 12, 34, 56, 255 });
+    Assert(png.Length > 40, "Steam artwork PNG was unexpectedly short.");
+    Assert(png.AsSpan(0, 8).SequenceEqual(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 }),
+        "Steam artwork did not contain the PNG signature.");
+    Assert(png.AsSpan(12, 4).SequenceEqual("IHDR"u8), "Steam artwork omitted the PNG IHDR chunk.");
+    Assert(png.AsSpan(png.Length - 8, 4).SequenceEqual("IEND"u8), "Steam artwork omitted the PNG IEND chunk.");
+}
+
+static void SteamPayloadIncludesPlatformAndAttachment()
+{
+    var achievement = Achievement("Steam Winner", "Unlocked locally") with
+    {
+        SourceProvider = "Steam",
+        PlayerName = "Local Steam Player",
+        RarityKnown = true,
+        RarityPercentage = 3.5,
+        IsRare = true,
+        ImageBytes = new byte[] { 1 },
+        ImageFileName = "steam-achievement.png",
+        ImageContentType = "image/png"
+    };
+    using var document = JsonDocument.Parse(DiscordWebhookPayloadFactory.Create(achievement, new AppSettings()));
+    var embed = document.RootElement.GetProperty("embeds")[0];
+    Assert(embed.GetProperty("thumbnail").GetProperty("url").GetString() == "attachment://steam-achievement.png",
+        "Steam artwork was not referenced as a Discord attachment.");
+    var fields = embed.GetProperty("fields").EnumerateArray().ToArray();
+    Assert(fields.Any(field => field.GetProperty("name").GetString() == "Platform" &&
+                               field.GetProperty("value").GetString() == "Steam"),
+        "Steam was not identified as the Discord achievement platform.");
+    Assert(fields.Any(field => field.GetProperty("name").GetString() == "Player" &&
+                               field.GetProperty("value").GetString() == "Local Steam Player"),
+        "The local Steam player name was not used as a Discord fallback.");
+}
+
+static void XboxPayloadUsesPlatformLabel()
+{
+    using var document = JsonDocument.Parse(DiscordWebhookPayloadFactory.Create(
+        Achievement("Xbox Winner", "Unlocked through OpenXBL"),
+        new AppSettings()));
+    var fields = document.RootElement.GetProperty("embeds")[0].GetProperty("fields").EnumerateArray().ToArray();
+    Assert(fields.Any(field => field.GetProperty("name").GetString() == "Platform" &&
+                               field.GetProperty("value").GetString() == "Xbox"),
+        "The Xbox player platform was exposed as the provider implementation name.");
+}
+
 static void PayloadSuppressesMentions()
 {
     var achievement = Achievement("@everyone Secret Finder", "Unlocked without pinging anyone.");
@@ -886,7 +1057,7 @@ static void PayloadLabelsEstimatedTimestamp()
 
     using var document = JsonDocument.Parse(DiscordWebhookPayloadFactory.Create(achievement, new AppSettings()));
     var footer = document.RootElement.GetProperty("embeds")[0].GetProperty("footer").GetProperty("text").GetString();
-    Assert(footer?.Contains("Xbox supplied no unlock time", StringComparison.Ordinal) == true, "Estimated time was not disclosed in the Discord embed.");
+    Assert(footer?.Contains("platform supplied no unlock time", StringComparison.Ordinal) == true, "Estimated time was not disclosed in the Discord embed.");
 }
 
 static void DescriptionSettingIsRespected()
@@ -924,6 +1095,17 @@ static AchievementEvent AchievementWithIdentity(string id, DateTimeOffset? unloc
     SourceProvider = "OpenXBL",
     UnlockedAt = unlockedAt,
     UnlockTimeEstimated = unlockedAt is null
+};
+
+static SteamAchievementObservation SteamAchievement(
+    string apiName,
+    bool unlocked,
+    DateTimeOffset? unlockedAt) => new()
+{
+    ApiName = apiName,
+    Name = apiName,
+    IsUnlocked = unlocked,
+    UnlockedAt = unlockedAt
 };
 
 static void AssertThrows<TException>(Action action, string message)

@@ -4,8 +4,9 @@
 
 - Windows 10 version 2004 (build 19041) or newer
 - Windows 11
-- x64 and Arm64 processors
-- HTTPS access to `xbl.io` and Discord
+- x64 and Arm64 processors; Steam monitoring on Arm64 requires Windows 11 x64 emulation (Xbox remains available on Windows 10 Arm64)
+- HTTPS access to Discord; `api.xbl.io` is needed for Xbox and `api.steampowered.com` is used for optional Steam rarity
+- the Windows Steam desktop client when Steam monitoring is enabled
 
 Release packages are self-contained; .NET does not need to be installed separately.
 
@@ -13,13 +14,13 @@ Release packages are self-contained; .NET does not need to be installed separate
 
 1. Download `AchievementRelay_Setup.exe` from the latest official GitHub Release.
 2. Double-click it.
-3. Choose **Connect OpenXBL and Discord now** or **Skip — I will do this later**.
-4. If connecting now, paste the API key and Discord webhook into the masked fields.
+3. Choose **Connect Discord now; add OpenXBL optionally** or **Skip — I will do this later**.
+4. If connecting now, paste the required Discord webhook. Paste an OpenXBL key only if using Xbox; leave it blank for Steam-only setup.
 5. Toggle **Create a desktop shortcut** and select **Install**.
 6. If SmartScreen appears for this beta, verify the download came from the official release, choose **More info**, then **Run anyway**.
 7. If prompted, approve the one-time development-certificate trust operation.
 
-Setup contains x64 and Arm64 MSIX packages, selects the native architecture, installs for the signed-in user, creates/removes the optional desktop shortcut, and launches Achievement Relay.
+Setup contains x64 and Arm64 MSIX packages, selects the native main app, installs for the signed-in user, creates/removes the optional desktop shortcut, and launches Achievement Relay. Both packages contain a small isolated x64 Steamworks helper; Windows 11 on Arm runs that helper under x64 emulation. On Windows 10 Arm64 the app reports Steam as unavailable instead of entering a retry loop, while Xbox remains supported.
 
 The optional credentials are never added to PowerShell arguments. Setup passes them to a short-lived protection process through inherited environment variables, writes only current-user DPAPI ciphertext under `%USERPROFILE%\.achievement-relay`, clears its fields/environment, and launches the app. The app durably stores fresh encrypted settings before deleting the one-time handoff and starting live checks. Choose **Skip** to create no handoff at all.
 
@@ -57,7 +58,7 @@ The execution-policy flag applies only to that PowerShell process. The script se
 
 Run the newer `.exe` installer. The package identity preserves `%LOCALAPPDATA%\AchievementRelay`.
 
-Upgrading from 0.1.x retains the existing encrypted Discord webhook and preferences, then reopens Guided setup because 0.2 requires an OpenXBL key. The first verified account connection creates a baseline and does not post earlier unlocks.
+Upgrading from 0.1.x retains the encrypted Discord webhook and preferences, then reopens Guided setup so a current source can be selected. Upgrading from 0.2 retains Xbox/Discord settings and cursors. Steam is enabled locally and gives every Steam account/game pair a silent first baseline, so the upgrade cannot post old Steam history.
 
 ## Uninstall
 

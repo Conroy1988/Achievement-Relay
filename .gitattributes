@@ -5,6 +5,7 @@
 *.pfx binary
 *.cer binary
 *.msix binary
+*.nupkg binary
 *.zip binary
 
 *.sln text eol=crlf

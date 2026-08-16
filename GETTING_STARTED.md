@@ -31,7 +31,7 @@ Discord's [official webhook guide](https://support.discord.com/hc/en-us/articles
 
 1. Download `AchievementRelay_Setup.exe` from the [latest GitHub Release](https://github.com/Conroy1988/Achievement-Relay/releases/latest).
 2. If Microsoft Defender SmartScreen appears for this beta, confirm the file came from the official repository, choose **More info**, then **Run anyway**.
-3. **Relay Online** by CRNY starts locally at 10% volume. Use the lower-left **Pause music**/**Play music** control at any time; the adjacent SoundCloud button opens the artist profile only when selected.
+3. **Relay Online** by CRNY starts locally at 10% volume. Use the lower-left **Pause music**/**Play music** control at any time; the adjacent SoundCloud button opens the [direct track page](https://soundcloud.com/daniel-conroy-224318319/crny-relay-online) only when selected.
 4. On **Connect your relay**, choose one option:
    - **Connect Discord now; add OpenXBL optionally (recommended)**; or
    - **Skip — I will do this later in Guided setup**.
@@ -99,6 +99,12 @@ Version 0.1.x depended on Windows Notification Center and cannot detect a Game B
 ## Upgrading from 0.2.x
 
 Version 0.3 preserves the Xbox cursor, processed-event ledger, encrypted OpenXBL key, encrypted Discord webhook, and preferences. Steam monitoring is enabled by default and waits locally for the next Steam game. Each Steam account/game pair receives its own first complete silent baseline, so upgrading cannot dump the Steam library's achievement history into Discord.
+
+## Automatic updates from 0.3 onward
+
+Achievement Relay checks the latest stable release on the official GitHub repository at startup and about every six hours. A normal newer release is optional. A release is required only when its reviewed, publisher-signed manifest raises `minimumSupportedVersion`; once that policy is successfully authenticated, Xbox and Steam monitoring pause until the update is installed. A failed, unsigned, tampered, or offline check never invents a requirement.
+
+Select **Update now** on Dashboard or About. The app downloads the exact GitHub release asset to `%LOCALAPPDATA%\AchievementRelay\Updates`, verifies its declared size, SHA-256, signed product/package versions, matching executable product/file versions, Windows Authenticode trust, and the publisher-certificate fingerprint pinned into the running build, then opens the branded updater. The updater uses the same CRNY music at 10% volume with Play/Pause and the direct SoundCloud link. It keeps encrypted connections, settings, provider baselines, pending deliveries, startup behavior, and the existing desktop-shortcut choice. Cancelling before installation leaves the running app untouched.
 
 ## What cannot be automated
 

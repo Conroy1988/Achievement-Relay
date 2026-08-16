@@ -47,4 +47,8 @@ public sealed class AppPaths
     public IReadOnlyList<string> PendingInstallerSetupFiles { get; }
 
     public string LogFile => Path.Combine(DataDirectory, "achievement-relay.log");
+
+    public string UpdatesDirectory => Path.Combine(DataDirectory, "Updates");
+
+    public string UpdateStateFile => Path.Combine(DataDirectory, "update-state.json");
 }

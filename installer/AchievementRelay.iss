@@ -78,7 +78,7 @@ Source: "{#CertificatePath}"; DestDir: "{tmp}"; Flags: ignoreversion deleteafter
 const
   MusicAlias = 'AchievementRelayMusic';
   MusicFileName = 'CRNY - Relay Online.mp3';
-  SoundCloudUrl = 'https://on.soundcloud.com/WpxV7SQGveaitTlijN';
+  SoundCloudUrl = 'https://soundcloud.com/daniel-conroy-224318319/crny-relay-online';
   MusicBackendNone = 0;
   MusicBackendWindowsMediaPlayer = 1;
   MusicBackendMci = 2;
@@ -94,6 +94,7 @@ var
   MusicPlayer: Variant;
   MusicBackend: Integer;
   MusicPlaying: Boolean;
+  UpdateMode: Boolean;
 
 function SetEnvironmentVariable(lpName, lpValue: String): Boolean;
   external 'SetEnvironmentVariableW@kernel32.dll stdcall';
@@ -347,10 +348,22 @@ procedure InitializeWizard();
 var
   ButtonTop: Integer;
 begin
-  WizardForm.WelcomeLabel1.Caption := 'ENTER THE ACHIEVEMENT RELAY';
-  WizardForm.WelcomeLabel2.Caption :=
-    'Relay new Xbox and Steam achievements to Discord from one focused Windows gaming companion.' + #13#10 + #13#10 +
-    'Setup selects the correct x64 or Arm64 package. Steam works locally without an API key. You can add Discord and optional OpenXBL now, or use Guided setup later.';
+  UpdateMode := CompareText(Trim(ExpandConstant('{param:UPDATE|0}')), '1') = 0;
+  if UpdateMode then
+  begin
+    WizardForm.Caption := 'Update - Achievement Relay';
+    WizardForm.WelcomeLabel1.Caption := 'UPGRADE THE ACHIEVEMENT RELAY';
+    WizardForm.WelcomeLabel2.Caption :=
+      'Achievement Relay {#AppVersion} has been downloaded from the official GitHub release and verified by the app.' + #13#10 + #13#10 +
+      'Update keeps your encrypted connections, settings, achievement history, startup preference and desktop shortcut. Select Next to review, then Update to apply it.';
+  end
+  else
+  begin
+    WizardForm.WelcomeLabel1.Caption := 'ENTER THE ACHIEVEMENT RELAY';
+    WizardForm.WelcomeLabel2.Caption :=
+      'Relay new Xbox and Steam achievements to Discord from one focused Windows gaming companion.' + #13#10 + #13#10 +
+      'Setup selects the correct x64 or Arm64 package. Steam works locally without an API key. You can add Discord and optional OpenXBL now, or use Guided setup later.';
+  end;
 
   SetupChoicePage := CreateInputOptionPage(wpWelcome,
     'CONNECT YOUR RELAY',
@@ -413,7 +426,22 @@ end;
 
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
-  Result := (PageID = CredentialsPage.ID) and SetupChoicePage.Values[1];
+  if UpdateMode then
+    Result := (PageID = SetupChoicePage.ID) or
+      (PageID = CredentialsPage.ID) or (PageID = wpSelectTasks)
+  else
+    Result := (PageID = CredentialsPage.ID) and SetupChoicePage.Values[1];
+end;
+
+procedure CurPageChanged(CurPageID: Integer);
+begin
+  if not UpdateMode then
+    Exit;
+
+  if CurPageID = wpReady then
+    WizardForm.NextButton.Caption := '&Update'
+  else if CurPageID <> wpFinished then
+    WizardForm.NextButton.Caption := '&Next';
 end;
 
 function ContainsWhitespaceOrControl(const Value: String): Boolean;
@@ -547,29 +575,39 @@ var
 begin
   if CurStep = ssPostInstall then
   begin
-    DeletePendingSetup();
-    if SetupChoicePage.Values[0] and not CreateProtectedPendingSetup() then
-      RaiseException('Setup could not prepare the optional account settings. No credentials were installed.');
+    if not UpdateMode then
+    begin
+      DeletePendingSetup();
+      if SetupChoicePage.Values[0] and not CreateProtectedPendingSetup() then
+        RaiseException('Setup could not prepare the optional account settings. No credentials were installed.');
+    end;
 
-    WizardForm.StatusLabel.Caption := 'Deploying the Xbox and Steam achievement relay...';
+    if UpdateMode then
+      WizardForm.StatusLabel.Caption := 'Applying the verified Achievement Relay update...'
+    else
+      WizardForm.StatusLabel.Caption := 'Deploying the Xbox and Steam achievement relay...';
     PowerShellPath := ExpandConstant('{sysnative}\WindowsPowerShell\v1.0\powershell.exe');
     ErrorFile := ExpandConstant('{tmp}\AchievementRelay-InstallError.txt');
     Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' +
       ExpandConstant('{tmp}\Install.ps1') + '" -ErrorFile "' + ErrorFile + '"';
-    if WizardIsTaskSelected('desktopicon') then
+    if UpdateMode then
+      Parameters := Parameters + ' -Update -PreserveDesktopShortcut'
+    else if WizardIsTaskSelected('desktopicon') then
       Parameters := Parameters + ' -CreateDesktopShortcut';
 
     if not Exec(PowerShellPath, Parameters, ExpandConstant('{tmp}'), SW_HIDE,
       ewWaitUntilTerminated, ResultCode) then
     begin
-      DeletePendingSetup();
+      if not UpdateMode then
+        DeletePendingSetup();
       RaiseException('Windows could not start the package installer: ' +
         SysErrorMessage(ResultCode));
     end;
 
     if ResultCode <> 0 then
     begin
-      DeletePendingSetup();
+      if not UpdateMode then
+        DeletePendingSetup();
       ErrorText := '';
       if FileExists(ErrorFile) then
         LoadStringFromFile(ErrorFile, ErrorText);

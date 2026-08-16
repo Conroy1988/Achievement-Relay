@@ -21,11 +21,17 @@ $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $outputDirectory = Join-Path $repositoryRoot 'artifacts'
 New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
 
+$updatePolicy = Get-Content -LiteralPath (Join-Path $repositoryRoot 'release\update-policy.json') -Raw |
+    ConvertFrom-Json
+$additionalUpdatePublisherCertificates = @($updatePolicy.additionalPublisherCertificateSha256)
+
 Get-ChildItem -LiteralPath $outputDirectory -File -ErrorAction SilentlyContinue |
     Where-Object {
         $_.Name -like "AchievementRelay_${Version}_*.msix" -or
         $_.Name -eq "AchievementRelay_${Version}_installer.zip" -or
         $_.Name -eq 'AchievementRelay_Setup.exe' -or
+        $_.Name -eq 'AchievementRelay_Update.json' -or
+        $_.Name -eq 'AchievementRelay_Update.sig' -or
         $_.Name -eq 'AchievementRelay.Development.cer'
     } |
     Remove-Item -Force
@@ -56,6 +62,7 @@ try {
             -OutputDirectory $outputDirectory `
             -PfxPath $PfxPath `
             -PfxPassword $PfxPassword `
+            -AdditionalUpdatePublisherCertificateSha256 $additionalUpdatePublisherCertificates `
             -TimestampUrl $TimestampUrl
     }
 
@@ -74,6 +81,23 @@ try {
         -PfxPath $PfxPath `
         -PfxPassword $PfxPassword `
         -TimestampUrl $TimestampUrl
+
+    & (Join-Path $PSScriptRoot 'New-UpdateManifest.ps1') `
+        -Version $ApplicationVersion `
+        -PackageVersion $Version `
+        -InstallerPath (Join-Path $outputDirectory 'AchievementRelay_Setup.exe') `
+        -OutputPath (Join-Path $outputDirectory 'AchievementRelay_Update.json') `
+        -OutputSignaturePath (Join-Path $outputDirectory 'AchievementRelay_Update.sig') `
+        -PfxPath $PfxPath `
+        -PfxPassword $PfxPassword
+
+    if (-not $publicCertificate) {
+        $signTool = & (Join-Path $PSScriptRoot 'Get-WindowsSdkTool.ps1') -Name 'signtool.exe'
+        & $signTool verify /pa /all (Join-Path $outputDirectory 'AchievementRelay_Setup.exe')
+        if ($LASTEXITCODE -ne 0) {
+            throw 'The setup executable failed Authenticode verification after signing.'
+        }
+    }
 
     $archivePath = Join-Path $outputDirectory "AchievementRelay_${Version}_installer.zip"
     if (Test-Path -LiteralPath $archivePath) {

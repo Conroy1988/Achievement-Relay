@@ -59,15 +59,17 @@ jobs:
             Version = $msixVersion
           }
 
-          if ($env:SIGNING_PFX_BASE64 -and $env:SIGNING_PFX_PASSWORD) {
-            $pfxPath = Join-Path $env:RUNNER_TEMP 'AchievementRelay.Signing.pfx'
-            [System.IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:SIGNING_PFX_BASE64))
-            $arguments.PfxPath = $pfxPath
-            $arguments.PfxPassword = $env:SIGNING_PFX_PASSWORD
-            if ($env:SIGNING_TIMESTAMP_URL) {
-              $arguments.TimestampUrl = $env:SIGNING_TIMESTAMP_URL
-            }
+          if (-not $env:SIGNING_PFX_BASE64 -or
+              -not $env:SIGNING_PFX_PASSWORD -or
+              -not $env:SIGNING_TIMESTAMP_URL) {
+            throw 'Official self-updating releases require the persistent signing PFX, its password, and an RFC 3161 timestamp URL.'
           }
+
+          $pfxPath = Join-Path $env:RUNNER_TEMP 'AchievementRelay.Signing.pfx'
+          [System.IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:SIGNING_PFX_BASE64))
+          $arguments.PfxPath = $pfxPath
+          $arguments.PfxPassword = $env:SIGNING_PFX_PASSWORD
+          $arguments.TimestampUrl = $env:SIGNING_TIMESTAMP_URL
 
           .\scripts\Build-Release.ps1 @arguments
 
@@ -77,6 +79,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $files = Get-ChildItem .\artifacts -File |
-            Where-Object { $_.Extension -in '.exe', '.msix', '.zip', '.cer' } |
+            Where-Object { $_.Extension -in '.exe', '.msix', '.zip', '.cer', '.json', '.sig' } |
             ForEach-Object FullName
           gh release create $env:RELEASE_TAG $files --generate-notes --title "Achievement Relay $env:RELEASE_TAG" --target '${{ github.sha }}'

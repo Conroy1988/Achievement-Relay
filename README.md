@@ -25,6 +25,7 @@ Achievement Relay is an open-source Windows 10/11 app that watches Xbox and Stea
 - Encrypts the OpenXBL API key and Discord webhook with Windows DPAPI for the current Windows user.
 - Runs quietly in the system tray, supports Windows startup, and includes manual sync, diagnostics, activity history, and a safe redacted support summary.
 - Provides a gaming-themed `.exe` installer with optional account setup, a clear **configure later** path, a desktop-shortcut toggle, and the original CRNY track **Relay Online** playing locally at 10% volume with Play/Pause and SoundCloud controls.
+- Checks the official GitHub Releases feed, shows optional or explicitly required updates in-app, verifies the exact SHA-256 and pinned Authenticode publisher, then opens the same musical installer in a state-preserving update mode.
 
 ```mermaid
 flowchart LR
@@ -105,7 +106,8 @@ The Steam reference-tool research, local bridge design, anti-backlog invariants,
 - [x] DPAPI-protected secrets and redacted diagnostics
 - [x] Gaming-themed guided installer and desktop-shortcut choice
 - [ ] First-party Xbox integration if Microsoft makes an appropriate cross-title API available
-- [ ] Trusted production signing and automatic updates
+- [x] Certificate-pinned, GitHub-release-backed automatic update discovery and self-service installation
+- [ ] Establish long-term trusted production signing and SmartScreen reputation
 - [x] Local, keyless Steam achievement monitoring with per-game baseline protection
 - [ ] Additional outbound destinations
 

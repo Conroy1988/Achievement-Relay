@@ -43,7 +43,9 @@ Achievement Relay stores data under `%LOCALAPPDATA%\AchievementRelay`:
 - `settings.json`: preferences, setup state, XUID, gamertag, and current-user DPAPI ciphertext for the OpenXBL API key and Discord webhook;
 - `xbox-sync-state.json`: account identifier, baseline/poll/background timestamps, per-title achievement counts, Gamerscore and stable achievement IDs, plus queued title identifiers, names, counts and last-played/observation times needed to pace unfinished identity baselines across restarts;
 - `steam-sync-state.json`: Steam account ID and, for each monitored App ID, game name, baseline/observation times, the monotonic set of unlocked achievement API names, and any live transition awaiting Discord delivery;
-- `processed-events.json`: deterministic achievement identifiers and processed timestamps, capped at 1,000 entries and 90 days; and
+- `processed-events.json`: deterministic achievement identifiers and processed timestamps, capped at 1,000 entries and 90 days;
+- `update-state.json`: the last GitHub release tag, conditional-request identifier, release/asset URLs, checked timestamp, and the publisher-signed public update manifest/signature;
+- `Updates`: a temporary verified installer download, removed after the updated version starts; and
 - `achievement-relay.log`: a size-bounded operational log with status/errors and achievement names involved in delivery.
 
 The XUID, gamertag, Steam account ID, and Steam player name are not bearer credentials, but the copied support summary deliberately omits them. The app never intentionally writes the plaintext API key, webhook URL/token, Xbox/Steam password, Microsoft/Steam token, or Discord credentials to its log.
@@ -62,15 +64,18 @@ If the user selects **Connect Discord now; add OpenXBL optionally** in `Achievem
 
 If installation or first launch is interrupted before durable storage, the one-time file can remain, but its values are still encrypted for that Windows user. The next launch retries the import. Selecting **Skip — I will do this later** creates no credential handoff.
 
-The installer contains the original CRNY track **Relay Online**. Setup extracts it only to its automatically cleaned temporary directory and first plays it through a private Windows Media Player instance fixed at 10% volume, with an independently volume-limited Windows MCI fallback. Neither path changes the user's Windows master volume, and playback is not started if a safe per-player volume cannot be enforced. Setup provides Play/Pause controls. The track is not sent over the network or retained as a separately installed file. The SoundCloud profile opens in the default browser only if the user selects that button.
+The installer contains the original CRNY track **Relay Online**. Setup extracts it only to its automatically cleaned temporary directory and first plays it through a private Windows Media Player instance fixed at 10% volume, with an independently volume-limited Windows MCI fallback. Neither path changes the user's Windows master volume, and playback is not started if a safe per-player volume cannot be enforced. Setup provides Play/Pause controls. The track is not sent over the network or retained as a separately installed file. The direct SoundCloud track page opens in the default browser only if the user selects that button.
 
 ## Network access
 
 The app makes outbound HTTPS requests to:
 
-- `api.xbl.io` for account and achievement polling; and
+- `api.xbl.io` for account and achievement polling;
 - `api.steampowered.com` for a public, keyless global-rarity lookup only after a new Steam unlock;
+- `api.github.com`, `github.com`, and GitHub-owned release-asset hosts to check and download official app updates; and
 - the validated Discord-owned webhook host for connection tests and achievement delivery.
+
+The update request uses the app version and normal network metadata such as the user's IP address; it contains no OpenXBL key, Discord webhook, Xbox/Steam account identifier, achievement history, or settings. Update checks occur at startup and approximately every six hours. Release downloads occur only after the user selects **Update now**.
 
 Documentation, GitHub, OpenXBL, Discord help, Ko-fi, and SoundCloud links open in the default browser only when selected. Achievement Relay does not send data to Ko-fi or SoundCloud unless the user chooses to open the corresponding website in their browser.
 

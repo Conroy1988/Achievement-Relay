@@ -47,6 +47,15 @@ public partial class App : System.Windows.Application
         _mainWindow = new MainWindow(_services, settings);
         MainWindow = _mainWindow;
 
+        var requestedMinimized = e.Args.Contains("--minimized", StringComparer.OrdinalIgnoreCase);
+        if (!requestedMinimized)
+        {
+            _mainWindow.Show();
+        }
+
+        var updateState = await _services.UpdateService.CheckAsync(force: false);
+        var updateRequired = updateState.IsRequired;
+
         if (installerImport.Found)
         {
             if (installerImport.Completed)
@@ -70,12 +79,13 @@ public partial class App : System.Windows.Application
         var webhookConfigured = WebhookUrlValidator.TryNormalize(webhookValue, out _, out _);
         var xboxConfigured = OpenXblApiKeyValidator.TryNormalize(apiKey, out _, out _) &&
                              !string.IsNullOrWhiteSpace(settings.XboxUserId);
-        var xboxStarted = settings.SetupCompleted && webhookConfigured && xboxConfigured &&
+        var xboxStarted = !updateRequired && settings.SetupCompleted && webhookConfigured && xboxConfigured &&
                           await _services.RelayCoordinator.StartAsync();
-        var steamStarted = settings.SetupCompleted && webhookConfigured && settings.SteamEnabled &&
+        var steamStarted = !updateRequired && settings.SetupCompleted && webhookConfigured && settings.SteamEnabled &&
                             await _services.SteamMonitorCoordinator.StartAsync();
         var setupReady = settings.SetupCompleted && (xboxStarted || steamStarted);
-        var startMinimized = e.Args.Contains("--minimized", StringComparer.OrdinalIgnoreCase) &&
+        var startMinimized = !updateRequired &&
+                             requestedMinimized &&
                              setupReady &&
                              settings.StartMinimized;
 
@@ -84,11 +94,19 @@ public partial class App : System.Windows.Application
             _mainWindow.Show();
             if (!setupReady)
             {
-                _mainWindow.ShowSetup();
+                if (updateRequired)
+                {
+                    _mainWindow.ShowRequiredUpdate();
+                }
+                else
+                {
+                    _mainWindow.ShowSetup();
+                }
             }
         }
 
         _mainWindow.RefreshStatus();
+        _services.UpdateService.StartAutomaticChecks();
     }
 
     public void ExitApplication()

@@ -61,6 +61,8 @@ jobs:
             artifacts/AchievementRelay_${{ env.TEST_MSIX_VERSION }}_arm64.msix
             artifacts/AchievementRelay_${{ env.TEST_MSIX_VERSION }}_installer.zip
             artifacts/AchievementRelay.Development.cer
+            artifacts/AchievementRelay_Update.json
+            artifacts/AchievementRelay_Update.sig
           if-no-files-found: error
           retention-days: 7
           compression-level: 0

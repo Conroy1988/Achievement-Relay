@@ -25,7 +25,7 @@ Provider payload examples must be synthetic or thoroughly redacted. Replace acco
    ```
 
 5. Test the installed build on Windows. Verify the first baseline and two no-history syncs before testing one real post, manual sync, Discord failure/retry, tray behavior, startup, upgrade, and uninstall.
-6. If installer behavior changes, build `AchievementRelay_Setup.exe` and test both **Connect now** and **Skip — configure later**, plus the desktop-shortcut toggle.
+6. If installer or update behavior changes, build `AchievementRelay_Setup.exe` and test both **Connect now** and **Skip — configure later**, the desktop-shortcut toggle, and `/UPDATE=1` with both existing-shortcut states. Verify cancellation leaves the app running and a successful update preserves settings/state.
 7. Explain privacy implications whenever authentication material, account data, local storage, logging, networking, or installer handoff behavior changes.
 
 ## Parser contributions

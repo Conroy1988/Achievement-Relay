@@ -25,10 +25,16 @@ public partial class MainWindow : Window
 
     private readonly AppServices _services;
     private readonly ObservableCollection<ActivityEntry> _activity = [];
+    private readonly SemaphoreSlim _updatePolicyGate = new(1, 1);
     private AppSettings _settings;
     private Forms.NotifyIcon? _trayIcon;
     private bool _isExiting;
     private bool _hasShownTrayHint;
+    private string? _shownUpdateNoticeVersion;
+    private bool _enforcingRequiredUpdate;
+    private bool _updateOperationInProgress;
+    private bool _updateInstallerStarted;
+    private bool _requiredPolicyApplied;
 
     public MainWindow(AppServices services, AppSettings settings)
     {
@@ -41,9 +47,11 @@ public partial class MainWindow : Window
         _services.ActivityLog.EntryAdded += OnActivityEntryAdded;
         _services.RelayCoordinator.StatusChanged += OnRelayStatusChanged;
         _services.SteamMonitorCoordinator.StatusChanged += OnSteamStatusChanged;
+        _services.UpdateService.StateChanged += OnUpdateStateChanged;
 
         PopulateControls();
         InitializeTrayIcon();
+        ApplyUpdateState(_services.UpdateService.Snapshot);
         RefreshStatus();
     }
 
@@ -51,6 +59,13 @@ public partial class MainWindow : Window
     {
         MainTabs.SelectedIndex = 1;
         ShowFromTray();
+    }
+
+    public void ShowRequiredUpdate()
+    {
+        MainTabs.SelectedIndex = 0;
+        ShowFromTray();
+        ApplyUpdateState(_services.UpdateService.Snapshot);
     }
 
     public void RefreshStatus()
@@ -236,10 +251,22 @@ public partial class MainWindow : Window
             $"Last Steam observation: {FormatLocalTimestamp(_services.SteamMonitorCoordinator.LastObservationUtc)}",
             $"Last Steam error: {(string.IsNullOrWhiteSpace(steamError) ? "none" : steamError)}",
             $"Discord: {(webhookConfigured ? "configured" : "not configured")}",
+            $"Update status: {FormatUpdateStatus(_services.UpdateService.Snapshot)}",
+            $"Windows package version: {_services.UpdateService.CurrentPackageVersion}",
             $"Polling interval: {Math.Clamp(_settings.PollIntervalSeconds, 60, 3600)} seconds",
             $"Install context: {(StartupService.IsPackaged() ? "MSIX packaged" : "classic Windows app")}",
             $"Installer handoff: {_services.Paths.PendingInstallerSetupFile} (deleted after durable import)",
             $"Local data: {_services.Paths.DataDirectory}");
+
+        if (_services.UpdateService.IsUpdateRequired)
+        {
+            SetStatus(RelayStatusText, "Update required", StatusTone.Error);
+            RelayStatusDetail.Text = "Monitoring is paused until the verified update is installed";
+            SidebarMonitorStatus.Text = "● Update required";
+            SidebarMonitorStatus.Foreground = Brush("ErrorBrush");
+        }
+
+        ApplyUpdateState(_services.UpdateService.Snapshot);
     }
 
     public void PrepareForExit()
@@ -248,6 +275,7 @@ public partial class MainWindow : Window
         _services.ActivityLog.EntryAdded -= OnActivityEntryAdded;
         _services.RelayCoordinator.StatusChanged -= OnRelayStatusChanged;
         _services.SteamMonitorCoordinator.StatusChanged -= OnSteamStatusChanged;
+        _services.UpdateService.StateChanged -= OnUpdateStateChanged;
         if (_trayIcon is not null)
         {
             _trayIcon.Visible = false;
@@ -358,6 +386,80 @@ public partial class MainWindow : Window
 
     private void OpenDiscordWebhookGuide_Click(object sender, RoutedEventArgs e) =>
         OpenExternal(DiscordWebhookGuideUrl);
+
+    private async void CheckForUpdates_Click(object sender, RoutedEventArgs e)
+    {
+        SetButtonBusy(sender, true);
+        try
+        {
+            var result = await _services.UpdateService.CheckAsync(force: true);
+            ApplyUpdateState(result);
+            if (result.Stage == AppUpdateStage.Current)
+            {
+                ShowMessage("Achievement Relay is up to date.", MessageBoxImage.Information);
+            }
+            else if (result.Stage == AppUpdateStage.Failed)
+            {
+                ShowMessage(result.Message, MessageBoxImage.Warning);
+            }
+        }
+        finally
+        {
+            SetButtonBusy(sender, false);
+        }
+    }
+
+    private async void UpdateNow_Click(object sender, RoutedEventArgs e)
+    {
+        if (_updateOperationInProgress || _updateInstallerStarted)
+        {
+            return;
+        }
+
+        _updateOperationInProgress = true;
+        SetUpdateActionButtonsEnabled(false);
+        try
+        {
+            var downloaded = await _services.UpdateService.DownloadAsync();
+            if (downloaded.Stage != AppUpdateStage.ReadyToInstall)
+            {
+                ShowMessage(downloaded.Message, MessageBoxImage.Warning);
+                return;
+            }
+
+            var launch = await _services.UpdateService.LaunchInstallerAsync();
+            if (!launch.Success)
+            {
+                ShowMessage(
+                    $"The verified update could not be opened.{Environment.NewLine}{Environment.NewLine}{launch.Message}",
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            _updateInstallerStarted = true;
+            ApplyUpdateState(_services.UpdateService.Snapshot);
+            if (launch.ProcessId is int processId)
+            {
+                _ = MonitorUpdaterExitAsync(processId);
+            }
+        }
+        finally
+        {
+            _updateOperationInProgress = false;
+            if (!_updateInstallerStarted)
+            {
+                SetUpdateActionButtonsEnabled(true);
+            }
+        }
+    }
+
+    private void OpenUpdateNotes_Click(object sender, RoutedEventArgs e)
+    {
+        if (_services.UpdateService.Snapshot.ReleasePage is Uri releasePage)
+        {
+            OpenExternal(releasePage.ToString());
+        }
+    }
 
     private void ToggleSetupXboxApiKeyVisibility_Click(object sender, RoutedEventArgs e) =>
         ToggleSecretVisibility(
@@ -492,7 +594,9 @@ public partial class MainWindow : Window
             statusTarget.Foreground = Brush("AccentBrush");
             _services.ActivityLog.Success("OpenXBL account connection verified. Existing achievements will not be reposted.");
 
-            if (_settings.SetupCompleted && TryGetWebhook(out _))
+            if (_settings.SetupCompleted &&
+                !_services.UpdateService.IsUpdateRequired &&
+                TryGetWebhook(out _))
             {
                 await _services.RelayCoordinator.StartAsync();
                 RefreshStatus();
@@ -550,6 +654,11 @@ public partial class MainWindow : Window
 
     private async void FinishSetup_Click(object sender, RoutedEventArgs e)
     {
+        if (BlockForRequiredUpdate())
+        {
+            return;
+        }
+
         var xboxConfigured = TryGetOpenXblApiKey(out _) && !string.IsNullOrWhiteSpace(_settings.XboxUserId);
         var steamEnabled = SetupSteamEnabledCheckBox.IsChecked == true;
         if (!xboxConfigured && !steamEnabled)
@@ -735,7 +844,12 @@ public partial class MainWindow : Window
             _settings = _settings with { SetupCompleted = _settings.SetupCompleted && webhookConfigured && hasProvider };
             await _services.SettingsStore.SaveAsync(_settings);
             var startupApplied = await _services.StartupService.SetEnabledAsync(startWithWindows);
-            if (!xboxConfigured)
+            if (_services.UpdateService.IsUpdateRequired)
+            {
+                await _services.RelayCoordinator.StopAsync();
+                await _services.SteamMonitorCoordinator.StopAsync();
+            }
+            else if (!xboxConfigured)
             {
                 await _services.RelayCoordinator.StopAsync();
             }
@@ -744,11 +858,13 @@ public partial class MainWindow : Window
                 await _services.RelayCoordinator.StartAsync();
             }
 
-            if (!_settings.SteamEnabled)
+            if (!_services.UpdateService.IsUpdateRequired && !_settings.SteamEnabled)
             {
                 await _services.SteamMonitorCoordinator.StopAsync();
             }
-            else if (_settings.SetupCompleted && webhookConfigured)
+            else if (!_services.UpdateService.IsUpdateRequired &&
+                     _settings.SetupCompleted &&
+                     webhookConfigured)
             {
                 // Preference/webhook edits are read at delivery time. Keep an
                 // active helper session intact so saving unrelated settings
@@ -846,6 +962,11 @@ public partial class MainWindow : Window
 
     private async void RefreshSteam_Click(object sender, RoutedEventArgs e)
     {
+        if (BlockForRequiredUpdate())
+        {
+            return;
+        }
+
         var enabled = MainTabs.SelectedIndex == 1
             ? SetupSteamEnabledCheckBox.IsChecked == true
             : SettingsSteamEnabledCheckBox.IsChecked == true;
@@ -895,6 +1016,11 @@ public partial class MainWindow : Window
 
     private async void SyncNow_Click(object sender, RoutedEventArgs e)
     {
+        if (BlockForRequiredUpdate())
+        {
+            return;
+        }
+
         if (!TryGetOpenXblApiKey(out _) || string.IsNullOrWhiteSpace(_settings.XboxUserId))
         {
             ShowMessage("Connect the Xbox account in Guided setup before syncing.", MessageBoxImage.Warning);
@@ -957,6 +1083,8 @@ public partial class MainWindow : Window
             $"Last Steam error: {_services.SteamMonitorCoordinator.LastError ?? "none"}",
             $"Discord configured: {TryGetWebhook(out _)}",
             $"Setup completed: {_settings.SetupCompleted}",
+            $"Update status: {FormatUpdateStatus(_services.UpdateService.Snapshot)}",
+            $"Windows package version: {_services.UpdateService.CurrentPackageVersion}",
             $"Data folder: {_services.Paths.DataDirectory}");
 
         System.Windows.Clipboard.SetText(summary);
@@ -986,6 +1114,211 @@ public partial class MainWindow : Window
 
     private void OnSteamStatusChanged(object? sender, EventArgs e) =>
         Dispatcher.InvokeAsync(RefreshStatus);
+
+    private void OnUpdateStateChanged(object? sender, AppUpdateSnapshot snapshot)
+    {
+        Dispatcher.InvokeAsync(() =>
+        {
+            ApplyUpdateState(snapshot);
+            _ = ApplyUpdatePolicyAsync(snapshot);
+        });
+    }
+
+    private void ApplyUpdateState(AppUpdateSnapshot snapshot)
+    {
+        AboutUpdateStatusText.Text = snapshot.Message;
+        AboutUpdateStatusText.Foreground = snapshot.IsRequired
+            ? Brush("ErrorBrush")
+            : snapshot.Stage == AppUpdateStage.Current
+                ? Brush("AccentBrush")
+                : snapshot.Stage == AppUpdateStage.Failed
+                    ? Brush("WarningBrush")
+                    : Brush("MutedTextBrush");
+        AboutUpdateCheckedText.Text = snapshot.LastCheckedUtc is DateTimeOffset checkedAt
+            ? $"Last checked {checkedAt.ToLocalTime():yyyy-MM-dd HH:mm:ss zzz}"
+            : "Automatic checks use the official GitHub Releases feed.";
+
+        var hasReleasePage = snapshot.ReleasePage is not null;
+        AboutUpdateNotesButton.Visibility = hasReleasePage ? Visibility.Visible : Visibility.Collapsed;
+        UpdateBannerNotesButton.Visibility = hasReleasePage ? Visibility.Visible : Visibility.Collapsed;
+        AboutUpdateActionButton.Visibility = snapshot.HasUpdate ? Visibility.Visible : Visibility.Collapsed;
+        UpdateBannerActionButton.Visibility = snapshot.HasUpdate ? Visibility.Visible : Visibility.Collapsed;
+        UpdateBanner.Visibility = snapshot.HasUpdate ? Visibility.Visible : Visibility.Collapsed;
+
+        if (snapshot.HasUpdate)
+        {
+            UpdateBannerTitle.Text = snapshot.IsRequired
+                ? $"UPDATE REQUIRED · VERSION {snapshot.LatestVersion}"
+                : $"UPDATE AVAILABLE · VERSION {snapshot.LatestVersion}";
+            UpdateBannerMessage.Text = snapshot.Message;
+            UpdateBanner.BorderBrush = snapshot.IsRequired
+                ? Brush("ErrorBrush")
+                : Brush("WarningBrush");
+        }
+
+        var downloading = snapshot.Stage == AppUpdateStage.Downloading;
+        UpdateBannerProgress.Visibility = downloading ? Visibility.Visible : Visibility.Collapsed;
+        UpdateBannerProgress.Value = Math.Clamp(snapshot.DownloadProgress ?? 0, 0, 1);
+
+        var actionLabel = _updateInstallerStarted
+            ? "Updater open"
+            : snapshot.Stage == AppUpdateStage.ReadyToInstall
+                ? "Install update"
+                : snapshot.Stage == AppUpdateStage.Downloading
+                    ? $"Downloading {snapshot.DownloadProgress ?? 0:P0}"
+                    : snapshot.Stage == AppUpdateStage.Failed
+                        ? "Retry update"
+                        : "Update now";
+        UpdateBannerActionButton.Content = actionLabel;
+        AboutUpdateActionButton.Content = actionLabel;
+        SetUpdateActionButtonsEnabled(
+            !downloading && !_updateOperationInProgress && !_updateInstallerStarted);
+
+        if (snapshot.HasUpdate &&
+            (snapshot.Stage is AppUpdateStage.Available or AppUpdateStage.Required) &&
+            !string.Equals(_shownUpdateNoticeVersion, snapshot.LatestVersion, StringComparison.Ordinal) &&
+            _trayIcon is not null)
+        {
+            _trayIcon.ShowBalloonTip(
+                5000,
+                snapshot.IsRequired ? "Achievement Relay update required" : "Achievement Relay update available",
+                snapshot.IsRequired
+                    ? $"Monitoring is paused until version {snapshot.LatestVersion} is installed."
+                    : $"Version {snapshot.LatestVersion} can be installed from the app.",
+                snapshot.IsRequired ? Forms.ToolTipIcon.Warning : Forms.ToolTipIcon.Info);
+            _shownUpdateNoticeVersion = snapshot.LatestVersion;
+        }
+    }
+
+    private async Task EnforceRequiredUpdateAsync()
+    {
+        if (_enforcingRequiredUpdate)
+        {
+            return;
+        }
+
+        _enforcingRequiredUpdate = true;
+        try
+        {
+            await _services.RelayCoordinator.StopAsync();
+            await _services.SteamMonitorCoordinator.StopAsync();
+            RefreshStatus();
+            ShowRequiredUpdate();
+        }
+        finally
+        {
+            _enforcingRequiredUpdate = false;
+        }
+    }
+
+    private async Task ApplyUpdatePolicyAsync(AppUpdateSnapshot snapshot)
+    {
+        await _updatePolicyGate.WaitAsync();
+        try
+        {
+            if (!ReferenceEquals(snapshot, _services.UpdateService.Snapshot))
+            {
+                return;
+            }
+
+            if (snapshot.IsRequired)
+            {
+                if (!_requiredPolicyApplied)
+                {
+                    await EnforceRequiredUpdateAsync();
+                    _requiredPolicyApplied = true;
+                }
+            }
+            else if (_requiredPolicyApplied)
+            {
+                await ResumeMonitoringAfterUpdatePolicyAsync();
+                _requiredPolicyApplied = false;
+            }
+        }
+        catch (Exception exception)
+        {
+            _services.ActivityLog.Warning($"Update policy transition failed safely: {exception.Message}");
+        }
+        finally
+        {
+            _updatePolicyGate.Release();
+        }
+    }
+
+    private async Task ResumeMonitoringAfterUpdatePolicyAsync()
+    {
+        if (!_settings.SetupCompleted || !TryGetWebhook(out _))
+        {
+            RefreshStatus();
+            return;
+        }
+
+        var xboxConfigured = TryGetOpenXblApiKey(out _) &&
+                             !string.IsNullOrWhiteSpace(_settings.XboxUserId);
+        if (xboxConfigured)
+        {
+            await _services.RelayCoordinator.StartAsync();
+        }
+        if (_settings.SteamEnabled)
+        {
+            await _services.SteamMonitorCoordinator.StartAsync();
+        }
+
+        RefreshStatus();
+    }
+
+    private async Task MonitorUpdaterExitAsync(int processId)
+    {
+        try
+        {
+            using var process = Process.GetProcessById(processId);
+            await process.WaitForExitAsync();
+        }
+        catch (SystemException)
+        {
+            // The Setup bootstrap process may hand off to its extracted process.
+        }
+        finally
+        {
+            await Dispatcher.InvokeAsync(() =>
+            {
+                _updateInstallerStarted = false;
+                ApplyUpdateState(_services.UpdateService.Snapshot);
+            });
+        }
+    }
+
+    private bool BlockForRequiredUpdate()
+    {
+        if (!_services.UpdateService.IsUpdateRequired)
+        {
+            return false;
+        }
+
+        ShowRequiredUpdate();
+        ShowMessage(
+            "This release is below the minimum supported version. Install the verified update before restarting achievement monitoring.",
+            MessageBoxImage.Warning);
+        return true;
+    }
+
+    private void SetUpdateActionButtonsEnabled(bool enabled)
+    {
+        UpdateBannerActionButton.IsEnabled = enabled;
+        AboutUpdateActionButton.IsEnabled = enabled;
+    }
+
+    private static string FormatUpdateStatus(AppUpdateSnapshot snapshot) => snapshot.Stage switch
+    {
+        AppUpdateStage.Current => $"current ({snapshot.CurrentVersion})",
+        AppUpdateStage.Available => $"version {snapshot.LatestVersion} available",
+        AppUpdateStage.Required => $"version {snapshot.LatestVersion} required",
+        AppUpdateStage.Downloading => $"downloading version {snapshot.LatestVersion}",
+        AppUpdateStage.ReadyToInstall => $"version {snapshot.LatestVersion} ready to install",
+        AppUpdateStage.Checking => "checking GitHub",
+        AppUpdateStage.Failed => "check or download failed",
+        _ => "not checked"
+    };
 
     private void OnActivityEntryAdded(object? sender, ActivityEntry entry)
     {

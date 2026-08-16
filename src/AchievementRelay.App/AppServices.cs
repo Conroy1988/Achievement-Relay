@@ -8,6 +8,7 @@ public sealed class AppServices : IDisposable
     {
         Paths = new AppPaths();
         ActivityLog = new ActivityLog(Paths);
+        UpdateService = new AppUpdateService(Paths, ActivityLog);
         WebhookProtector = new SecureWebhookProtector();
         SettingsStore = new SettingsStore(Paths);
         EventLedger = new EventLedger(Paths);
@@ -50,6 +51,8 @@ public sealed class AppServices : IDisposable
 
     public ActivityLog ActivityLog { get; }
 
+    public AppUpdateService UpdateService { get; }
+
     public SecureWebhookProtector WebhookProtector { get; }
 
     public SettingsStore SettingsStore { get; }
@@ -80,6 +83,7 @@ public sealed class AppServices : IDisposable
 
     public void Dispose()
     {
+        UpdateService.Dispose();
         SteamMonitorCoordinator.Dispose();
         RelayCoordinator.Dispose();
         AchievementDeliveryService.Dispose();

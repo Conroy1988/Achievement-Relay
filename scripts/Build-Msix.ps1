@@ -18,6 +18,8 @@ param(
 
     [string] $PfxPassword,
 
+    [string[]] $AdditionalUpdatePublisherCertificateSha256 = @(),
+
     [string] $TimestampUrl
 )
 
@@ -40,6 +42,52 @@ if (-not $ApplicationVersion) {
     $ApplicationVersion = ($Version.Split('.')[0..2] -join '.')
 }
 $applicationFileVersion = "$ApplicationVersion.0"
+$updatePublisherCertificateSha256 = ''
+$validatedAdditionalPublisherCertificates = @(
+    $AdditionalUpdatePublisherCertificateSha256 |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+        ForEach-Object {
+            $normalizedFingerprint = $_.Trim().ToLowerInvariant()
+            if ($normalizedFingerprint -notmatch '^[0-9a-f]{64}$') {
+                throw 'Every additional update-publisher fingerprint must be a 64-character SHA-256 value.'
+            }
+            $normalizedFingerprint
+        }
+)
+
+if ($PfxPath) {
+    $resolvedSigningPfx = (Resolve-Path -LiteralPath $PfxPath).Path
+    $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
+        $resolvedSigningPfx,
+        $PfxPassword,
+        [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet)
+    try {
+        if (-not $certificate.HasPrivateKey) {
+            throw 'The package signing PFX does not contain a private key.'
+        }
+        if ($certificate.Subject -ne 'CN=Achievement Relay Open Source') {
+            throw "The signing certificate subject must exactly match the MSIX publisher 'CN=Achievement Relay Open Source'."
+        }
+
+        $sha256 = [System.Security.Cryptography.SHA256]::Create()
+        try {
+            $currentPublisherCertificateSha256 = -join @(
+                $sha256.ComputeHash($certificate.RawData) |
+                    ForEach-Object { $_.ToString('x2') }
+            )
+            $trustedPublisherCertificates = @($currentPublisherCertificateSha256) + @($validatedAdditionalPublisherCertificates)
+            $updatePublisherCertificateSha256 = @(
+                $trustedPublisherCertificates | Select-Object -Unique
+            ) -join ';'
+        }
+        finally {
+            $sha256.Dispose()
+        }
+    }
+    finally {
+        $certificate.Dispose()
+    }
+}
 
 if (Test-Path -LiteralPath $buildRoot) {
     Remove-Item -LiteralPath $buildRoot -Recurse -Force
@@ -58,6 +106,8 @@ dotnet publish $project `
     -p:Version=$ApplicationVersion `
     -p:FileVersion=$applicationFileVersion `
     -p:AssemblyVersion=$applicationFileVersion `
+    "-p:UpdatePublisherCertificateSha256=$updatePublisherCertificateSha256" `
+    "-p:AchievementRelayPackageVersion=$Version" `
     -p:ContinuousIntegrationBuild=true
 
 if ($LASTEXITCODE -ne 0) {

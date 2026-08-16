@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
+using System.Text;
 using System.Text.Json;
 using AchievementRelay.Core.Models;
 using AchievementRelay.Core.Services;
@@ -56,7 +59,14 @@ var tests = new (string Name, Action Run)[]
     ("Discord payload repairs malformed provider Unicode", PayloadRepairsMalformedUnicode),
     ("Discord identifies estimated provider timestamps", PayloadLabelsEstimatedTimestamp),
     ("Description sharing setting is respected", DescriptionSettingIsRespected),
-    ("Connection test suppresses mentions", ConnectionTestSuppressesMentions)
+    ("Connection test suppresses mentions", ConnectionTestSuppressesMentions),
+    ("Update manifests are parsed and normalized strictly", ParsesUpdateManifest),
+    ("Update manifest signatures authenticate the pinned publisher", VerifiesSignedUpdateManifest),
+    ("Newer releases remain optional above the support floor", SelectsOptionalUpdate),
+    ("Final packages supersede same-product beta revisions", SelectsFinalPackageUpdate),
+    ("Non-upgradeable package versions fail closed", RejectsNonUpgradeablePackage),
+    ("Only the explicit support floor requires an update", SelectsRequiredUpdate),
+    ("Malformed update manifests fail closed", RejectsMalformedUpdateManifest)
 };
 
 var failures = new List<string>();
@@ -76,6 +86,197 @@ foreach (var test in tests)
 
 Console.WriteLine($"{tests.Length - failures.Count}/{tests.Length} checks passed.");
 return failures.Count == 0 ? 0 : 1;
+
+static void ParsesUpdateManifest()
+{
+    var manifest = UpdatePolicy.ParseManifest("""
+        {
+          "schemaVersion": 1,
+          "version": "0.4.0",
+          "packageVersion": "0.4.0.0",
+          "minimumSupportedVersion": "0.3.0",
+          "publishedAtUtc": "2026-08-16T12:00:00Z",
+          "installer": {
+            "assetName": "AchievementRelay_Setup.exe",
+            "sha256": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "size": 123456789
+          }
+        }
+        """);
+
+    Assert(manifest.Version == "0.4.0", "The release version was not normalized.");
+    Assert(manifest.PackageVersion == "0.4.0.0", "The package version was not normalized.");
+    Assert(manifest.MinimumSupportedVersion == "0.3.0", "The support floor changed unexpectedly.");
+    Assert(manifest.Installer.Sha256 == new string('a', 64), "The SHA-256 was not normalized.");
+}
+
+static void VerifiesSignedUpdateManifest()
+{
+    using var rsa = RSA.Create(2048);
+    var request = new CertificateRequest(
+        new X500DistinguishedName("CN=Achievement Relay Open Source"),
+        rsa,
+        HashAlgorithmName.SHA256,
+        RSASignaturePadding.Pkcs1);
+    var enhancedKeyUsages = new OidCollection
+    {
+        new("1.3.6.1.5.5.7.3.3")
+    };
+    request.CertificateExtensions.Add(
+        new X509EnhancedKeyUsageExtension(enhancedKeyUsages, critical: false));
+    using var certificate = request.CreateSelfSigned(
+        DateTimeOffset.UtcNow.AddDays(-1),
+        DateTimeOffset.UtcNow.AddYears(1));
+
+    var manifestBytes = Encoding.UTF8.GetBytes("""
+        {"schemaVersion":1,"version":"0.4.0"}
+        """);
+    var signature = rsa.SignData(
+        manifestBytes,
+        HashAlgorithmName.SHA256,
+        RSASignaturePadding.Pkcs1);
+    var certificateBytes = certificate.Export(X509ContentType.Cert);
+    var fingerprint = Convert.ToHexString(SHA256.HashData(certificateBytes)).ToLowerInvariant();
+    var envelope = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new
+    {
+        schemaVersion = 1,
+        algorithm = "rsa-sha256-pkcs1",
+        certificateSha256 = fingerprint,
+        certificate = Convert.ToBase64String(certificateBytes),
+        signature = Convert.ToBase64String(signature)
+    }));
+
+    var trusted = UpdateManifestSignatureVerifier.Verify(
+        manifestBytes,
+        envelope,
+        new HashSet<string>(StringComparer.Ordinal) { fingerprint });
+    Assert(trusted.IsValid, $"The pinned manifest signature was rejected: {trusted.Message}");
+
+    var tampered = Encoding.UTF8.GetBytes("""
+        {"schemaVersion":1,"version":"0.5.0"}
+        """);
+    Assert(
+        !UpdateManifestSignatureVerifier.Verify(
+            tampered,
+            envelope,
+            new HashSet<string>(StringComparer.Ordinal) { fingerprint }).IsValid,
+        "A modified update manifest retained a valid signature.");
+    Assert(
+        !UpdateManifestSignatureVerifier.Verify(
+            manifestBytes,
+            envelope,
+            new HashSet<string>(StringComparer.Ordinal) { new string('0', 64) }).IsValid,
+        "An update manifest signed by an unpinned certificate was accepted.");
+}
+
+static void SelectsOptionalUpdate()
+{
+    var manifest = CreateUpdateManifest("0.4.0", "0.3.0");
+    var decision = UpdatePolicy.Evaluate(
+        new Version(0, 3, 0),
+        new Version(0, 3, 0, 42),
+        manifest);
+
+    Assert(decision.Requirement == UpdateRequirement.Optional, "A normal newer release was incorrectly required.");
+}
+
+static void SelectsFinalPackageUpdate()
+{
+    var manifest = CreateUpdateManifest("0.3.0", "0.3.0", "0.3.0.0");
+    var beta = UpdatePolicy.Evaluate(
+        new Version(0, 3, 0),
+        new Version(0, 2, 2, 68),
+        manifest);
+    var final = UpdatePolicy.Evaluate(
+        new Version(0, 3, 0),
+        new Version(0, 3, 0, 0),
+        manifest);
+
+    Assert(beta.Requirement == UpdateRequirement.Optional, "The final package did not supersede the beta package lane.");
+    Assert(final.Requirement == UpdateRequirement.Current, "The final package tried to update itself again.");
+}
+
+static void RejectsNonUpgradeablePackage()
+{
+    var manifest = CreateUpdateManifest("0.4.0", "0.3.0", "0.2.2.99");
+    AssertThrows<InvalidDataException>(
+        () => UpdatePolicy.Evaluate(
+            new Version(0, 3, 0),
+            new Version(0, 3, 0, 0),
+            manifest),
+        "A newer product release with a lower Windows package version was accepted.");
+}
+
+static void SelectsRequiredUpdate()
+{
+    var manifest = CreateUpdateManifest("0.4.1", "0.4.0");
+    var required = UpdatePolicy.Evaluate(
+        new Version(0, 3, 9),
+        new Version(0, 3, 9, 0),
+        manifest);
+    var supported = UpdatePolicy.Evaluate(
+        new Version(0, 4, 0),
+        new Version(0, 4, 0, 0),
+        manifest);
+
+    Assert(required.Requirement == UpdateRequirement.Required, "A version below the explicit support floor was not blocked.");
+    Assert(supported.Requirement == UpdateRequirement.Optional, "A supported older version was incorrectly blocked.");
+}
+
+static void RejectsMalformedUpdateManifest()
+{
+    AssertThrows<InvalidDataException>(
+        () => UpdatePolicy.ParseManifest("""
+            {
+              "schemaVersion": 1,
+              "version": "0.4.0-beta",
+              "packageVersion": "0.4.0.0",
+              "minimumSupportedVersion": "0.5.0",
+              "publishedAtUtc": "2026-08-16T12:00:00+01:00",
+              "installer": {
+                "assetName": "something-else.exe",
+                "sha256": "not-a-hash",
+                "size": -1
+              }
+            }
+            """),
+        "A malformed update manifest was accepted.");
+
+    AssertThrows<InvalidDataException>(
+        () => UpdatePolicy.ParseManifest("""
+            {
+              "schemaVersion": 1,
+              "version": "0.4.0",
+              "packageVersion": "0.4.0",
+              "minimumSupportedVersion": "0.3.0",
+              "publishedAtUtc": "2026-08-16T12:00:00Z",
+              "installer": {
+                "assetName": "AchievementRelay_Setup.exe",
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "size": 123456789
+              }
+            }
+            """),
+        "A three-part Windows package version was accepted.");
+}
+
+static UpdateManifest CreateUpdateManifest(
+    string version,
+    string minimumSupportedVersion,
+    string? packageVersion = null) => new()
+{
+    SchemaVersion = UpdatePolicy.CurrentManifestSchemaVersion,
+    Version = version,
+    PackageVersion = packageVersion ?? version + ".0",
+    MinimumSupportedVersion = minimumSupportedVersion,
+    PublishedAtUtc = new DateTimeOffset(2026, 8, 16, 12, 0, 0, TimeSpan.Zero),
+    Installer = new UpdateInstallerAsset
+    {
+        AssetName = UpdatePolicy.InstallerAssetName,
+        Sha256 = new string('a', 64),
+        Size = 123456789
+    }
+};
 
 static void ProtectsOpenXblRollingHourAllowance()
 {

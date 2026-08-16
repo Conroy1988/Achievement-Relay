@@ -41,15 +41,22 @@ $requiredFiles = @(
     'installer\assets\wizard-large.png',
     'installer\assets\CRNY - Relay Online.mp3',
     'scripts\Build-Installer.ps1',
+    'scripts\New-UpdateManifest.ps1',
     'scripts\Protect-InstallerSetup.ps1',
+    'release\update-policy.json',
     'src\AchievementRelay.SteamBridge\AchievementRelay.SteamBridge.csproj',
     'src\AchievementRelay.SteamBridge\Program.cs',
     'src\AchievementRelay.Core\Services\SteamAchievementDeltaDetector.cs',
     'src\AchievementRelay.Core\Services\SteamRarityResponseParser.cs',
     'src\AchievementRelay.Core\Services\RgbaPngEncoder.cs',
+    'src\AchievementRelay.Core\Services\UpdatePolicy.cs',
+    'src\AchievementRelay.Core\Models\UpdateManifest.cs',
     'third_party\Facepunch.Steamworks.LICENSE.txt',
     'third_party\packages\Facepunch.Steamworks.2.5.2.nupkg',
     'src\AchievementRelay.App\MainWindow.xaml',
+    'src\AchievementRelay.App\Services\AppUpdateService.cs',
+    'src\AchievementRelay.App\Services\InstallerTrustVerifier.cs',
+    'src\AchievementRelay.Core\Services\UpdateManifestSignatureVerifier.cs',
     'src\AchievementRelay.App\Assets\AchievementRelay.ico',
     'src\AchievementRelay.App\Assets\RelayCommandDeck.png',
     'src\AchievementRelay.App\Assets\TrophyCup.png',
@@ -107,8 +114,15 @@ if (-not $installerText.Contains('CRNY - Relay Online.mp3"; Flags: dontcopy noen
     -not $installerText.Contains("pause ' + MusicAlias") -or
     -not $installerText.Contains("resume ' + MusicAlias") -or
     -not $installerText.Contains('procedure DeinitializeSetup') -or
-    -not $installerText.Contains('https://on.soundcloud.com/WpxV7SQGveaitTlijN')) {
+    -not $installerText.Contains('https://soundcloud.com/daniel-conroy-224318319/crny-relay-online')) {
     throw 'The installer soundtrack must remain temporary, local, limited to 10%, controllable, looped, and linked to CRNY on SoundCloud through independent primary and fallback playback paths.'
+}
+
+if (-not $installerText.Contains("'{param:UPDATE|0}'") -or
+    -not $installerText.Contains('UPGRADE THE ACHIEVEMENT RELAY') -or
+    -not $installerText.Contains('(PageID = wpSelectTasks)') -or
+    -not $installerText.Contains("Parameters := Parameters + ' -Update -PreserveDesktopShortcut'")) {
+    throw 'The verified updater must reuse the branded installer while skipping onboarding and preserving user choices.'
 }
 
 $installScriptText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'scripts\Install.ps1') -Raw
@@ -130,6 +144,11 @@ if (-not $shutdownFunctionMatch.Success -or
     $shutdownFunctionText.Contains('throw') -or
     $shutdownCallIndex -lt 0 -or $packageInstallIndex -lt 0 -or $shutdownCallIndex -gt $packageInstallIndex) {
     throw 'Setup must attempt direct shutdown, then let the AppX deployment broker close any remaining process.'
+}
+if (-not $installScriptText.Contains('[switch] $PreserveDesktopShortcut') -or
+    -not $installScriptText.Contains('[switch] $Update') -or
+    -not $installScriptText.Contains('-not $PreserveDesktopShortcut')) {
+    throw 'Package updates must preserve the existing desktop shortcut and relaunch the installed app.'
 }
 
 $protectionScriptText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'scripts\Protect-InstallerSetup.ps1') -Raw
@@ -375,14 +394,49 @@ if ($steamworksPackageHash -ne '11e12d1b34d22a6c7ed6b5f70fd145f4794fc9b4c5fc9c5b
 
 $releaseWorkflowText = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github\workflows\release.yml') -Raw
 if (-not $releaseWorkflowText.Contains("'.exe'") -or
-    -not $releaseWorkflowText.Contains('AchievementRelay.SteamBridge.exe --self-test')) {
-    throw 'The release workflow must verify the Steam bridge and publish the setup executable.'
+    -not $releaseWorkflowText.Contains("'.json'") -or
+    -not $releaseWorkflowText.Contains("'.sig'") -or
+    -not $releaseWorkflowText.Contains('AchievementRelay.SteamBridge.exe --self-test') -or
+    -not $releaseWorkflowText.Contains('Official self-updating releases require the persistent signing PFX')) {
+    throw 'The release workflow must verify the Steam bridge and publish a persistently signed updater plus manifest.'
+}
+
+$updatePolicyText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.Core\Services\UpdatePolicy.cs') -Raw
+$appUpdateText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\AppUpdateService.cs') -Raw
+$installerTrustText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\InstallerTrustVerifier.cs') -Raw
+$manifestTrustText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.Core\Services\UpdateManifestSignatureVerifier.cs') -Raw
+$buildReleaseText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'scripts\Build-Release.ps1') -Raw
+$newUpdateManifestText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'scripts\New-UpdateManifest.ps1') -Raw
+if (-not $updatePolicyText.Contains('minimum supported version') -or
+    -not $updatePolicyText.Contains('UpdateRequirement.Required') -or
+    -not $updatePolicyText.Contains('currentPackageVersion') -or
+    -not $appUpdateText.Contains('api.github.com/repos/{Owner}/{Repository}/releases/latest') -or
+    -not $appUpdateText.Contains('SHA256.HashDataAsync') -or
+    -not $appUpdateText.Contains('ParseOfficialAssetUri') -or
+    -not $appUpdateText.Contains('InstallerTrustVerifier.Verify') -or
+    -not $appUpdateText.Contains('UpdateManifestSignatureVerifier.Verify') -or
+    -not $appUpdateText.Contains('ManifestSignatureBase64') -or
+    -not $appUpdateText.Contains('versionInfo.FileVersion, manifest.PackageVersion') -or
+    -not $installerTrustText.Contains('WinVerifyTrust') -or
+    -not $installerTrustText.Contains('AchievementRelay.UpdatePublisherCertificateSha256') -or
+    -not $manifestTrustText.Contains('rsa-sha256-pkcs1') -or
+    -not $buildMsixText.Contains('-p:UpdatePublisherCertificateSha256=') -or
+    -not $buildMsixText.Contains('-p:AchievementRelayPackageVersion=') -or
+    -not $buildReleaseText.Contains('New-UpdateManifest.ps1') -or
+    -not $buildReleaseText.Contains('-PackageVersion $Version') -or
+    -not $newUpdateManifestText.Contains('$installerVersion.FileVersion -cne $PackageVersion') -or
+    -not $newUpdateManifestText.Contains('$installerCertificateSha256 -cne $certificateSha256') -or
+    -not $mainWindowText.Contains('EnforceRequiredUpdateAsync') -or
+    -not $mainWindowText.Contains('Monitoring is paused until the verified update is installed')) {
+    throw 'The updater must enforce release identity, explicit support policy, SHA-256, pinned Authenticode trust and required-update monitoring suspension.'
 }
 
 $ciWorkflowText = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github\workflows\ci.yml') -Raw
 if (-not $ciWorkflowText.Contains('0.2.2.${{ github.run_number }}') -or
     -not $ciWorkflowText.Contains('APPLICATION_VERSION: "0.3.0"') -or
     -not $ciWorkflowText.Contains('-ApplicationVersion $env:APPLICATION_VERSION') -or
+    -not $ciWorkflowText.Contains('artifacts/AchievementRelay_Update.json') -or
+    -not $ciWorkflowText.Contains('artifacts/AchievementRelay_Update.sig') -or
     -not $ciWorkflowText.Contains('AchievementRelay.SteamBridge.exe --self-test') -or
     -not $ciWorkflowText.Contains('"protocolVersion":1')) {
     throw 'Pull-request installers must use a monotonically increasing MSIX test revision.'

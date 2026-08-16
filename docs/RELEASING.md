@@ -14,7 +14,7 @@ On Windows with .NET 10, the Windows SDK, and Inno Setup 6:
 .\scripts\Build-Release.ps1 -Version 0.3.0.0
 ```
 
-Without signing parameters, the script creates a temporary two-year development certificate, signs both architecture packages and `AchievementRelay_Setup.exe`, exports only the public certificate, and deletes the private key file from its temporary folder. The versioned ZIP remains as a manual fallback.
+Without signing parameters, the script creates a temporary two-year development certificate, signs both architecture packages and `AchievementRelay_Setup.exe`, exports only the public certificate, and deletes the private key file from its temporary folder. The versioned ZIP remains as a manual fallback. This path is for local/CI testing only: each generated certificate has a different fingerprint, so one test build must not silently trust a later test installer.
 
 For a production certificate whose subject matches `CN=Achievement Relay Open Source`:
 
@@ -22,28 +22,38 @@ For a production certificate whose subject matches `CN=Achievement Relay Open So
 .\scripts\Build-Release.ps1 `
   -Version 0.3.0.0 `
   -PfxPath C:\secure\AchievementRelay.pfx `
-  -PfxPassword $env:ACHIEVEMENT_RELAY_PFX_PASSWORD
+  -PfxPassword $env:ACHIEVEMENT_RELAY_PFX_PASSWORD `
+  -TimestampUrl $env:ACHIEVEMENT_RELAY_TIMESTAMP_URL
 ```
+
+## Automatic-update release contract
+
+Every build creates `AchievementRelay_Update.json` and `AchievementRelay_Update.sig` beside the installer. The manifest contains the three-part product version, four-part Windows package version, reviewed minimum supported version, UTC build timestamp, exact installer name, byte size, and SHA-256. The `.sig` envelope contains the release certificate and an RSA/SHA-256 signature over the exact manifest bytes. The app pins that certificate and also requires the signed values to agree with GitHub's latest stable release tag, asset metadata, and the setup executable's product/file versions. The separate package version lets a final `0.3.0.0` package correctly supersede a `0.2.2.<run>` beta even though both report product version `0.3.0`.
+
+`release/update-policy.json` is authoritative for `minimumSupportedVersion`. Leave it at the oldest still-supported updater-capable version for an optional release. Raise it only through a reviewed commit when older builds must stop monitoring and update. The minimum cannot exceed the release being built. Never edit or replace the manifest or installer inside an existing release; publish a higher patch version.
+
+The package build hashes the leaf signing certificate and embeds that SHA-256 fingerprint into the app. A downloaded installer must pass Windows Authenticode verification and match that pin. Certificate rotation therefore needs a transition build, signed by the old certificate, with the replacement fingerprint temporarily added to `additionalPublisherCertificateSha256` in the reviewed policy. Only after that transition is widely installed may a later release change signer; remove the old fingerprint in a subsequent release.
 
 ## GitHub signing secrets
 
-The tag workflow supports these repository secrets:
+The tag/manual Release workflow requires these repository secrets:
 
 - `SIGNING_PFX_BASE64`: Base64 encoding of the PFX bytes
 - `SIGNING_PFX_PASSWORD`: PFX password
 - `SIGNING_TIMESTAMP_URL`: RFC 3161 timestamp service URL for production signatures
 
-If either is absent, the workflow makes a development-signed alpha release and includes `AchievementRelay.Development.cer`. Never commit a PFX, password, or Base64 private key.
+If any value is absent, the official Release workflow fails before packaging. This prevents a public release that installed clients cannot authenticate or that stops working after certificate expiry. The certificate must chain to Windows trust, contain an RSA private key of at least 2048 bits with the code-signing EKU, and have subject `CN=Achievement Relay Open Source`, exactly matching the permanent MSIX publisher. Never commit a PFX, password, Base64 private key, or future certificate pin before its controlled transition release.
 
 ## Checklist
 
 1. Update application/file versions and release notes.
 2. Run the core contract checks and repository checks.
 3. Build and install both target packages on representative Windows devices where available.
-4. Verify installer connect-now/skip and Steam-only paths, encrypted handoff deletion, desktop-shortcut choice, first baselines, Discord test, and real Xbox account sync. Run two consecutive Xbox syncs and confirm that no pre-baseline or newly revealed historical achievement reaches Discord. Confirm historical Xbox titles consume no more than one background detail slot per 15 minutes, while a genuinely new modern unlock and one untimestamped Xbox 360 unlock each post exactly once across tray close/reopen. For Steam, baseline a history-heavy game, observe one real live unlock, verify a restart/offline unlock stays silent, simulate a failed webhook and verify its pending live transition retries once, and exercise the x64 helper/package check on every supported architecture available. Finish with startup, running-app upgrade, and uninstall checks.
+4. Verify installer connect-now/skip and Steam-only paths, encrypted handoff deletion, desktop-shortcut choice, first baselines, Discord test, and real Xbox account sync. Run two consecutive Xbox syncs and confirm that no pre-baseline or newly revealed historical achievement reaches Discord. Confirm historical Xbox titles consume no more than one background detail slot per 15 minutes, while a genuinely new modern unlock and one untimestamped Xbox 360 unlock each post exactly once across tray close/reopen. For Steam, baseline a history-heavy game, observe one real live unlock, verify a restart/offline unlock stays silent, simulate a failed webhook and verify its pending live transition retries once, and exercise the x64 helper/package check on every supported architecture available. Finish with startup, running-app update discovery/download, updater cancellation, `/UPDATE=1` state/shortcut preservation, required-policy monitoring suspension, and uninstall checks.
 5. Confirm the package certificate subject exactly matches the manifest publisher.
 6. Tag the verified commit with `v<major>.<minor>.<patch>` and push the tag, or run the **Release** workflow from GitHub Actions and enter that version. The manual workflow creates the tag at the selected commit when it publishes the release.
-7. Confirm `AchievementRelay_Setup.exe`, both MSIX packages, the manual ZIP, and the public `.cer` for development-signed builds are attached to the release.
-8. Download the published release assets and verify signatures with `Get-AuthenticodeSignature` or `SignTool verify /pa`.
+7. Confirm `AchievementRelay_Setup.exe`, `AchievementRelay_Update.json`, `AchievementRelay_Update.sig`, both MSIX packages, and the manual ZIP are attached to the release. Official releases must not contain a newly generated development `.cer`.
+8. Download the published manifest and installer. Recompute the setup SHA-256/size, confirm the tag/product-version/package-version/support-floor contract, and verify signatures with `Get-AuthenticodeSignature` or `SignTool verify /pa`.
+9. From the preceding installed release, select **Check now**, confirm the correct optional/required UI, download through the app, and complete the musical updater. Verify the new app reports current and deletes its completed installer download.
 
 Store onboarding may replace the local package identity and publisher. Treat those values as permanent after the first stable public distribution.

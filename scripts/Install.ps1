@@ -2,7 +2,11 @@
 param(
     [string] $ErrorFile,
 
-    [switch] $CreateDesktopShortcut
+    [switch] $CreateDesktopShortcut,
+
+    [switch] $PreserveDesktopShortcut,
+
+    [switch] $Update
 )
 
 $ErrorActionPreference = 'Stop'
@@ -19,7 +23,7 @@ function Stop-AchievementRelayProcess {
         return
     }
 
-    Write-Host 'Closing the running Achievement Relay app before the update...'
+    Write-Host 'Closing the running Achievement Relay app before package deployment...'
     foreach ($runningProcess in $runningProcesses) {
         Stop-Process -Id $runningProcess.Id -Force -ErrorAction SilentlyContinue
     }
@@ -110,13 +114,18 @@ try {
         $shortcut.Save()
         Write-Host 'Desktop shortcut created.'
     }
-    elseif (Test-Path -LiteralPath $desktopShortcut) {
+    elseif (-not $PreserveDesktopShortcut -and (Test-Path -LiteralPath $desktopShortcut)) {
         Remove-Item -LiteralPath $desktopShortcut -Force
     }
 
     Write-Host 'Installation complete. Launching Achievement Relay...'
     Start-Process explorer.exe "shell:AppsFolder\$($installedPackage.PackageFamilyName)!AchievementRelay"
-    Write-Host 'Account setup will be imported, or Guided setup will open if it was skipped.' -ForegroundColor Green
+    if ($Update) {
+        Write-Host 'Update complete. Existing connections, settings and achievement state were preserved.' -ForegroundColor Green
+    }
+    else {
+        Write-Host 'Account setup will be imported, or Guided setup will open if it was skipped.' -ForegroundColor Green
+    }
 }
 catch {
     if ($ErrorFile) {
@@ -124,6 +133,18 @@ catch {
             [System.IO.Path]::GetFullPath($ErrorFile),
             $_.Exception.Message,
             [System.Text.UTF8Encoding]::new($false))
+    }
+
+    if ($Update) {
+        try {
+            $existingPackage = Get-AppxPackage -Name 'Conroy.AchievementRelay' | Select-Object -First 1
+            if ($existingPackage) {
+                Start-Process explorer.exe "shell:AppsFolder\$($existingPackage.PackageFamilyName)!AchievementRelay"
+            }
+        }
+        catch {
+            # Preserve the original package-deployment error for Setup.
+        }
     }
     throw
 }

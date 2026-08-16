@@ -13,7 +13,7 @@
         SourceInitialized="OnWindowSourceInitialized"
         Closing="OnWindowClosing"
         Loaded="OnWindowLoaded">
-  <Grid>
+  <Grid Background="{StaticResource WindowSurfaceBrush}">
     <Grid.ColumnDefinitions>
       <ColumnDefinition Width="230" />
       <ColumnDefinition Width="*" />
@@ -21,7 +21,7 @@
 
     <Border Grid.Column="0"
             Background="{StaticResource SidebarSurfaceBrush}"
-            BorderBrush="#29E8E1D5"
+            BorderBrush="{StaticResource BorderBrush}"
             BorderThickness="0,0,1,0">
       <Grid Margin="15">
         <Grid.RowDefinitions>
@@ -31,13 +31,13 @@
         </Grid.RowDefinitions>
 
         <StackPanel Orientation="Horizontal" Margin="6,8,0,28">
-          <Border Width="48" Height="48" CornerRadius="7" Background="#F20D1012" BorderBrush="#66D72B32" BorderThickness="1">
+          <Border Width="48" Height="48" CornerRadius="7" Background="#F20D1012" BorderBrush="{StaticResource AccentOutlineBrush}" BorderThickness="1">
             <Image Source="Assets/AchievementRelay.png" Width="43" Height="43" Stretch="Uniform" />
           </Border>
           <StackPanel Margin="11,1,0,0">
             <TextBlock Text="ACHIEVEMENT" FontFamily="Bahnschrift SemiCondensed, Segoe UI" FontWeight="Bold" FontSize="13" />
             <TextBlock Text="RELAY" Foreground="{StaticResource AccentBrush}" FontFamily="Bahnschrift SemiCondensed, Segoe UI" FontWeight="Bold" FontSize="20" Margin="0,-2,0,0" />
-            <TextBlock Text="RELAY COMMAND" Foreground="{StaticResource MutedTextBrush}" FontFamily="Bahnschrift SemiCondensed, Segoe UI" FontWeight="Bold" FontSize="8" Margin="0,-2,0,0" />
+            <TextBlock Text="RELAY COMMAND" Foreground="{StaticResource MutedTextBrush}" FontFamily="Bahnschrift SemiCondensed, Segoe UI" FontWeight="Bold" FontSize="11" Margin="0,-2,0,0" />
           </StackPanel>
         </StackPanel>
 
@@ -78,8 +78,8 @@
         <StackPanel Grid.Row="2" Margin="0,12,0,0">
           <Border Style="{StaticResource SoftCard}" Padding="12" Margin="0,0,0,9">
             <StackPanel>
-              <TextBlock Text="RELAY STATUS" Foreground="{StaticResource MutedTextBrush}" FontSize="10" FontWeight="Bold" />
-              <TextBlock x:Name="SidebarMonitorStatus" Text="Checking…" Margin="0,5,0,0" FontWeight="SemiBold" FontSize="12" />
+              <TextBlock Text="RELAY STATUS" Foreground="{StaticResource MutedTextBrush}" FontSize="11" FontWeight="Bold" />
+              <TextBlock x:Name="SidebarMonitorStatus" Text="Checking…" Margin="0,5,0,0" FontWeight="SemiBold" FontSize="12" AutomationProperties.LiveSetting="Polite" />
             </StackPanel>
           </Border>
           <Button Style="{StaticResource CommunityButton}"
@@ -100,12 +100,12 @@
                   MinHeight="36"
                   FontSize="11"
                   AutomationProperties.Name="Support Achievement Relay on Ko-fi" />
-          <TextBlock Text="Runs quietly in your tray" Foreground="{StaticResource MutedTextBrush}" FontSize="10" HorizontalAlignment="Center" Margin="0,10,0,1" />
+          <TextBlock Text="Runs quietly in your tray" Foreground="{StaticResource MutedTextBrush}" FontSize="11" HorizontalAlignment="Center" Margin="0,10,0,1" />
         </StackPanel>
       </Grid>
     </Border>
 
-    <TabControl x:Name="MainTabs" Grid.Column="1" Background="Transparent" BorderThickness="0" Padding="0" Focusable="False">
+    <TabControl x:Name="MainTabs" Grid.Column="1" Style="{StaticResource ContentTabControl}">
       <TabControl.Resources>
         <Style TargetType="TabItem">
           <Setter Property="Visibility" Value="Collapsed" />
@@ -132,7 +132,7 @@
                 <StackPanel Grid.Column="1" Margin="8,0,22,0">
                   <TextBlock x:Name="UpdateBannerTitle" Text="Achievement Relay update" FontSize="17" FontWeight="SemiBold" />
                   <TextBlock x:Name="UpdateBannerMessage" Foreground="{StaticResource MutedTextBrush}" Margin="0,4,0,0" TextWrapping="Wrap" />
-                  <ProgressBar x:Name="UpdateBannerProgress" Margin="0,11,0,0" Minimum="0" Maximum="1" Visibility="Collapsed" />
+                  <ProgressBar x:Name="UpdateBannerProgress" Margin="0,11,0,0" Minimum="0" Maximum="1" Visibility="Collapsed" AutomationProperties.Name="Update download progress" />
                 </StackPanel>
                 <WrapPanel Grid.Column="2" VerticalAlignment="Center">
                   <Button x:Name="UpdateBannerNotesButton" Content="Release notes" Click="OpenUpdateNotes_Click" Margin="0,0,8,0" />
@@ -141,22 +141,22 @@
               </Grid>
             </Border>
 
-            <Border Style="{StaticResource Card}" BorderBrush="#66D72B32" Padding="24" Margin="0,0,0,22">
+            <Border Style="{StaticResource Card}" BorderBrush="{StaticResource AccentOutlineBrush}" Padding="24" Margin="0,0,0,22">
               <Grid>
                 <Grid.ColumnDefinitions>
                   <ColumnDefinition Width="70" />
                   <ColumnDefinition Width="*" />
                   <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <Border Width="56" Height="56" CornerRadius="7" Background="#F20D1012" BorderBrush="#66D72B32" BorderThickness="1" VerticalAlignment="Top">
+                <Border Width="56" Height="56" CornerRadius="7" Background="#F20D1012" BorderBrush="{StaticResource AccentOutlineBrush}" BorderThickness="1" VerticalAlignment="Top">
                   <Image Source="Assets/AchievementRelay.png" Width="46" Height="46" />
                 </Border>
                 <StackPanel Grid.Column="1" Margin="4,0,24,0">
                   <Border Style="{StaticResource StatusPill}">
-                    <TextBlock x:Name="RelayStatusText" Text="Checking" FontSize="11" FontWeight="Bold" />
+                    <TextBlock x:Name="RelayStatusText" Text="Checking" FontSize="11" FontWeight="Bold" AutomationProperties.LiveSetting="Polite" />
                   </Border>
-                  <TextBlock x:Name="HomeTitleText" Text="Checking your relay…" FontSize="26" FontWeight="SemiBold" Margin="0,12,0,5" />
-                  <TextBlock x:Name="HomeSummaryText" Text="Achievement Relay is checking Xbox, Steam and Discord." Foreground="{StaticResource MutedTextBrush}" FontSize="14" MaxWidth="620" HorizontalAlignment="Left" />
+                  <TextBlock x:Name="HomeTitleText" Text="Checking your relay…" FontSize="26" FontWeight="SemiBold" Margin="0,12,0,5" AutomationProperties.LiveSetting="Polite" />
+                  <TextBlock x:Name="HomeSummaryText" Text="Achievement Relay is checking Xbox, Steam and Discord." Foreground="{StaticResource MutedTextBrush}" FontSize="14" MaxWidth="620" HorizontalAlignment="Left" AutomationProperties.LiveSetting="Polite" />
                   <TextBlock x:Name="RelayStatusDetail" Text="Multi-platform monitoring" Foreground="{StaticResource SuccessBrush}" FontSize="11" FontWeight="SemiBold" Margin="0,9,0,0" />
                 </StackPanel>
                 <StackPanel Grid.Column="2" VerticalAlignment="Center">
@@ -189,7 +189,7 @@
                     </Border>
                     <StackPanel Margin="11,1,0,0">
                       <TextBlock Text="Xbox" FontWeight="SemiBold" FontSize="16" />
-                      <TextBlock Text="via OpenXBL" Foreground="{StaticResource MutedTextBrush}" FontSize="10" />
+                      <TextBlock Text="via OpenXBL" Foreground="{StaticResource MutedTextBrush}" FontSize="11" />
                     </StackPanel>
                   </StackPanel>
                   <StackPanel Grid.Row="1" Margin="0,15,0,14">
@@ -213,7 +213,7 @@
                     </Border>
                     <StackPanel Margin="11,1,0,0">
                       <TextBlock Text="Steam" FontWeight="SemiBold" FontSize="16" />
-                      <TextBlock Text="local, no key" Foreground="{StaticResource MutedTextBrush}" FontSize="10" />
+                      <TextBlock Text="local, no key" Foreground="{StaticResource MutedTextBrush}" FontSize="11" />
                     </StackPanel>
                   </StackPanel>
                   <StackPanel Grid.Row="1" Margin="0,15,0,14">
@@ -237,7 +237,7 @@
                     </Border>
                     <StackPanel Margin="11,1,0,0">
                       <TextBlock Text="Discord" FontWeight="SemiBold" FontSize="16" />
-                      <TextBlock Text="your destination" Foreground="#C7C9EF" FontSize="10" />
+                      <TextBlock Text="your destination" Foreground="#C7C9EF" FontSize="11" />
                     </StackPanel>
                   </StackPanel>
                   <StackPanel Grid.Row="1" Margin="0,15,0,14">
@@ -311,7 +311,7 @@
                     <TextBlock Text="Recent activity" Style="{StaticResource SectionTitle}" />
                     <Button Content="View all" Click="ShowActivity_Click" HorizontalAlignment="Right" Padding="11,5" MinHeight="30" FontSize="11" />
                   </Grid>
-                  <ListBox x:Name="DashboardActivityList" Grid.Row="1" Background="Transparent" BorderThickness="0" MaxHeight="230" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                  <ListBox x:Name="DashboardActivityList" Grid.Row="1" Background="Transparent" BorderThickness="0" MaxHeight="230" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Recent relay activity">
                     <ListBox.ItemTemplate>
                       <DataTemplate>
                         <Border BorderBrush="#20E8E1D5" BorderThickness="0,0,0,1" Padding="0,9">
@@ -323,7 +323,7 @@
                             <TextBlock Text="{Binding Timestamp, StringFormat={}{0:HH:mm}}" Foreground="{StaticResource MutedTextBrush}" FontSize="11" />
                             <StackPanel Grid.Column="1">
                               <TextBlock Text="{Binding Message}" FontSize="12" TextWrapping="Wrap" />
-                              <TextBlock Text="{Binding Level}" Foreground="{StaticResource AccentBrush}" FontSize="9" FontWeight="Bold" Margin="0,2,0,0" />
+                              <TextBlock Text="{Binding Level}" Foreground="{StaticResource AccentTextBrush}" FontSize="11" FontWeight="Bold" Margin="0,2,0,0" />
                             </StackPanel>
                           </Grid>
                         </Border>
@@ -351,11 +351,11 @@
                   <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <TextBlock x:Name="SetupProgressText" Text="Step 1 of 4 · Choose platforms" FontWeight="SemiBold" Margin="0,0,18,0" />
-                <ProgressBar x:Name="SetupProgressBar" Grid.Column="1" Minimum="0" Maximum="4" Value="1" VerticalAlignment="Center" />
+                <ProgressBar x:Name="SetupProgressBar" Grid.Column="1" Minimum="0" Maximum="4" Value="1" VerticalAlignment="Center" AutomationProperties.Name="Setup progress" />
               </Grid>
             </Border>
 
-            <TabControl x:Name="SetupSteps" Background="Transparent" BorderThickness="0" Padding="0" Focusable="False">
+            <TabControl x:Name="SetupSteps" Style="{StaticResource ContentTabControl}">
               <TabControl.Resources>
                 <Style TargetType="TabItem">
                   <Setter Property="Visibility" Value="Collapsed" />
@@ -376,7 +376,7 @@
                           <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
 
-                        <Border Grid.Column="0" Style="{StaticResource SoftCard}" BorderBrush="#68107C10" Padding="18">
+                        <Border Grid.Column="0" Style="{StaticResource SoftCard}" BorderBrush="{StaticResource XboxOutlineBrush}" Padding="18">
                           <CheckBox x:Name="SetupXboxSourceCheckBox" Click="SetupXboxSource_Click" AutomationProperties.Name="Share Xbox achievements">
                             <Grid Margin="4,0,0,0">
                               <Grid.ColumnDefinitions>
@@ -395,7 +395,7 @@
                           </CheckBox>
                         </Border>
 
-                        <Border Grid.Column="2" Style="{StaticResource SoftCard}" BorderBrush="#681B6D91" Padding="18">
+                        <Border Grid.Column="2" Style="{StaticResource SoftCard}" BorderBrush="{StaticResource SteamOutlineBrush}" Padding="18">
                           <CheckBox x:Name="SetupSteamEnabledCheckBox" IsChecked="True" AutomationProperties.Name="Share Steam achievements">
                             <Grid Margin="4,0,0,0">
                               <Grid.ColumnDefinitions>
@@ -462,7 +462,7 @@
                         <TextBlock Text="3  Verify the account" FontWeight="SemiBold" Margin="0,16,0,7" />
                         <Button Content="Connect Xbox" Style="{StaticResource PrimaryButton}" Click="SaveAndTestOpenXbl_Click" HorizontalAlignment="Left" />
 
-                        <Border Style="{StaticResource SoftCard}" Margin="0,15,0,0" Padding="14" BorderBrush="#33E8E1D5">
+                        <Border Style="{StaticResource SoftCard}" Margin="0,15,0,0" Padding="14" BorderBrush="{StaticResource BorderBrush}">
                           <TextBlock x:Name="SetupXboxStatus" Text="Not connected yet" FontWeight="SemiBold" />
                         </Border>
                       </StackPanel>
@@ -523,7 +523,7 @@
 
                         <Button Content="Save and send a test" Style="{StaticResource DiscordButton}" Click="SaveAndTestWebhook_Click" HorizontalAlignment="Left" Margin="0,14,0,0" />
 
-                        <Border Style="{StaticResource SoftCard}" Margin="0,15,0,0" Padding="14" BorderBrush="#455865F2">
+                        <Border Style="{StaticResource SoftCard}" Margin="0,15,0,0" Padding="14" BorderBrush="{StaticResource DiscordOutlineBrush}">
                           <TextBlock x:Name="SetupWebhookStatus" Text="Not connected yet" FontWeight="SemiBold" />
                         </Border>
                       </StackPanel>
@@ -554,7 +554,7 @@
                         <StackPanel Grid.Column="0">
                           <TextBlock Text="Player name shown in Discord" Style="{StaticResource FieldLabel}" />
                           <TextBox x:Name="SetupDisplayNameTextBox" MaxLength="80" AutomationProperties.Name="Player name shown in Discord" />
-                          <TextBlock Text="Leave blank to use your Xbox gamertag or Steam name." Foreground="{StaticResource MutedTextBrush}" FontSize="10" Margin="0,6,0,16" />
+                          <TextBlock Text="Leave blank to use your Xbox gamertag or Steam name." Foreground="{StaticResource MutedTextBrush}" FontSize="11" Margin="0,6,0,16" />
                           <CheckBox x:Name="SetupStartWithWindowsCheckBox" Content="Start Achievement Relay with Windows" IsChecked="True" />
                           <CheckBox x:Name="SetupStartMinimizedCheckBox" Content="Start quietly in the notification area" IsChecked="True" />
                         </StackPanel>
@@ -562,11 +562,11 @@
                         <Border Grid.Column="2" Style="{StaticResource SoftCard}" Padding="17">
                           <StackPanel>
                             <TextBlock Text="Ready check" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,13" />
-                            <TextBlock Text="ACHIEVEMENTS" Foreground="{StaticResource MutedTextBrush}" FontSize="10" FontWeight="Bold" />
+                            <TextBlock Text="ACHIEVEMENTS" Foreground="{StaticResource MutedTextBrush}" FontSize="11" FontWeight="Bold" />
                             <TextBlock x:Name="SetupReviewSourcesText" Text="Choose Xbox, Steam or both" Margin="0,3,0,13" FontWeight="SemiBold" />
-                            <TextBlock Text="DESTINATION" Foreground="{StaticResource MutedTextBrush}" FontSize="10" FontWeight="Bold" />
+                            <TextBlock Text="DESTINATION" Foreground="{StaticResource MutedTextBrush}" FontSize="11" FontWeight="Bold" />
                             <TextBlock x:Name="SetupReviewDiscordText" Text="Connect Discord" Margin="0,3,0,13" FontWeight="SemiBold" />
-                            <TextBlock Text="SAFE FIRST RUN" Foreground="{StaticResource MutedTextBrush}" FontSize="10" FontWeight="Bold" />
+                            <TextBlock Text="SAFE FIRST RUN" Foreground="{StaticResource MutedTextBrush}" FontSize="11" FontWeight="Bold" />
                             <TextBlock Text="Existing unlocks become a silent baseline. They are never reposted." Margin="0,3,0,0" Foreground="{StaticResource SuccessBrush}" FontWeight="SemiBold" />
                           </StackPanel>
                         </Border>
@@ -599,7 +599,7 @@
           <TextBlock Style="{StaticResource PageTitle}" Text="Activity" />
           <TextBlock Grid.Row="1" Style="{StaticResource PageSubtitle}" Text="A plain-language history of what the relay has done. Newest events appear first." />
           <Border Grid.Row="2" Style="{StaticResource Card}" Padding="8">
-            <ListBox x:Name="ActivityList" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox x:Name="ActivityList" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Relay activity history">
               <ListBox.ItemTemplate>
                 <DataTemplate>
                   <Border BorderBrush="#20E8E1D5" BorderThickness="0,0,0,1" Padding="14,12">
@@ -610,7 +610,7 @@
                         <ColumnDefinition Width="*" />
                       </Grid.ColumnDefinitions>
                       <TextBlock Text="{Binding Timestamp, StringFormat={}{0:HH:mm:ss}}" Foreground="{StaticResource MutedTextBrush}" FontSize="11" />
-                      <TextBlock Grid.Column="1" Text="{Binding Level}" Foreground="{StaticResource AccentBrush}" FontWeight="Bold" FontSize="10" />
+                      <TextBlock Grid.Column="1" Text="{Binding Level}" Foreground="{StaticResource AccentTextBrush}" FontWeight="Bold" FontSize="11" />
                       <TextBlock Grid.Column="2" Text="{Binding Message}" FontSize="13" />
                     </Grid>
                   </Border>
@@ -696,7 +696,7 @@
                     <Button Content="Remove webhook" Style="{StaticResource DangerButton}" Click="RemoveWebhook_Click" Margin="0,0,0,8" />
                   </WrapPanel>
                   <TextBlock Text="Name shown above Discord posts" Style="{StaticResource FieldLabel}" Margin="0,6,0,6" />
-                  <TextBox x:Name="SettingsDiscordUsernameTextBox" MaxLength="80" />
+                  <TextBox x:Name="SettingsDiscordUsernameTextBox" MaxLength="80" AutomationProperties.Name="Name shown above Discord posts" />
                 </StackPanel>
               </Grid>
             </Border>
@@ -711,7 +711,7 @@
                 <StackPanel>
                   <TextBlock Text="Achievement posts" Style="{StaticResource SectionTitle}" />
                   <TextBlock Text="Player name shown in Discord" Style="{StaticResource FieldLabel}" />
-                  <TextBox x:Name="SettingsDisplayNameTextBox" MaxLength="80" />
+                  <TextBox x:Name="SettingsDisplayNameTextBox" MaxLength="80" AutomationProperties.Name="Player name shown in Discord" />
                   <CheckBox x:Name="SettingsRareOnlyCheckBox" Content="Only post achievements confirmed as rare" Margin="0,13,0,4" />
                   <CheckBox x:Name="SettingsRawDetailsCheckBox" Content="Include the achievement description" />
                 </StackPanel>
@@ -740,14 +740,14 @@
             <TextBlock Style="{StaticResource PageTitle}" Text="Help &amp; support" />
             <TextBlock Style="{StaticResource PageSubtitle}" Text="Quick checks first, technical detail only when you need it." />
 
-            <Border Style="{StaticResource Card}" BorderBrush="#66D72B32" Margin="0,0,0,14">
+            <Border Style="{StaticResource Card}" BorderBrush="{StaticResource AccentOutlineBrush}" Margin="0,0,0,14">
               <Grid>
                 <Grid.ColumnDefinitions>
                   <ColumnDefinition Width="58" />
                   <ColumnDefinition Width="*" />
                   <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <Border Width="44" Height="44" CornerRadius="6" Background="#2E5865F2" BorderBrush="#705865F2" BorderThickness="1" VerticalAlignment="Top">
+                <Border Width="44" Height="44" CornerRadius="6" Background="#2E5865F2" BorderBrush="{StaticResource DiscordOutlineBrush}" BorderThickness="1" VerticalAlignment="Top">
                   <Image Source="Assets/Discord.png" Width="29" Height="29" />
                 </Border>
                 <StackPanel Grid.Column="1" Margin="0,0,22,0" VerticalAlignment="Center">
@@ -782,7 +782,7 @@
               </StackPanel>
             </Border>
 
-            <Border Style="{StaticResource Card}" BorderBrush="#66D72B32" Margin="0,0,0,14">
+            <Border Style="{StaticResource Card}" BorderBrush="{StaticResource AccentOutlineBrush}" Margin="0,0,0,14">
               <Grid>
                 <Grid.ColumnDefinitions>
                   <ColumnDefinition Width="*" />
@@ -790,8 +790,8 @@
                 </Grid.ColumnDefinitions>
                 <StackPanel Margin="0,0,22,0" VerticalAlignment="Center">
                   <TextBlock Text="App updates" FontSize="18" FontWeight="SemiBold" />
-                  <TextBlock x:Name="AboutUpdateStatusText" Text="Updates have not been checked yet." Foreground="{StaticResource MutedTextBrush}" Margin="0,5,0,0" />
-                  <TextBlock x:Name="AboutUpdateCheckedText" Foreground="{StaticResource MutedTextBrush}" FontSize="10" Margin="0,5,0,0" TextWrapping="Wrap" />
+                  <TextBlock x:Name="AboutUpdateStatusText" Text="Updates have not been checked yet." Foreground="{StaticResource MutedTextBrush}" Margin="0,5,0,0" AutomationProperties.LiveSetting="Polite" />
+                  <TextBlock x:Name="AboutUpdateCheckedText" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Margin="0,5,0,0" TextWrapping="Wrap" />
                 </StackPanel>
                 <WrapPanel Grid.Column="1" VerticalAlignment="Center">
                   <Button x:Name="AboutUpdateNotesButton" Content="Release notes" Click="OpenUpdateNotes_Click" Margin="0,0,8,0" Visibility="Collapsed" />
@@ -801,7 +801,7 @@
               </Grid>
             </Border>
 
-            <Border Style="{StaticResource Card}" BorderBrush="#70FF5E5B" Margin="0,0,0,14">
+            <Border Style="{StaticResource Card}" BorderBrush="{StaticResource KoFiOutlineBrush}" Margin="0,0,0,14">
               <Grid>
                 <Grid.ColumnDefinitions>
                   <ColumnDefinition Width="*" />
@@ -835,7 +835,7 @@
                 <Image Source="Assets/AchievementRelay.png" Width="56" Height="56" VerticalAlignment="Top" />
                 <StackPanel Grid.Column="1">
                   <TextBlock Text="Achievement Relay" FontSize="20" FontWeight="SemiBold" />
-                  <TextBlock x:Name="AboutVersionText" Text="Version 0.4.0" Foreground="{StaticResource AccentBrush}" FontWeight="SemiBold" Margin="0,2,0,9" />
+                  <TextBlock x:Name="AboutVersionText" Text="Version 0.4.1" Foreground="{StaticResource AccentTextBrush}" FontWeight="SemiBold" Margin="0,2,0,9" />
                   <TextBlock Text="Xbox and Steam achievements relayed to the Discord channel you choose. Secrets are encrypted locally; Steam monitoring is local and read-only." Foreground="{StaticResource MutedTextBrush}" FontSize="12" Margin="0,0,0,12" />
                   <WrapPanel>
                     <Button Content="Privacy" Click="OpenPrivacyPolicy_Click" Margin="0,0,8,8" />

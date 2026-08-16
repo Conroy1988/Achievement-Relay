@@ -3,9 +3,72 @@ param()
 
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
+
+function Get-WcagRelativeLuminance {
+    param([Parameter(Mandatory)][string] $Color)
+
+    $hex = $Color.Trim().TrimStart([char] '#')
+    if ($hex.Length -eq 8) {
+        $hex = $hex.Substring(2)
+    }
+    if ($hex.Length -ne 6) {
+        throw "WCAG contrast checks require a six- or eight-digit hex color. Received: $Color"
+    }
+
+    $components = @(foreach ($offset in 0, 2, 4) {
+        [Convert]::ToInt32($hex.Substring($offset, 2), 16) / 255.0
+    })
+    $linear = @($components | ForEach-Object {
+        if ($_ -le 0.04045) {
+            $_ / 12.92
+        }
+        else {
+            [Math]::Pow(($_ + 0.055) / 1.055, 2.4)
+        }
+    })
+
+    return (0.2126 * $linear[0]) + (0.7152 * $linear[1]) + (0.0722 * $linear[2])
+}
+
+function Assert-WcagContrast {
+    param(
+        [Parameter(Mandatory)][string] $Name,
+        [Parameter(Mandatory)][string] $Foreground,
+        [Parameter(Mandatory)][string] $Background,
+        [Parameter(Mandatory)][double] $Minimum
+    )
+
+    $foregroundLuminance = Get-WcagRelativeLuminance $Foreground
+    $backgroundLuminance = Get-WcagRelativeLuminance $Background
+    $lighter = [Math]::Max($foregroundLuminance, $backgroundLuminance)
+    $darker = [Math]::Min($foregroundLuminance, $backgroundLuminance)
+    $ratio = ($lighter + 0.05) / ($darker + 0.05)
+    if ($ratio -lt $Minimum) {
+        $roundedRatio = [Math]::Round($ratio, 2)
+        throw "$Name has a contrast ratio of ${roundedRatio}:1; ${Minimum}:1 is required."
+    }
+}
+
+function Get-ThemeColor {
+    param(
+        [Parameter(Mandatory)][xml] $Document,
+        [Parameter(Mandatory)][string] $Key
+    )
+
+    $xamlNamespace = 'http://schemas.microsoft.com/winfx/2006/xaml'
+    $node = @($Document.SelectNodes('//*[local-name()="Color"]')) |
+        Where-Object { $_.GetAttribute('Key', $xamlNamespace) -eq $Key } |
+        Select-Object -First 1
+    if (-not $node) {
+        throw "Theme color is missing: $Key"
+    }
+
+    return $node.InnerText.Trim()
+}
+
 $manifestPath = Join-Path $repositoryRoot 'src\AchievementRelay.Package\AppxManifest.xml'
 $manifestText = Get-Content -LiteralPath $manifestPath -Raw
-$manifestText = $manifestText.Replace('__VERSION__', '0.4.0.0').Replace('__ARCHITECTURE__', 'x64')
+$manifestText = $manifestText.Replace('__VERSION__', '0.4.1.0').Replace('__ARCHITECTURE__', 'x64')
 [xml] $manifest = $manifestText
 
 $namespaceManager = [System.Xml.XmlNamespaceManager]::new($manifest.NameTable)
@@ -52,6 +115,8 @@ $requiredFiles = @(
     '.github\workflows\live-update-test.yml',
     'docs\LIVE-UPDATE-TEST.md',
     'docs\RELEASE-NOTES-0.4.0.md',
+    'docs\RELEASE-NOTES-0.4.1.md',
+    'docs\ACCESSIBILITY.md',
     'docs\images\achievement-relay-banner.png',
     'docs\images\achievement-relay-interface.png',
     'docs\images\achievement-relay-social-preview.png',
@@ -254,10 +319,92 @@ if (-not $mainWindowXaml.Contains('x:Name="HomePrimaryActionButton"') -or
     throw 'The simplified home, four-step setup, platform identity, support, and navigation experience is incomplete.'
 }
 if (-not $appThemeXaml.Contains('<Color x:Key="BackgroundColor">#07090A</Color>') -or
-    -not $appThemeXaml.Contains('<Color x:Key="TextColor">#E8E1D5</Color>') -or
+    -not $appThemeXaml.Contains('<Color x:Key="TextColor">#F4F1EB</Color>') -or
     -not $appThemeXaml.Contains('<Color x:Key="AccentColor">#D72B32</Color>') -or
+    -not $appThemeXaml.Contains('x:Key="AccentTextBrush"') -or
     -not $appThemeXaml.Contains('x:Key="SuccessBrush"')) {
     throw 'The command-red theme must preserve its readable ink, bone, crimson, and semantic success hierarchy.'
+}
+if (-not $appThemeXaml.Contains('x:Key="ContentTabControl"') -or
+    -not $appThemeXaml.Contains('<Setter Property="TextElement.Foreground" Value="{StaticResource TextBrush}" />') -or
+    -not $appThemeXaml.Contains('<Style TargetType="ListBox">') -or
+    -not $appThemeXaml.Contains('<Style TargetType="ListBoxItem">') -or
+    -not $appThemeXaml.Contains('<Style TargetType="ScrollViewer">') -or
+    -not $appThemeXaml.Contains('<Style TargetType="ScrollBar">') -or
+    -not $appThemeXaml.Contains('<Setter Property="Foreground" Value="{StaticResource DisabledTextBrush}" />') -or
+    -not $mainWindowXaml.Contains('<Grid Background="{StaticResource WindowSurfaceBrush}">') -or
+    ([regex]::Matches($mainWindowXaml, 'Style="\{StaticResource ContentTabControl\}"')).Count -ne 2) {
+    throw 'Every app surface and reusable control must remain explicitly dark, readable, and independent of native TabControl colors.'
+}
+
+$undersizedText = [regex]::Matches($mainWindowXaml, 'FontSize="(?<size>[0-9]+(?:\.[0-9]+)?)"') |
+    Where-Object { [double] $_.Groups['size'].Value -lt 11 }
+if ($undersizedText) {
+    throw 'The main interface must not use explicit text smaller than 11 device-independent pixels.'
+}
+
+[xml] $appThemeDocument = $appThemeXaml
+$themeColors = @{}
+@(
+    'BackgroundColor',
+    'PanelRaisedColor',
+    'BorderColor',
+    'ControlBorderColor',
+    'TextColor',
+    'MutedTextColor',
+    'AccentColor',
+    'AccentHoverColor',
+    'AccentTextColor',
+    'AccentOutlineColor',
+    'DisabledSurfaceColor',
+    'DisabledTextColor',
+    'SuccessColor',
+    'WarningColor',
+    'ErrorColor',
+    'DiscordColor',
+    'DiscordOutlineColor',
+    'KoFiOutlineColor',
+    'XboxOutlineColor',
+    'SteamOutlineColor'
+) | ForEach-Object {
+    $themeColors[$_] = Get-ThemeColor -Document $appThemeDocument -Key $_
+}
+
+foreach ($textColor in @('TextColor', 'MutedTextColor', 'AccentTextColor', 'SuccessColor', 'WarningColor', 'ErrorColor')) {
+    Assert-WcagContrast -Name "$textColor on raised cards" `
+        -Foreground $themeColors[$textColor] `
+        -Background $themeColors['PanelRaisedColor'] `
+        -Minimum 4.5
+}
+Assert-WcagContrast -Name 'Primary button text' `
+    -Foreground '#FFFFFF' `
+    -Background $themeColors['AccentColor'] `
+    -Minimum 4.5
+Assert-WcagContrast -Name 'Discord button text' `
+    -Foreground '#FFFFFF' `
+    -Background $themeColors['DiscordColor'] `
+    -Minimum 4.5
+Assert-WcagContrast -Name 'Button hover text' `
+    -Foreground $themeColors['TextColor'] `
+    -Background $themeColors['AccentHoverColor'] `
+    -Minimum 4.5
+Assert-WcagContrast -Name 'Disabled control text' `
+    -Foreground $themeColors['DisabledTextColor'] `
+    -Background $themeColors['DisabledSurfaceColor'] `
+    -Minimum 4.5
+Assert-WcagContrast -Name 'Card boundary' `
+    -Foreground $themeColors['BorderColor'] `
+    -Background $themeColors['PanelRaisedColor'] `
+    -Minimum 3.0
+Assert-WcagContrast -Name 'Input and button boundary' `
+    -Foreground $themeColors['ControlBorderColor'] `
+    -Background '#090B0C' `
+    -Minimum 3.0
+foreach ($outlineColor in @('AccentOutlineColor', 'DiscordOutlineColor', 'KoFiOutlineColor', 'XboxOutlineColor', 'SteamOutlineColor')) {
+    Assert-WcagContrast -Name "$outlineColor on raised cards" `
+        -Foreground $themeColors[$outlineColor] `
+        -Background $themeColors['PanelRaisedColor'] `
+        -Minimum 3.0
 }
 
 $openXblParserText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.Core\Services\OpenXblResponseParser.cs') -Raw
@@ -527,11 +674,11 @@ $bridgeProjectText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\Ac
 if ($officialUpdatePolicy.schemaVersion -ne 1 -or
     $officialUpdatePolicy.minimumSupportedVersion -cne '0.4.0' -or
     @($officialUpdatePolicy.additionalPublisherCertificateSha256).Count -ne 0 -or
-    -not $appProjectText.Contains('<Version>0.4.0</Version>') -or
-    -not $appProjectText.Contains('<FileVersion>0.4.0.0</FileVersion>') -or
-    -not $bridgeProjectText.Contains('<Version>0.4.0</Version>') -or
-    -not $bridgeProjectText.Contains('<FileVersion>0.4.0.0</FileVersion>')) {
-    throw 'The official application, Steam bridge, and required-update policy must agree on v0.4.0.'
+    -not $appProjectText.Contains('<Version>0.4.1</Version>') -or
+    -not $appProjectText.Contains('<FileVersion>0.4.1.0</FileVersion>') -or
+    -not $bridgeProjectText.Contains('<Version>0.4.1</Version>') -or
+    -not $bridgeProjectText.Contains('<FileVersion>0.4.1.0</FileVersion>')) {
+    throw 'The v0.4.1 application and Steam bridge must retain the official v0.4.0 update baseline.'
 }
 
 $liveUpdatePolicy = Get-Content -LiteralPath (Join-Path $repositoryRoot 'release\live-update-test-policy.json') -Raw |
@@ -599,9 +746,9 @@ if (-not $updatePolicyText.Contains('minimum supported version') -or
 }
 
 $ciWorkflowText = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github\workflows\ci.yml') -Raw
-if (-not $ciWorkflowText.Contains('0.3.99.${{ github.run_number }}') -or
-    -not $ciWorkflowText.Contains('APPLICATION_VERSION: "0.4.0"') -or
-    -not $ciWorkflowText.Contains('AchievementRelay-v0.4.0-r${{ github.run_number }}-windows-test') -or
+if (-not $ciWorkflowText.Contains('0.4.0.${{ github.run_number }}') -or
+    -not $ciWorkflowText.Contains('APPLICATION_VERSION: "0.4.1"') -or
+    -not $ciWorkflowText.Contains('AchievementRelay-v0.4.1-r${{ github.run_number }}-windows-test') -or
     -not $ciWorkflowText.Contains('-ApplicationVersion $env:APPLICATION_VERSION') -or
     -not $ciWorkflowText.Contains('artifacts/AchievementRelay_Update.json') -or
     -not $ciWorkflowText.Contains('artifacts/AchievementRelay_Update.sig') -or

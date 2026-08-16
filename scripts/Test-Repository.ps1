@@ -61,6 +61,7 @@ $requiredFiles = @(
     'src\AchievementRelay.App\Services\InstallerTrustVerifier.cs',
     'src\AchievementRelay.Core\Services\UpdateManifestSignatureVerifier.cs',
     'src\AchievementRelay.App\Assets\AchievementRelay.ico',
+    'assets\brand\achievement-relay-icon-source.png',
     'src\AchievementRelay.App\Assets\RelayCommandDeck.png',
     'src\AchievementRelay.App\Assets\TrophyCup.png',
     'src\AchievementRelay.App\Assets\RadarSweep.png',
@@ -199,6 +200,7 @@ if (-not $importerText.Contains('var hasApiKey = !string.IsNullOrWhiteSpace(pend
 
 $mainWindowText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\MainWindow.xaml.cs') -Raw
 $mainWindowXaml = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\MainWindow.xaml') -Raw
+$appThemeXaml = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\App.xaml') -Raw
 if (-not $mainWindowText.Contains('PopulateSecretControls()') -or
     -not $mainWindowText.Contains('ToggleSecretVisibility(') -or
     -not $mainWindowXaml.Contains('SetupXboxApiKeyRevealTextBox') -or
@@ -227,11 +229,20 @@ if (-not $mainWindowXaml.Contains('x:Name="HomePrimaryActionButton"') -or
     -not $mainWindowXaml.Contains('Assets/Steam.png') -or
     -not $mainWindowXaml.Contains('Assets/Discord.png') -or
     -not $mainWindowXaml.Contains('Help &amp; support') -or
+    -not $mainWindowXaml.Contains('Community &amp; support') -or
+    -not $mainWindowXaml.Contains('Click="OpenCommunityDiscord_Click"') -or
     -not $mainWindowXaml.Contains('Support on Ko-fi') -or
+    -not $mainWindowText.Contains('https://discord.gg/3ZdXhYjgDm') -or
     -not $mainWindowText.Contains('ApplyHomeState(') -or
     -not $mainWindowText.Contains('OpenSetupAtRecommendedStep()') -or
     -not $mainWindowText.Contains('UpdateNavigationState()')) {
     throw 'The simplified home, four-step setup, platform identity, support, and navigation experience is incomplete.'
+}
+if (-not $appThemeXaml.Contains('<Color x:Key="BackgroundColor">#07090A</Color>') -or
+    -not $appThemeXaml.Contains('<Color x:Key="TextColor">#E8E1D5</Color>') -or
+    -not $appThemeXaml.Contains('<Color x:Key="AccentColor">#D72B32</Color>') -or
+    -not $appThemeXaml.Contains('x:Key="SuccessBrush"')) {
+    throw 'The command-red theme must preserve its readable ink, bone, crimson, and semantic success hierarchy.'
 }
 
 $openXblParserText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.Core\Services\OpenXblResponseParser.cs') -Raw

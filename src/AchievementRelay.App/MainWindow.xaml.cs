@@ -3,8 +3,10 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
 using AchievementRelay.App.Services;
 using AchievementRelay.Core.Models;
 using AchievementRelay.Core.Services;
@@ -19,9 +21,19 @@ public partial class MainWindow : Window
 {
     private const string GitHubUrl = "https://github.com/Conroy1988/Achievement-Relay";
     private const string KoFiUrl = "https://ko-fi.com/D4P124RWI9";
+    private const string CommunityDiscordUrl = "https://discord.gg/3ZdXhYjgDm";
     private const string ArtLicensesUrl = GitHubUrl + "/blob/main/THIRD-PARTY-NOTICES.md";
     private const string OpenXblProfileUrl = "https://xbl.io/profile";
     private const string DiscordWebhookGuideUrl = "https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks";
+    private const int DwmUseImmersiveDarkMode = 20;
+    private const int DwmUseImmersiveDarkModeLegacy = 19;
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(
+        IntPtr windowHandle,
+        int attribute,
+        ref int attributeValue,
+        int attributeSize);
 
     private readonly AppServices _services;
     private readonly ObservableCollection<ActivityEntry> _activity = [];
@@ -112,7 +124,7 @@ public partial class MainWindow : Window
             SetStatus(XboxStatusText, "Connected", StatusTone.Success);
             XboxStatusDetail.Text = accountLabel;
             SetupXboxStatus.Text = $"✓ API key stored securely  •  {accountLabel}";
-            SetupXboxStatus.Foreground = Brush("AccentBrush");
+            SetupXboxStatus.Foreground = Brush("SuccessBrush");
             SettingsXboxStatus.Text = $"{accountLabel}. The API key is encrypted for this Windows account.";
         }
         else if (apiKeyConfigured)
@@ -141,7 +153,7 @@ public partial class MainWindow : Window
             SetupXboxChoiceStatus.Text = string.IsNullOrWhiteSpace(_settings.XboxGamertag)
                 ? "Connected"
                 : $"Connected as {_settings.XboxGamertag}";
-            SetupXboxChoiceStatus.Foreground = Brush("AccentBrush");
+            SetupXboxChoiceStatus.Foreground = Brush("SuccessBrush");
         }
         else
         {
@@ -191,7 +203,7 @@ public partial class MainWindow : Window
             SetStatus(SteamStatusText, "Monitoring", StatusTone.Success);
             SteamStatusDetail.Text = steamGame;
             SetupSteamStatus.Text = $"✓ Monitoring {steamGame}; existing unlocks are baselined silently";
-            SetupSteamStatus.Foreground = Brush("AccentBrush");
+            SetupSteamStatus.Foreground = Brush("SuccessBrush");
             SettingsSteamStatus.Text = $"Monitoring {steamGame}. Only directly proven live unlocks are relayed.";
         }
         else if (!string.IsNullOrWhiteSpace(steamGame))
@@ -214,7 +226,7 @@ public partial class MainWindow : Window
             SetupSteamStatus.Text = steamClientRunning
                 ? "✓ Steam found — waiting for a game to start"
                 : "✓ Steam found — monitoring starts automatically with your next game";
-            SetupSteamStatus.Foreground = Brush("AccentBrush");
+            SetupSteamStatus.Foreground = Brush("SuccessBrush");
             SettingsSteamStatus.Text = steamClientRunning
                 ? "Steam monitoring is ready and waiting for a game."
                 : "Steam monitoring is ready and waiting for the Steam client.";
@@ -224,7 +236,7 @@ public partial class MainWindow : Window
             SetStatus(SteamStatusText, "Ready", StatusTone.Warning);
             SteamStatusDetail.Text = "Finish setup to start monitoring";
             SetupSteamStatus.Text = "✓ Steam found — finish setup to begin monitoring";
-            SetupSteamStatus.Foreground = Brush("AccentBrush");
+            SetupSteamStatus.Foreground = Brush("SuccessBrush");
             SettingsSteamStatus.Text = "Steam is installed. Save settings to start automatic monitoring.";
         }
 
@@ -233,7 +245,7 @@ public partial class MainWindow : Window
             SetStatus(DiscordStatusText, "Connected", StatusTone.Success);
             DiscordStatusDetail.Text = "Webhook stored with Windows encryption";
             SetupWebhookStatus.Text = "✓ Webhook stored securely  •  Select Save and test to retest it";
-            SetupWebhookStatus.Foreground = Brush("AccentBrush");
+            SetupWebhookStatus.Foreground = Brush("SuccessBrush");
             SettingsWebhookStatus.Text = "A Discord webhook is configured and encrypted for this Windows account.";
         }
         else
@@ -268,7 +280,7 @@ public partial class MainWindow : Window
             ? activeError ? "● Retrying a provider" : $"● Monitoring {string.Join(" + ", activeProviders)}"
             : "○ Setup required";
         SidebarMonitorStatus.Foreground = Brush(
-            relayRunning && !activeError ? "AccentBrush" : "WarningBrush");
+            relayRunning && !activeError ? "SuccessBrush" : "WarningBrush");
 
         UpdateSetupSummary(accountConfigured, webhookConfigured);
         ApplyHomeState(
@@ -408,11 +420,11 @@ public partial class MainWindow : Window
             : string.Join(" + ", sources);
         SetupReviewSourcesText.Foreground = sources.Count == 0
             ? Brush("WarningBrush")
-            : Brush("AccentBrush");
+            : Brush("SuccessBrush");
         SetupReviewDiscordText.Text = webhookConfigured
             ? "Discord connected"
             : "Connect Discord before finishing";
-        SetupReviewDiscordText.Foreground = Brush(webhookConfigured ? "AccentBrush" : "WarningBrush");
+        SetupReviewDiscordText.Foreground = Brush(webhookConfigured ? "SuccessBrush" : "WarningBrush");
     }
 
     public void PrepareForExit()
@@ -435,6 +447,25 @@ public partial class MainWindow : Window
         RefreshStatus();
         UpdateNavigationState();
         UpdateSetupProgress();
+    }
+
+    private void OnWindowSourceInitialized(object? sender, EventArgs e)
+    {
+        var darkModeEnabled = 1;
+        var windowHandle = new WindowInteropHelper(this).Handle;
+        var result = DwmSetWindowAttribute(
+            windowHandle,
+            DwmUseImmersiveDarkMode,
+            ref darkModeEnabled,
+            sizeof(int));
+        if (result != 0)
+        {
+            DwmSetWindowAttribute(
+                windowHandle,
+                DwmUseImmersiveDarkModeLegacy,
+                ref darkModeEnabled,
+                sizeof(int));
+        }
     }
 
     private void OnWindowClosing(object? sender, CancelEventArgs e)
@@ -932,7 +963,7 @@ public partial class MainWindow : Window
                 ? " Earlier unlocks were baselined and will not be posted."
                 : " The existing sync position was preserved.";
             statusTarget.Text = $"Status: connected as {accountResult.Account.Gamertag}.{baselineNote}";
-            statusTarget.Foreground = Brush("AccentBrush");
+            statusTarget.Foreground = Brush("SuccessBrush");
             _services.ActivityLog.Success("OpenXBL account connection verified. Existing achievements will not be reposted.");
 
             if (_settings.SetupCompleted &&
@@ -982,7 +1013,7 @@ public partial class MainWindow : Window
             SetupWebhookStatus.Text = result.Success
                 ? "Status: connected — check Discord for the test post"
                 : $"Status: saved, but the test failed — {result.Message}";
-            SetupWebhookStatus.Foreground = Brush(result.Success ? "AccentBrush" : "ErrorBrush");
+            SetupWebhookStatus.Foreground = Brush(result.Success ? "SuccessBrush" : "ErrorBrush");
             _services.ActivityLog.Info(result.Success
                 ? "Discord webhook saved and tested successfully."
                 : $"Discord webhook test failed: {result.Message}");
@@ -1452,6 +1483,9 @@ public partial class MainWindow : Window
 
     private void OpenKoFi_Click(object sender, RoutedEventArgs e) => OpenExternal(KoFiUrl);
 
+    private void OpenCommunityDiscord_Click(object sender, RoutedEventArgs e) =>
+        OpenExternal(CommunityDiscordUrl);
+
     private void OnRelayStatusChanged(object? sender, EventArgs e) =>
         Dispatcher.InvokeAsync(RefreshStatus);
 
@@ -1605,7 +1639,7 @@ public partial class MainWindow : Window
         AboutUpdateStatusText.Foreground = snapshot.IsRequired
             ? Brush("ErrorBrush")
             : snapshot.Stage == AppUpdateStage.Current
-                ? Brush("AccentBrush")
+                ? Brush("SuccessBrush")
                 : snapshot.Stage == AppUpdateStage.Failed
                     ? Brush("WarningBrush")
                     : Brush("MutedTextBrush");
@@ -1956,7 +1990,7 @@ public partial class MainWindow : Window
         target.Text = value;
         target.Foreground = tone switch
         {
-            StatusTone.Success => Brush("AccentBrush"),
+            StatusTone.Success => Brush("SuccessBrush"),
             StatusTone.Warning => Brush("WarningBrush"),
             StatusTone.Error => Brush("ErrorBrush"),
             _ => Brush("MutedTextBrush")

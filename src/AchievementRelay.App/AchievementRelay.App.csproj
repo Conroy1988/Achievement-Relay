@@ -41,6 +41,7 @@
     <None Include="..\..\PRIVACY.md" Link="PRIVACY.md" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\THIRD-PARTY-NOTICES.md" Link="THIRD-PARTY-NOTICES.md" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\third_party\Facepunch.Steamworks.LICENSE.txt" Link="third_party\Facepunch.Steamworks.LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
+    <Resource Include="Assets\AchievementRelay.ico" />
     <Resource Include="Assets\AchievementRelay.png" />
     <Resource Include="Assets\RelayCommandDeck.png" />
     <Resource Include="Assets\TrophyCup.png" />

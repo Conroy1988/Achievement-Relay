@@ -6,39 +6,61 @@
     <!-- TKB-inspired command palette: ink, warm bone, steel and controlled crimson. -->
     <Color x:Key="BackgroundColor">#07090A</Color>
     <Color x:Key="PanelColor">#0D1012</Color>
-    <Color x:Key="PanelRaisedColor">#13171A</Color>
-    <Color x:Key="BorderColor">#29E8E1D5</Color>
-    <Color x:Key="TextColor">#E8E1D5</Color>
+    <Color x:Key="PanelRaisedColor">#151A1D</Color>
+    <Color x:Key="BorderColor">#626B6E</Color>
+    <Color x:Key="ControlBorderColor">#7D8588</Color>
+    <Color x:Key="TextColor">#F4F1EB</Color>
     <Color x:Key="MutedTextColor">#AEB4B7</Color>
     <Color x:Key="AccentColor">#D72B32</Color>
     <Color x:Key="AccentDarkColor">#83151B</Color>
+    <Color x:Key="AccentHoverColor">#A61922</Color>
+    <Color x:Key="AccentTextColor">#FF7278</Color>
+    <Color x:Key="AccentOutlineColor">#A9454A</Color>
+    <Color x:Key="FocusColor">#FFF4F1</Color>
+    <Color x:Key="DisabledSurfaceColor">#24292C</Color>
+    <Color x:Key="DisabledTextColor">#B8BEC1</Color>
     <Color x:Key="SuccessColor">#73C96A</Color>
     <Color x:Key="LegendaryColor">#D8B878</Color>
     <Color x:Key="ArcaneColor">#C0C5C8</Color>
     <Color x:Key="DiscordColor">#5865F2</Color>
+    <Color x:Key="DiscordOutlineColor">#8A93FF</Color>
     <Color x:Key="KoFiColor">#FF5E5B</Color>
+    <Color x:Key="KoFiOutlineColor">#B76B6E</Color>
     <Color x:Key="WarningColor">#E3AD5E</Color>
     <Color x:Key="ErrorColor">#FF5D66</Color>
     <Color x:Key="XboxColor">#107C10</Color>
+    <Color x:Key="XboxOutlineColor">#2E8B2E</Color>
     <Color x:Key="SteamColor">#1B6D91</Color>
+    <Color x:Key="SteamOutlineColor">#2C85A9</Color>
 
     <SolidColorBrush x:Key="BackgroundBrush" Color="{StaticResource BackgroundColor}" />
     <SolidColorBrush x:Key="PanelBrush" Color="{StaticResource PanelColor}" />
     <SolidColorBrush x:Key="PanelRaisedBrush" Color="{StaticResource PanelRaisedColor}" />
     <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource BorderColor}" />
+    <SolidColorBrush x:Key="ControlBorderBrush" Color="{StaticResource ControlBorderColor}" />
     <SolidColorBrush x:Key="TextBrush" Color="{StaticResource TextColor}" />
     <SolidColorBrush x:Key="MutedTextBrush" Color="{StaticResource MutedTextColor}" />
     <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
     <SolidColorBrush x:Key="AccentDarkBrush" Color="{StaticResource AccentDarkColor}" />
+    <SolidColorBrush x:Key="AccentHoverBrush" Color="{StaticResource AccentHoverColor}" />
+    <SolidColorBrush x:Key="AccentTextBrush" Color="{StaticResource AccentTextColor}" />
+    <SolidColorBrush x:Key="AccentOutlineBrush" Color="{StaticResource AccentOutlineColor}" />
+    <SolidColorBrush x:Key="FocusBrush" Color="{StaticResource FocusColor}" />
+    <SolidColorBrush x:Key="DisabledSurfaceBrush" Color="{StaticResource DisabledSurfaceColor}" />
+    <SolidColorBrush x:Key="DisabledTextBrush" Color="{StaticResource DisabledTextColor}" />
     <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource SuccessColor}" />
     <SolidColorBrush x:Key="LegendaryBrush" Color="{StaticResource LegendaryColor}" />
     <SolidColorBrush x:Key="ArcaneBrush" Color="{StaticResource ArcaneColor}" />
     <SolidColorBrush x:Key="DiscordBrush" Color="{StaticResource DiscordColor}" />
+    <SolidColorBrush x:Key="DiscordOutlineBrush" Color="{StaticResource DiscordOutlineColor}" />
     <SolidColorBrush x:Key="KoFiBrush" Color="{StaticResource KoFiColor}" />
+    <SolidColorBrush x:Key="KoFiOutlineBrush" Color="{StaticResource KoFiOutlineColor}" />
     <SolidColorBrush x:Key="WarningBrush" Color="{StaticResource WarningColor}" />
     <SolidColorBrush x:Key="ErrorBrush" Color="{StaticResource ErrorColor}" />
     <SolidColorBrush x:Key="XboxBrush" Color="{StaticResource XboxColor}" />
+    <SolidColorBrush x:Key="XboxOutlineBrush" Color="{StaticResource XboxOutlineColor}" />
     <SolidColorBrush x:Key="SteamBrush" Color="{StaticResource SteamColor}" />
+    <SolidColorBrush x:Key="SteamOutlineBrush" Color="{StaticResource SteamOutlineColor}" />
 
     <LinearGradientBrush x:Key="WindowSurfaceBrush" StartPoint="0,0" EndPoint="1,1">
       <GradientStop Color="#07090A" Offset="0" />
@@ -60,6 +82,7 @@
       <Setter Property="Background" Value="{StaticResource WindowSurfaceBrush}" />
       <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
       <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI" />
+      <Setter Property="FontSize" Value="13" />
       <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
       <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
     </Style>
@@ -69,6 +92,7 @@
     </Style>
 
     <Style x:Key="PageTitle" TargetType="TextBlock">
+      <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
       <Setter Property="FontSize" Value="34" />
       <Setter Property="FontWeight" Value="Bold" />
       <Setter Property="FontFamily" Value="Bahnschrift SemiCondensed, Segoe UI Variable Display, Segoe UI" />
@@ -83,6 +107,7 @@
     </Style>
 
     <Style x:Key="SectionTitle" TargetType="TextBlock">
+      <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
       <Setter Property="FontSize" Value="20" />
       <Setter Property="FontWeight" Value="Bold" />
       <Setter Property="FontFamily" Value="Bahnschrift SemiCondensed, Segoe UI Variable Display, Segoe UI" />
@@ -90,7 +115,7 @@
     </Style>
 
     <Style x:Key="EyebrowText" TargetType="TextBlock">
-      <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource AccentTextBrush}" />
       <Setter Property="FontSize" Value="11" />
       <Setter Property="FontWeight" Value="Bold" />
       <Setter Property="FontFamily" Value="Bahnschrift SemiCondensed, Segoe UI" />
@@ -106,6 +131,7 @@
     <Style x:Key="Card" TargetType="Border">
       <Setter Property="Background" Value="{StaticResource CardSurfaceBrush}" />
       <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+      <Setter Property="TextElement.Foreground" Value="{StaticResource TextBrush}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="7" />
       <Setter Property="Padding" Value="20" />
@@ -117,18 +143,44 @@
     </Style>
 
     <Style x:Key="StatusPill" TargetType="Border">
-      <Setter Property="Background" Value="#3313171A" />
-      <Setter Property="BorderBrush" Value="#33E8E1D5" />
+      <Setter Property="Background" Value="{StaticResource PanelRaisedBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource ControlBorderBrush}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="4" />
       <Setter Property="Padding" Value="10,5" />
       <Setter Property="HorizontalAlignment" Value="Left" />
+      <Setter Property="TextElement.Foreground" Value="{StaticResource TextBrush}" />
+    </Style>
+
+    <!-- Hidden navigation tabs use content only. Replacing the native template prevents
+         Windows' light TabControl chrome from leaking into the dark command surface. -->
+    <Style x:Key="ContentTabControl" TargetType="TabControl">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Focusable" Value="False" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="TabControl">
+            <Border Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    Padding="{TemplateBinding Padding}"
+                    TextElement.Foreground="{TemplateBinding Foreground}">
+              <ContentPresenter x:Name="PART_SelectedContentHost"
+                                ContentSource="SelectedContent"
+                                SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
+            </Border>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
     </Style>
 
     <Style TargetType="Button">
       <Setter Property="Background" Value="{StaticResource PanelRaisedBrush}" />
       <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
-      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource ControlBorderBrush}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="Padding" Value="17,10" />
       <Setter Property="MinHeight" Value="40" />
@@ -150,18 +202,22 @@
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="ButtonBorder" Property="Background" Value="#FFD72B32" />
-                <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="#80D72B32" />
+                <Setter TargetName="ButtonBorder" Property="Background" Value="{StaticResource AccentHoverBrush}" />
+                <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="{StaticResource AccentTextBrush}" />
+                <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
               </Trigger>
               <Trigger Property="IsKeyboardFocused" Value="True">
-                <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="{StaticResource FocusBrush}" />
                 <Setter TargetName="ButtonBorder" Property="BorderThickness" Value="2" />
               </Trigger>
               <Trigger Property="IsPressed" Value="True">
                 <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.78" />
               </Trigger>
               <Trigger Property="IsEnabled" Value="False">
-                <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.42" />
+                <Setter TargetName="ButtonBorder" Property="Background" Value="{StaticResource DisabledSurfaceBrush}" />
+                <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+                <Setter Property="Foreground" Value="{StaticResource DisabledTextBrush}" />
+                <Setter Property="Cursor" Value="Arrow" />
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -177,25 +233,25 @@
 
     <Style x:Key="DiscordButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
       <Setter Property="Background" Value="{StaticResource DiscordBrush}" />
-      <Setter Property="BorderBrush" Value="#8A93FF" />
+      <Setter Property="BorderBrush" Value="{StaticResource DiscordOutlineBrush}" />
       <Setter Property="Foreground" Value="White" />
     </Style>
 
     <Style x:Key="CommunityButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
       <Setter Property="Background" Value="#26D72B32" />
-      <Setter Property="BorderBrush" Value="#80D72B32" />
+      <Setter Property="BorderBrush" Value="{StaticResource AccentOutlineBrush}" />
       <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
     </Style>
 
     <Style x:Key="KoFiButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
       <Setter Property="Background" Value="#24FF5E5B" />
       <Setter Property="Foreground" Value="#FFF4F1" />
-      <Setter Property="BorderBrush" Value="#70FF5E5B" />
+      <Setter Property="BorderBrush" Value="{StaticResource KoFiOutlineBrush}" />
     </Style>
 
     <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
       <Setter Property="Foreground" Value="{StaticResource ErrorBrush}" />
-      <Setter Property="BorderBrush" Value="#80FF5D66" />
+      <Setter Property="BorderBrush" Value="{StaticResource ErrorBrush}" />
       <Setter Property="Background" Value="#1FFF5D66" />
     </Style>
 
@@ -220,22 +276,94 @@
       <Setter Property="Background" Value="#FF090B0C" />
       <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
       <Setter Property="CaretBrush" Value="{StaticResource AccentBrush}" />
-      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource ControlBorderBrush}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="Padding" Value="11,9" />
       <Setter Property="MinHeight" Value="40" />
       <Setter Property="FontSize" Value="14" />
+      <Style.Triggers>
+        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+          <Setter Property="BorderBrush" Value="{StaticResource FocusBrush}" />
+          <Setter Property="BorderThickness" Value="2" />
+        </Trigger>
+        <Trigger Property="IsEnabled" Value="False">
+          <Setter Property="Background" Value="{StaticResource DisabledSurfaceBrush}" />
+          <Setter Property="Foreground" Value="{StaticResource DisabledTextBrush}" />
+        </Trigger>
+      </Style.Triggers>
     </Style>
 
     <Style TargetType="PasswordBox">
       <Setter Property="Background" Value="#FF090B0C" />
       <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
       <Setter Property="CaretBrush" Value="{StaticResource AccentBrush}" />
-      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource ControlBorderBrush}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="Padding" Value="11,9" />
       <Setter Property="MinHeight" Value="40" />
       <Setter Property="FontSize" Value="14" />
+      <Style.Triggers>
+        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+          <Setter Property="BorderBrush" Value="{StaticResource FocusBrush}" />
+          <Setter Property="BorderThickness" Value="2" />
+        </Trigger>
+        <Trigger Property="IsEnabled" Value="False">
+          <Setter Property="Background" Value="{StaticResource DisabledSurfaceBrush}" />
+          <Setter Property="Foreground" Value="{StaticResource DisabledTextBrush}" />
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+
+    <Style TargetType="ListBox">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+      <Setter Property="ScrollViewer.CanContentScroll" Value="True" />
+    </Style>
+
+    <Style TargetType="ScrollViewer">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+    </Style>
+
+    <Style TargetType="ScrollBar">
+      <Setter Property="Background" Value="{StaticResource PanelBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource ControlBorderBrush}" />
+      <Setter Property="Width" Value="14" />
+      <Setter Property="MinWidth" Value="14" />
+      <Style.Triggers>
+        <Trigger Property="Orientation" Value="Horizontal">
+          <Setter Property="Width" Value="Auto" />
+          <Setter Property="MinWidth" Value="0" />
+          <Setter Property="Height" Value="14" />
+          <Setter Property="MinHeight" Value="14" />
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+
+    <Style TargetType="ListBoxItem">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Padding" Value="0" />
+      <Style.Triggers>
+        <Trigger Property="IsSelected" Value="True">
+          <Setter Property="Background" Value="#403F4548" />
+          <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+        </Trigger>
+        <Trigger Property="IsKeyboardFocused" Value="True">
+          <Setter Property="BorderBrush" Value="{StaticResource FocusBrush}" />
+          <Setter Property="BorderThickness" Value="2" />
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+
+    <Style TargetType="ToolTip">
+      <Setter Property="Background" Value="{StaticResource PanelRaisedBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource ControlBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Padding" Value="9,6" />
     </Style>
 
     <Style TargetType="CheckBox">

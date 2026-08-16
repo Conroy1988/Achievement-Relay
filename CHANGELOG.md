@@ -6,6 +6,16 @@ All notable changes to Achievement Relay are documented here. The project follow
 
 No changes yet.
 
+## [0.4.1] - 2026-08-16
+
+### Fixed
+
+- Removed native light `TabControl` chrome that could replace the intended dark content canvas with a white Windows-theme surface
+- Fixed inherited system-black headings and activity text across every dark card, list, setup step, settings panel and support panel
+- Separated accessible small red text from the darker brand/fill red and made hover, disabled, input-border, card-boundary and keyboard-focus states independently readable
+- Raised every explicit interface label to at least 11 device-independent pixels and added UI Automation names/live status announcements to key controls
+- Added repository-enforced WCAG contrast gates for primary, muted, semantic, button, hover, disabled and non-text boundary combinations
+
 ## [0.4.0] - 2026-08-16
 
 ### Release highlights
@@ -156,7 +166,8 @@ No changes yet.
 - x64/Arm64 MSIX packaging, installer scripts, development signing, CI, and tagged release workflow
 - User, privacy, security, troubleshooting, architecture, contributor, and release documentation
 
-[Unreleased]: https://github.com/Conroy1988/Achievement-Relay/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/Conroy1988/Achievement-Relay/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.4.1
 [0.4.0]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.4.0
 [0.3.2]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.3.2
 [0.3.1]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.3.1

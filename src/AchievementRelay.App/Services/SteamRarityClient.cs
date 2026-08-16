@@ -46,7 +46,7 @@ public sealed class SteamRarityClient : IDisposable
             using var request = new HttpRequestMessage(
                 HttpMethod.Get,
                 $"ISteamUserStats/GetGlobalAchievementPercentagesForApp/v0002/?gameid={appId.ToString(CultureInfo.InvariantCulture)}&format=json");
-            request.Headers.UserAgent.Add(new ProductInfoHeaderValue("AchievementRelay", "0.4.0"));
+            request.Headers.UserAgent.Add(new ProductInfoHeaderValue("AchievementRelay", "0.4.1"));
             using var response = await _httpClient.SendAsync(request, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {

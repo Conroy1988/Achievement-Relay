@@ -435,6 +435,7 @@ if ($liveUpdatePolicy.schemaVersion -ne 1 -or
     -not $liveUpdateWorkflowText.Contains('ed80821ed8ec351fb5a010c7324eaa1a31cd2f5d') -or
     -not $liveUpdateWorkflowText.Contains('TARGET_VERSION: 0.3.1') -or
     -not $liveUpdateWorkflowText.Contains('release\live-update-test-policy.json') -or
+    -not $liveUpdateWorkflowText.Contains('Cert:\CurrentUser\Root') -or
     -not $liveUpdateWorkflowText.Contains('AchievementRelay_Baseline_Setup.exe') -or
     -not $liveUpdateWorkflowText.Contains('gh release create') -or
     -not $liveUpdateWorkflowText.Contains('/releases/latest') -or

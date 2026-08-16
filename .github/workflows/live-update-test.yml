@@ -79,6 +79,12 @@ jobs:
           Import-Certificate `
             -FilePath $cerPath `
             -CertStoreLocation 'Cert:\CurrentUser\TrustedPeople' | Out-Null
+          # SignTool performs full chain validation even though the test leaf is
+          # also accepted from Trusted People. The runner is disposable, so trust
+          # this one ephemeral self-signed certificate as its own root as well.
+          Import-Certificate `
+            -FilePath $cerPath `
+            -CertStoreLocation 'Cert:\CurrentUser\Root' | Out-Null
 
           $certificateSha256 = (Get-FileHash -LiteralPath $cerPath -Algorithm SHA256).Hash.ToLowerInvariant()
           "TEST_SIGNING_PFX=$pfxPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append

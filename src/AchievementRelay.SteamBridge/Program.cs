@@ -460,7 +460,7 @@ internal static class Program
 
     private static string? LimitText(string? value, int maximumLength)
     {
-        if (string.IsNullOrWhiteSpace(value))
+        if (value is null || string.IsNullOrWhiteSpace(value))
         {
             return null;
         }

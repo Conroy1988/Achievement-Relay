@@ -79,6 +79,9 @@ const
   MusicAlias = 'AchievementRelayMusic';
   MusicFileName = 'CRNY - Relay Online.mp3';
   SoundCloudUrl = 'https://on.soundcloud.com/WpxV7SQGveaitTlijN';
+  MusicBackendNone = 0;
+  MusicBackendWindowsMediaPlayer = 1;
+  MusicBackendMci = 2;
 
 var
   SetupChoicePage: TInputOptionWizardPage;
@@ -87,8 +90,10 @@ var
   DiscordGuideButton: TNewButton;
   MusicButton: TNewButton;
   SoundCloudButton: TNewButton;
-  MusicOpened: Boolean;
-  MusicPaused: Boolean;
+  MusicPath: String;
+  MusicPlayer: Variant;
+  MusicBackend: Integer;
+  MusicPlaying: Boolean;
 
 function SetEnvironmentVariable(lpName, lpValue: String): Boolean;
   external 'SetEnvironmentVariableW@kernel32.dll stdcall';
@@ -105,86 +110,209 @@ end;
 
 procedure StopInstallerMusic();
 begin
-  if MusicOpened then
+  if MusicBackend = MusicBackendWindowsMediaPlayer then
+  begin
+    try
+      MusicPlayer.controls.stop;
+      MusicPlayer.close;
+    except
+      Log('Windows Media Player soundtrack shutdown failed safely.');
+    end;
+    MusicPlayer := Unassigned;
+  end
+  else if MusicBackend = MusicBackendMci then
   begin
     MciSendString('stop ' + MusicAlias, '', 0, 0);
     MciSendString('close ' + MusicAlias, '', 0, 0);
   end;
 
-  MusicOpened := False;
-  MusicPaused := False;
+  MusicBackend := MusicBackendNone;
+  MusicPlaying := False;
+end;
+
+function TryStartWindowsMediaPlayer(): Boolean;
+var
+  Controls: Variant;
+  Settings: Variant;
+begin
+  Result := False;
+  try
+    MusicPlayer := CreateOleObject('WMPlayer.OCX');
+    Settings := MusicPlayer.settings;
+    Controls := MusicPlayer.controls;
+    Settings.autoStart := False;
+    Settings.enableErrorDialogs := False;
+    Settings.volume := 10;
+    Settings.setMode('loop', True);
+
+    if Settings.volume <> 10 then
+      RaiseException('Windows Media Player did not retain the safe soundtrack volume.');
+
+    MusicPlayer.URL := MusicPath;
+    Controls.play;
+
+    MusicBackend := MusicBackendWindowsMediaPlayer;
+    MusicPlaying := True;
+    Result := True;
+    Log('Installer soundtrack started through Windows Media Player at 10% volume.');
+  except
+    Log('Windows Media Player soundtrack initialization was unavailable.');
+    try
+      MusicPlayer.controls.stop;
+      MusicPlayer.close;
+    except
+    end;
+    MusicPlayer := Unassigned;
+    MusicBackend := MusicBackendNone;
+    MusicPlaying := False;
+  end;
+end;
+
+function TryStartMci(): Boolean;
+var
+  CommandResult: DWORD;
+begin
+  Result := False;
+  CommandResult := MciSendString('open "' + MusicPath +
+    '" type MPEGVideo alias ' + MusicAlias, '', 0, 0);
+  if CommandResult <> 0 then
+  begin
+    Log('MCI soundtrack open failed with code ' + IntToStr(CommandResult) + '.');
+    Exit;
+  end;
+
+  CommandResult := MciSendString(
+    'setaudio ' + MusicAlias + ' volume to 100', '', 0, 0);
+  if CommandResult <> 0 then
+  begin
+    Log('MCI soundtrack safe-volume command failed with code ' +
+      IntToStr(CommandResult) + '.');
+    MciSendString('close ' + MusicAlias, '', 0, 0);
+    Exit;
+  end;
+
+  CommandResult := MciSendString('play ' + MusicAlias + ' repeat', '', 0, 0);
+  if CommandResult <> 0 then
+  begin
+    Log('MCI soundtrack playback failed with code ' + IntToStr(CommandResult) + '.');
+    MciSendString('close ' + MusicAlias, '', 0, 0);
+    Exit;
+  end;
+
+  MusicBackend := MusicBackendMci;
+  MusicPlaying := True;
+  Result := True;
+  Log('Installer soundtrack started through the MCI fallback at 10% volume.');
+end;
+
+procedure MarkMusicPlaying();
+begin
+  MusicButton.Caption := 'Pause music';
+  MusicButton.Enabled := True;
+end;
+
+function ResumeInstallerMusic(): Boolean;
+var
+  CommandResult: DWORD;
+begin
+  Result := False;
+  try
+    if MusicBackend = MusicBackendWindowsMediaPlayer then
+    begin
+      MusicPlayer.controls.play;
+      Result := True;
+    end
+    else if MusicBackend = MusicBackendMci then
+    begin
+      CommandResult := MciSendString('resume ' + MusicAlias, '', 0, 0);
+      Result := CommandResult = 0;
+      if not Result then
+        Log('MCI soundtrack resume failed with code ' + IntToStr(CommandResult) + '.');
+    end;
+  except
+    Log('Installer soundtrack resume failed safely.');
+    Result := False;
+  end;
+
+  if Result then
+  begin
+    MusicPlaying := True;
+    MarkMusicPlaying();
+  end;
+end;
+
+function PauseInstallerMusic(): Boolean;
+var
+  CommandResult: DWORD;
+begin
+  Result := False;
+  try
+    if MusicBackend = MusicBackendWindowsMediaPlayer then
+    begin
+      MusicPlayer.controls.pause;
+      Result := True;
+    end
+    else if MusicBackend = MusicBackendMci then
+    begin
+      CommandResult := MciSendString('pause ' + MusicAlias, '', 0, 0);
+      Result := CommandResult = 0;
+      if not Result then
+        Log('MCI soundtrack pause failed with code ' + IntToStr(CommandResult) + '.');
+    end;
+  except
+    Log('Installer soundtrack pause failed safely.');
+    Result := False;
+  end;
+
+  if Result then
+  begin
+    MusicPlaying := False;
+    MusicButton.Caption := 'Play music';
+  end;
 end;
 
 procedure StartInstallerMusic();
-var
-  MusicPath: String;
 begin
   SetMusicUnavailable();
+  MusicBackend := MusicBackendNone;
+  MusicPlaying := False;
+  MusicPlayer := Unassigned;
   try
     ExtractTemporaryFile(MusicFileName);
     MusicPath := ExpandConstant('{tmp}\') + MusicFileName;
-
-    if MciSendString('open "' + MusicPath + '" type MPEGVideo alias ' +
-      MusicAlias, '', 0, 0) <> 0 then
+    if not FileExists(MusicPath) then
     begin
-      Log('Installer soundtrack could not be opened.');
-      Exit;
-    end;
-    MusicOpened := True;
-
-    { Windows MCI treats 1000 as normal volume, so 100 is 10%. Never start
-      playback if the volume command fails and could leave it uncontrolled. }
-    if MciSendString('setaudio ' + MusicAlias + ' volume to 100', '', 0, 0) <> 0 then
-    begin
-      Log('Installer soundtrack volume could not be limited to 10%.');
-      StopInstallerMusic();
+      Log('Installer soundtrack extraction did not produce the expected file.');
       Exit;
     end;
 
-    if MciSendString('play ' + MusicAlias + ' repeat', '', 0, 0) <> 0 then
-    begin
-      Log('Installer soundtrack could not start.');
-      StopInstallerMusic();
-      Exit;
-    end;
-
-    MusicButton.Caption := 'Pause music';
-    MusicButton.Enabled := True;
+    if TryStartWindowsMediaPlayer() then
+      MarkMusicPlaying()
+    else if TryStartMci() then
+      MarkMusicPlaying()
+    else
+      SetMusicUnavailable();
   except
     Log('Installer soundtrack initialization failed safely.');
     StopInstallerMusic();
+    SetMusicUnavailable();
   end;
 end;
 
 procedure ToggleInstallerMusic(Sender: TObject);
 var
-  CommandResult: DWORD;
+  ControlSucceeded: Boolean;
 begin
-  if not MusicOpened then
+  if MusicBackend = MusicBackendNone then
     Exit;
 
-  if MusicPaused then
-  begin
-    CommandResult := MciSendString('resume ' + MusicAlias, '', 0, 0);
-    if CommandResult = 0 then
-    begin
-      MusicPaused := False;
-      MusicButton.Caption := 'Pause music';
-    end;
-  end
+  if MusicPlaying then
+    ControlSucceeded := PauseInstallerMusic()
   else
-  begin
-    CommandResult := MciSendString('pause ' + MusicAlias, '', 0, 0);
-    if CommandResult = 0 then
-    begin
-      MusicPaused := True;
-      MusicButton.Caption := 'Play music';
-    end;
-  end;
+    ControlSucceeded := ResumeInstallerMusic();
 
-  if CommandResult <> 0 then
+  if not ControlSucceeded then
   begin
-    Log('Installer soundtrack playback control failed safely.');
     StopInstallerMusic();
     SetMusicUnavailable();
   end;

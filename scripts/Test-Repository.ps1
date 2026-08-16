@@ -95,14 +95,20 @@ $soundtrackHash = (Get-FileHash -LiteralPath $soundtrackPath -Algorithm SHA256).
 if ($soundtrackHash -ne '3581211124af4f328a7e6c27d4b726cc0ead0a88b0751bf1113d867272c4b182') {
     throw 'The installer soundtrack does not match the original CRNY - Relay Online upload.'
 }
+
 if (-not $installerText.Contains('CRNY - Relay Online.mp3"; Flags: dontcopy noencryption') -or
+    -not $installerText.Contains("CreateOleObject('WMPlayer.OCX')") -or
+    -not $installerText.Contains('Settings.volume := 10') -or
+    -not $installerText.Contains("Settings.setMode('loop', True)") -or
+    -not $installerText.Contains('MusicPlayer.controls.pause') -or
+    -not $installerText.Contains('MusicPlayer.controls.play') -or
     -not $installerText.Contains("setaudio ' + MusicAlias + ' volume to 100") -or
     -not $installerText.Contains("play ' + MusicAlias + ' repeat") -or
     -not $installerText.Contains("pause ' + MusicAlias") -or
     -not $installerText.Contains("resume ' + MusicAlias") -or
     -not $installerText.Contains('procedure DeinitializeSetup') -or
     -not $installerText.Contains('https://on.soundcloud.com/WpxV7SQGveaitTlijN')) {
-    throw 'The installer soundtrack must remain temporary, local, limited to 10%, controllable, looped, and linked to CRNY on SoundCloud.'
+    throw 'The installer soundtrack must remain temporary, local, limited to 10%, controllable, looped, and linked to CRNY on SoundCloud through independent primary and fallback playback paths.'
 }
 
 $installScriptText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'scripts\Install.ps1') -Raw

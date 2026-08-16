@@ -16,6 +16,7 @@ All notable changes to Achievement Relay are documented here. The project follow
 
 ### Fixed
 
+- Added a Windows Media Player primary soundtrack backend with isolated 10% volume, real Pause/Play and looping, while retaining the independently volume-limited MCI fallback; this fixes **Music unavailable** on desktops where relying on the legacy MPEG device path alone failed
 - Parsed Steam's global achievement percentages when the public endpoint represents `percent` as a JSON string as well as a number, restoring the percentage-based Rarity field in Discord embeds
 - Encoded Steam artwork as Base64 on the helper JSON wire contract, fixing the first live-unlock snapshot being rejected when Steam supplied an icon; the bridge self-test now exercises this exact representation
 - Restarted the isolated helper after unreadable protocol output, made optional Steam rarity failures non-blocking, repaired malformed provider Unicode before Discord serialization, and added privacy-safe processing-stage diagnostics while retaining durable pending-unlock recovery

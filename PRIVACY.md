@@ -62,7 +62,7 @@ If the user selects **Connect Discord now; add OpenXBL optionally** in `Achievem
 
 If installation or first launch is interrupted before durable storage, the one-time file can remain, but its values are still encrypted for that Windows user. The next launch retries the import. Selecting **Skip — I will do this later** creates no credential handoff.
 
-The installer contains the original CRNY track **Relay Online**. Setup extracts it only to its automatically cleaned temporary directory, plays it locally at 10% volume, and provides Play/Pause controls. It is not sent over the network or retained as a separately installed file. The SoundCloud profile opens in the default browser only if the user selects that button.
+The installer contains the original CRNY track **Relay Online**. Setup extracts it only to its automatically cleaned temporary directory and first plays it through a private Windows Media Player instance fixed at 10% volume, with an independently volume-limited Windows MCI fallback. Neither path changes the user's Windows master volume, and playback is not started if a safe per-player volume cannot be enforced. Setup provides Play/Pause controls. The track is not sent over the network or retained as a separately installed file. The SoundCloud profile opens in the default browser only if the user selects that button.
 
 ## Network access
 

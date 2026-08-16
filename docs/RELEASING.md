@@ -34,6 +34,8 @@ Every build creates `AchievementRelay_Update.json` and `AchievementRelay_Update.
 
 The package build hashes the leaf signing certificate and embeds that SHA-256 fingerprint into the app. A downloaded installer must pass Windows Authenticode verification and match that pin. Certificate rotation therefore needs a transition build, signed by the old certificate, with the replacement fingerprint temporarily added to `additionalPublisherCertificateSha256` in the reviewed policy. Only after that transition is widely installed may a later release change signer; remove the old fingerprint in a subsequent release.
 
+The deliberately isolated baseline-to-target exercise is documented in [`LIVE-UPDATE-TEST.md`](LIVE-UPDATE-TEST.md). Its workflow uses a separate reviewed support policy and one ephemeral certificate shared only by the matched test pair. It verifies every draft asset before making the stable tag visible to `/releases/latest`; it is not a substitute for the persistent production signing identity.
+
 ## GitHub signing secrets
 
 The tag/manual Release workflow requires these repository secrets:

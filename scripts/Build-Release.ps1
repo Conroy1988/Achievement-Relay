@@ -13,7 +13,9 @@ param(
 
     [string] $PfxPassword,
 
-    [string] $TimestampUrl
+    [string] $TimestampUrl,
+
+    [string] $UpdatePolicyPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -21,7 +23,11 @@ $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $outputDirectory = Join-Path $repositoryRoot 'artifacts'
 New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
 
-$updatePolicy = Get-Content -LiteralPath (Join-Path $repositoryRoot 'release\update-policy.json') -Raw |
+if (-not $UpdatePolicyPath) {
+    $UpdatePolicyPath = Join-Path $repositoryRoot 'release\update-policy.json'
+}
+$UpdatePolicyPath = [System.IO.Path]::GetFullPath($UpdatePolicyPath)
+$updatePolicy = Get-Content -LiteralPath $UpdatePolicyPath -Raw |
     ConvertFrom-Json
 $additionalUpdatePublisherCertificates = @($updatePolicy.additionalPublisherCertificateSha256)
 
@@ -88,6 +94,7 @@ try {
         -InstallerPath (Join-Path $outputDirectory 'AchievementRelay_Setup.exe') `
         -OutputPath (Join-Path $outputDirectory 'AchievementRelay_Update.json') `
         -OutputSignaturePath (Join-Path $outputDirectory 'AchievementRelay_Update.sig') `
+        -PolicyPath $UpdatePolicyPath `
         -PfxPath $PfxPath `
         -PfxPassword $PfxPassword
 

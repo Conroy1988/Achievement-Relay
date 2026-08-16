@@ -44,6 +44,9 @@ $requiredFiles = @(
     'scripts\New-UpdateManifest.ps1',
     'scripts\Protect-InstallerSetup.ps1',
     'release\update-policy.json',
+    'release\live-update-test-policy.json',
+    '.github\workflows\live-update-test.yml',
+    'docs\LIVE-UPDATE-TEST.md',
     'src\AchievementRelay.SteamBridge\AchievementRelay.SteamBridge.csproj',
     'src\AchievementRelay.SteamBridge\Program.cs',
     'src\AchievementRelay.Core\Services\SteamAchievementDeltaDetector.cs',
@@ -423,6 +426,22 @@ if (-not $releaseWorkflowText.Contains("'.exe'") -or
     throw 'The release workflow must verify the Steam bridge and publish a persistently signed updater plus manifest.'
 }
 
+$liveUpdatePolicy = Get-Content -LiteralPath (Join-Path $repositoryRoot 'release\live-update-test-policy.json') -Raw |
+    ConvertFrom-Json
+$liveUpdateWorkflowText = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github\workflows\live-update-test.yml') -Raw
+if ($liveUpdatePolicy.schemaVersion -ne 1 -or
+    $liveUpdatePolicy.minimumSupportedVersion -cne '0.3.1' -or
+    @($liveUpdatePolicy.additionalPublisherCertificateSha256).Count -ne 0 -or
+    -not $liveUpdateWorkflowText.Contains('ed80821ed8ec351fb5a010c7324eaa1a31cd2f5d') -or
+    -not $liveUpdateWorkflowText.Contains('TARGET_VERSION: 0.3.1') -or
+    -not $liveUpdateWorkflowText.Contains('release\live-update-test-policy.json') -or
+    -not $liveUpdateWorkflowText.Contains('AchievementRelay_Baseline_Setup.exe') -or
+    -not $liveUpdateWorkflowText.Contains('gh release create') -or
+    -not $liveUpdateWorkflowText.Contains('/releases/latest') -or
+    -not $liveUpdateWorkflowText.Contains('--latest')) {
+    throw 'The controlled updater test must build its pinned baseline and signed required target, then verify GitHub latest-stable discovery.'
+}
+
 $updatePolicyText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.Core\Services\UpdatePolicy.cs') -Raw
 $appUpdateText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\AppUpdateService.cs') -Raw
 $installerTrustText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\InstallerTrustVerifier.cs') -Raw
@@ -446,6 +465,7 @@ if (-not $updatePolicyText.Contains('minimum supported version') -or
     -not $buildMsixText.Contains('-p:AchievementRelayPackageVersion=') -or
     -not $buildReleaseText.Contains('New-UpdateManifest.ps1') -or
     -not $buildReleaseText.Contains('-PackageVersion $Version') -or
+    -not $buildReleaseText.Contains('-PolicyPath $UpdatePolicyPath') -or
     -not $newUpdateManifestText.Contains('$embeddedPackageVersion -ne $packageVersionValue') -or
     -not $newUpdateManifestText.Contains('$installerCertificateSha256 -cne $certificateSha256') -or
     -not $mainWindowText.Contains('EnforceRequiredUpdateAsync') -or

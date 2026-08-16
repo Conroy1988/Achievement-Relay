@@ -10,6 +10,7 @@ BundleArtifacts/
 *.msix
 *.msixbundle
 *.cer
+!release/AchievementRelay.Publisher.cer
 *.pfx
 *.p12
 

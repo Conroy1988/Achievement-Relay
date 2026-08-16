@@ -52,6 +52,15 @@ public static class WebhookUrlValidator
             return false;
         }
 
+        if (candidate.Host.Equals("discordapp.com", StringComparison.OrdinalIgnoreCase))
+        {
+            // Discord's legacy host can redirect to discord.com. Normalize it
+            // before sending so the webhook client can keep redirects disabled
+            // without breaking older copied URLs or forwarding the token.
+            var canonical = new UriBuilder(candidate) { Host = "discord.com" };
+            candidate = canonical.Uri;
+        }
+
         webhookUri = candidate;
         return true;
     }

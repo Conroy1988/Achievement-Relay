@@ -6,13 +6,15 @@ body:
   - type: markdown
     attributes:
       value: |
+        For setup help, start with [Community & Support on Discord](https://discord.gg/3ZdXhYjgDm). For a reproducible bug, continue below.
+
         Never paste an OpenXBL API key or Discord webhook URL/token. Revoke it immediately if it was exposed.
 
   - type: input
     id: version
     attributes:
       label: Achievement Relay version
-      placeholder: 0.2.0
+      placeholder: 0.4.0
     validations:
       required: true
 
@@ -29,12 +31,15 @@ body:
     attributes:
       label: Problem area
       options:
-        - Installer or Guided setup
+        - Installer or Setup
         - OpenXBL account connection
         - Xbox achievement sync or parsing
+        - Steam detection or achievement monitoring
         - Discord delivery
+        - Automatic update
         - Startup or tray behaviour
         - Upgrade or uninstall
+        - Interface or accessibility
         - Other
     validations:
       required: true
@@ -51,7 +56,7 @@ body:
     id: diagnostic
     attributes:
       label: Redacted support summary
-      description: Paste Diagnostics → Copy support summary. Check again that it contains no secrets.
+      description: Paste Help & support → Copy support summary. Check again that it contains no secrets.
       render: text
 
   - type: checkboxes

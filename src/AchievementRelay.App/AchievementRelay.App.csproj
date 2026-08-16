@@ -11,11 +11,27 @@
     <ApplicationIcon>Assets\AchievementRelay.ico</ApplicationIcon>
     <AssemblyName>AchievementRelay.App</AssemblyName>
     <RootNamespace>AchievementRelay.App</RootNamespace>
-    <Version>0.2.0</Version>
-    <FileVersion>0.2.0.0</FileVersion>
-    <AssemblyVersion>0.2.0.0</AssemblyVersion>
-    <Description>Automatically relay Xbox account achievements to Discord.</Description>
+    <Version>0.4.0</Version>
+    <FileVersion>0.4.0.0</FileVersion>
+    <AssemblyVersion>0.4.0.0</AssemblyVersion>
+    <Description>Automatically relay new Xbox and Steam achievements to Discord.</Description>
+    <UpdatePublisherCertificateSha256 Condition="'$(UpdatePublisherCertificateSha256)' == ''"></UpdatePublisherCertificateSha256>
+    <AchievementRelayPackageVersion Condition="'$(AchievementRelayPackageVersion)' == ''">$(FileVersion)</AchievementRelayPackageVersion>
   </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>AchievementRelay.UpdatePublisherCertificateSha256</_Parameter1>
+      <_Parameter2>$(UpdatePublisherCertificateSha256)</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>AchievementRelay.PackageVersion</_Parameter1>
+      <_Parameter2>$(AchievementRelayPackageVersion)</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\AchievementRelay.Core\AchievementRelay.Core.csproj" />
@@ -23,6 +39,15 @@
 
   <ItemGroup>
     <None Include="..\..\PRIVACY.md" Link="PRIVACY.md" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\THIRD-PARTY-NOTICES.md" Link="THIRD-PARTY-NOTICES.md" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\third_party\Facepunch.Steamworks.LICENSE.txt" Link="third_party\Facepunch.Steamworks.LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
+    <Resource Include="Assets\AchievementRelay.ico" />
     <Resource Include="Assets\AchievementRelay.png" />
+    <Resource Include="Assets\RelayCommandDeck.png" />
+    <Resource Include="Assets\TrophyCup.png" />
+    <Resource Include="Assets\RadarSweep.png" />
+    <Resource Include="Assets\Xbox.png" />
+    <Resource Include="Assets\Steam.png" />
+    <Resource Include="Assets\Discord.png" />
   </ItemGroup>
 </Project>

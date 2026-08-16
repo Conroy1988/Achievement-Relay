@@ -9,8 +9,13 @@ on:
       version:
         description: Release tag in vX.Y.Z format
         required: true
-        default: v0.2.0
+        default: v0.4.0
         type: string
+      publish_release:
+        description: Publish the immutable GitHub Release after signing checks pass
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -21,6 +26,7 @@ jobs:
     timeout-minutes: 35
     env:
       RELEASE_TAG: ${{ inputs.version || github.ref_name }}
+      SIGNING_TIMESTAMP_URL: http://timestamp.digicert.com
 
     steps:
       - name: Check out source
@@ -36,6 +42,10 @@ jobs:
         run: |
           dotnet build .\AchievementRelay.sln --configuration Release
           dotnet run --project .\tests\AchievementRelay.Core.Tests --configuration Release --no-build
+          $bridgeOutput = & .\src\AchievementRelay.SteamBridge\bin\Release\net48\AchievementRelay.SteamBridge.exe --self-test
+          if ($LASTEXITCODE -ne 0 -or $bridgeOutput -notmatch '"protocolVersion":1' -or $bridgeOutput -notmatch '"status":"self-test"' -or $bridgeOutput -notmatch '"message":"ok"') {
+            throw "Steam bridge self-test failed: $bridgeOutput"
+          }
           .\scripts\Test-Repository.ps1
 
       - name: Build signed packages
@@ -43,7 +53,6 @@ jobs:
         env:
           SIGNING_PFX_BASE64: ${{ secrets.SIGNING_PFX_BASE64 }}
           SIGNING_PFX_PASSWORD: ${{ secrets.SIGNING_PFX_PASSWORD }}
-          SIGNING_TIMESTAMP_URL: ${{ secrets.SIGNING_TIMESTAMP_URL }}
         run: |
           if ($env:RELEASE_TAG -notmatch '^v\d+\.\d+\.\d+$') {
             throw "Release version must use vX.Y.Z format; received '$env:RELEASE_TAG'."
@@ -55,24 +64,110 @@ jobs:
             Version = $msixVersion
           }
 
-          if ($env:SIGNING_PFX_BASE64 -and $env:SIGNING_PFX_PASSWORD) {
-            $pfxPath = Join-Path $env:RUNNER_TEMP 'AchievementRelay.Signing.pfx'
+          if (-not $env:SIGNING_PFX_BASE64 -or
+              -not $env:SIGNING_PFX_PASSWORD) {
+            throw 'Official self-updating releases require the persistent project signing PFX and its password.'
+          }
+
+          $pfxPath = Join-Path $env:RUNNER_TEMP 'AchievementRelay.Signing.pfx'
+          $publisherCertificatePath = Join-Path $env:GITHUB_WORKSPACE 'release\AchievementRelay.Publisher.cer'
+          $trustedCertificate = $null
+          try {
             [System.IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:SIGNING_PFX_BASE64))
+            $trustedCertificate = Import-Certificate `
+              -FilePath $publisherCertificatePath `
+              -CertStoreLocation 'Cert:\LocalMachine\TrustedPeople'
+
             $arguments.PfxPath = $pfxPath
             $arguments.PfxPassword = $env:SIGNING_PFX_PASSWORD
-            if ($env:SIGNING_TIMESTAMP_URL) {
-              $arguments.TimestampUrl = $env:SIGNING_TIMESTAMP_URL
+            $arguments.TimestampUrl = $env:SIGNING_TIMESTAMP_URL
+            $arguments.AllowUntrustedProjectCertificate = $true
+            .\scripts\Build-Release.ps1 @arguments
+
+            $publisherFingerprint = (Get-FileHash -LiteralPath $publisherCertificatePath -Algorithm SHA256).Hash.ToLowerInvariant()
+            $signedFiles = @(
+              '.\artifacts\AchievementRelay_Setup.exe',
+              ".\artifacts\AchievementRelay_${msixVersion}_x64.msix",
+              ".\artifacts\AchievementRelay_${msixVersion}_arm64.msix"
+            )
+            foreach ($signedFile in $signedFiles) {
+              $authenticode = Get-AuthenticodeSignature -LiteralPath $signedFile
+              if ($authenticode.Status -ne 'Valid' -or -not $authenticode.SignerCertificate) {
+                throw "Windows did not validate the Authenticode signature on $signedFile."
+              }
+              $signerFingerprint = -join @(
+                [System.Security.Cryptography.SHA256]::HashData($authenticode.SignerCertificate.RawData) |
+                  ForEach-Object { $_.ToString('x2') }
+              )
+              if ($signerFingerprint -cne $publisherFingerprint) {
+                throw "$signedFile was not signed by the reviewed Achievement Relay publisher certificate."
+              }
+            }
+
+            $expectedAssets = @(
+              'AchievementRelay_Setup.exe',
+              'AchievementRelay_Update.json',
+              'AchievementRelay_Update.sig',
+              'AchievementRelay.Publisher.cer',
+              "AchievementRelay_${msixVersion}_x64.msix",
+              "AchievementRelay_${msixVersion}_arm64.msix",
+              "AchievementRelay_${msixVersion}_installer.zip"
+            )
+            foreach ($assetName in $expectedAssets) {
+              if (-not (Test-Path -LiteralPath (Join-Path '.\artifacts' $assetName) -PathType Leaf)) {
+                throw "The official release asset set is incomplete: $assetName is missing."
+              }
+            }
+          }
+          finally {
+            if ($trustedCertificate) {
+              Remove-Item -LiteralPath "Cert:\LocalMachine\TrustedPeople\$($trustedCertificate.Thumbprint)" -Force -ErrorAction SilentlyContinue
+            }
+            if (Test-Path -LiteralPath $pfxPath) {
+              Remove-Item -LiteralPath $pfxPath -Force
             }
           }
 
-          .\scripts\Build-Release.ps1 @arguments
+      - name: Retain signed release candidate
+        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.publish_release }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: AchievementRelay-${{ env.RELEASE_TAG }}-signed-candidate
+          path: |
+            artifacts/AchievementRelay_Setup.exe
+            artifacts/AchievementRelay_*.msix
+            artifacts/AchievementRelay_*_installer.zip
+            artifacts/AchievementRelay.Publisher.cer
+            artifacts/AchievementRelay_Update.json
+            artifacts/AchievementRelay_Update.sig
+          if-no-files-found: error
+          retention-days: 2
+          compression-level: 0
 
       - name: Publish GitHub release
+        if: ${{ github.event_name == 'push' || inputs.publish_release }}
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $files = Get-ChildItem .\artifacts -File |
-            Where-Object { $_.Extension -in '.exe', '.msix', '.zip', '.cer' } |
+            Where-Object { $_.Extension -in '.exe', '.msix', '.zip', '.cer', '.json', '.sig' } |
             ForEach-Object FullName
-          gh release create $env:RELEASE_TAG $files --generate-notes --title "Achievement Relay $env:RELEASE_TAG" --target '${{ github.sha }}'
+          $version = $env:RELEASE_TAG.Substring(1)
+          $releaseNotesPath = ".\docs\RELEASE-NOTES-$version.md"
+          $releaseArguments = @(
+            'release', 'create', $env:RELEASE_TAG
+          ) + $files + @(
+            '--title', "Achievement Relay $env:RELEASE_TAG",
+            '--target', '${{ github.sha }}'
+          )
+          if (Test-Path -LiteralPath $releaseNotesPath) {
+            $releaseArguments += @('--notes-file', $releaseNotesPath)
+          }
+          else {
+            $releaseArguments += '--generate-notes'
+          }
+          & gh @releaseArguments
+          if ($LASTEXITCODE -ne 0) {
+            throw 'GitHub release publication failed.'
+          }

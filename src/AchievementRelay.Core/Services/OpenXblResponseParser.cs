@@ -8,48 +8,192 @@ namespace AchievementRelay.Core.Services;
 
 public static class OpenXblResponseParser
 {
+    private static readonly DateTimeOffset EarliestCredibleAchievementUtc =
+        new(2005, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
     public static XboxAccount ParseAccount(string json)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(json);
 
-        using var document = JsonDocument.Parse(json);
-        if (!TryGetProperty(document.RootElement, "profileUsers", out var users) ||
-            users.ValueKind != JsonValueKind.Array ||
-            users.GetArrayLength() == 0)
+        using var document = JsonDocument.Parse(json.Trim().TrimStart('\uFEFF'));
+        if (TryParseAccountElement(document.RootElement, 0, string.Empty, string.Empty, out var account))
         {
-            throw new JsonException("OpenXBL did not return an Xbox profile.");
+            return account;
         }
 
-        var user = users[0];
-        var xuid = GetString(user, "id");
-        var gamertag = string.Empty;
+        throw new JsonException(
+            "OpenXBL accepted the API key, but did not return a usable Xbox profile. " +
+            "Confirm the intended Xbox profile is connected in OpenXBL, then try again.");
+    }
 
-        if (TryGetProperty(user, "settings", out var settings) && settings.ValueKind == JsonValueKind.Array)
+    private static bool TryParseAccountElement(
+        JsonElement element,
+        int depth,
+        string inheritedXuid,
+        string inheritedGamertag,
+        out XboxAccount account)
+    {
+        account = default!;
+        if (depth > 8)
+        {
+            return false;
+        }
+
+        if (element.ValueKind == JsonValueKind.String && depth < 2)
+        {
+            var nestedJson = element.GetString();
+            if (!string.IsNullOrWhiteSpace(nestedJson))
+            {
+                try
+                {
+                    using var nestedDocument = JsonDocument.Parse(nestedJson.Trim().TrimStart('\uFEFF'));
+                    return TryParseAccountElement(
+                        nestedDocument.RootElement,
+                        depth + 1,
+                        inheritedXuid,
+                        inheritedGamertag,
+                        out account);
+                }
+                catch (JsonException)
+                {
+                    return false;
+                }
+            }
+
+            return false;
+        }
+
+        if (element.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in element.EnumerateArray())
+            {
+                if (TryParseAccountElement(
+                        item,
+                        depth + 1,
+                        inheritedXuid,
+                        inheritedGamertag,
+                        out account))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            return false;
+        }
+
+        var xuid = FirstNonEmpty(
+            GetAccountXuid(element),
+            inheritedXuid);
+        var directGamertag = GetString(
+            element,
+            "gamertag",
+            "uniqueModernGamertag",
+            "modernGamertag",
+            "gameDisplayName",
+            "displayName");
+        var gamertag = FirstNonEmpty(directGamertag, inheritedGamertag);
+
+        if (TryGetProperty(element, "settings", out var settings))
+        {
+            gamertag = FirstNonEmpty(
+                GetAccountSetting(settings, "Gamertag"),
+                GetAccountSetting(settings, "UniqueModernGamertag"),
+                GetAccountSetting(settings, "ModernGamertag"),
+                GetAccountSetting(settings, "GameDisplayName"),
+                directGamertag,
+                inheritedGamertag);
+        }
+
+        if (!string.IsNullOrWhiteSpace(xuid) && !string.IsNullOrWhiteSpace(gamertag))
+        {
+            account = new XboxAccount(xuid.Trim(), gamertag.Trim());
+            return true;
+        }
+
+        foreach (var containerName in new[]
+                 {
+                     "profileUsers", "people", "profiles", "users", "accounts", "items", "data", "result", "response",
+                     "payload", "value", "body", "content", "account", "profile"
+                 })
+        {
+            if (TryGetProperty(element, containerName, out var container) &&
+                TryParseAccountElement(container, depth + 1, xuid, gamertag, out account))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string GetAccountXuid(JsonElement element)
+    {
+        foreach (var propertyName in new[] { "xuid", "xboxUserId", "userId", "id", "hostId" })
+        {
+            var value = GetString(element, propertyName).Trim();
+            if (value.Length is >= 12 and <= 20 && value.All(char.IsAsciiDigit))
+            {
+                return value;
+            }
+        }
+
+        return string.Empty;
+    }
+
+    private static string GetAccountSetting(JsonElement settings, string settingName)
+    {
+        if (settings.ValueKind == JsonValueKind.Object)
+        {
+            var directValue = GetString(settings, settingName);
+            if (!string.IsNullOrWhiteSpace(directValue))
+            {
+                return directValue;
+            }
+
+            if (TryGetProperty(settings, "values", out var values))
+            {
+                return GetAccountSetting(values, settingName);
+            }
+        }
+
+        if (settings.ValueKind == JsonValueKind.Array)
         {
             foreach (var setting in settings.EnumerateArray())
             {
-                if (GetString(setting, "id").Equals("Gamertag", StringComparison.OrdinalIgnoreCase))
+                if (GetString(setting, "id", "name", "key").Equals(settingName, StringComparison.OrdinalIgnoreCase))
                 {
-                    gamertag = GetString(setting, "value");
-                    break;
+                    return GetString(setting, "value");
                 }
             }
         }
 
-        if (string.IsNullOrWhiteSpace(xuid) || string.IsNullOrWhiteSpace(gamertag))
+        return string.Empty;
+    }
+
+    private static string FirstNonEmpty(params string[] values)
+    {
+        foreach (var value in values)
         {
-            throw new JsonException("OpenXBL returned an incomplete Xbox profile.");
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
         }
 
-        return new XboxAccount(xuid, gamertag);
+        return string.Empty;
     }
 
     public static IReadOnlyList<XboxTitleProgress> ParseTitleProgress(string json)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(json);
 
-        using var document = JsonDocument.Parse(json);
-        var titles = GetArray(document.RootElement, "titles", "items");
+        var root = ParseJsonRoot(json);
+        var titles = GetArray(root, "titles", "userTitles", "items");
         if (titles is null)
         {
             throw new JsonException("OpenXBL did not return an Xbox title collection.");
@@ -79,8 +223,8 @@ public static class OpenXblResponseParser
                 : default;
             DateTimeOffset? lastPlayedAt = null;
             var lastPlayedValue = titleHistory.ValueKind == JsonValueKind.Object
-                ? GetString(titleHistory, "lastTimePlayed")
-                : GetString(item, "lastTimePlayed");
+                ? GetString(titleHistory, "lastTimePlayed", "lastPlayed")
+                : GetString(item, "lastTimePlayed", "lastPlayed", "lastUnlock");
             if (DateTimeOffset.TryParse(
                     lastPlayedValue,
                     CultureInfo.InvariantCulture,
@@ -91,7 +235,9 @@ public static class OpenXblResponseParser
             }
 
             var devices = new List<string>();
-            if (TryGetProperty(item, "devices", out var deviceValues) &&
+            var hasDevices = TryGetProperty(item, "devices", out var deviceValues) ||
+                             TryGetProperty(item, "platforms", out deviceValues);
+            if (hasDevices &&
                 deviceValues.ValueKind == JsonValueKind.Array)
             {
                 foreach (var device in deviceValues.EnumerateArray())
@@ -101,6 +247,10 @@ public static class OpenXblResponseParser
                     {
                         devices.Add(device.GetString()!.Trim());
                     }
+                    else if (device.ValueKind == JsonValueKind.Number)
+                    {
+                        devices.Add(device.GetRawText());
+                    }
                 }
             }
 
@@ -108,7 +258,10 @@ public static class OpenXblResponseParser
             {
                 TitleId = titleId.Trim(),
                 Name = NullIfWhiteSpace(GetString(item, "name", "titleName")),
-                CurrentAchievements = GetNonNegativeInteger(achievement, "currentAchievements"),
+                CurrentAchievements = GetFirstNonNegativeInteger(
+                    achievement,
+                    "currentAchievements",
+                    "earnedAchievements"),
                 CurrentGamerscore = GetNonNegativeInteger(achievement, "currentGamerscore"),
                 LastPlayedAt = lastPlayedAt,
                 Devices = devices.Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
@@ -131,8 +284,8 @@ public static class OpenXblResponseParser
         ArgumentException.ThrowIfNullOrWhiteSpace(json);
         ArgumentException.ThrowIfNullOrWhiteSpace(accountId);
 
-        using var document = JsonDocument.Parse(json);
-        var achievements = GetArray(document.RootElement, "achievements");
+        var root = ParseJsonRoot(json);
+        var achievements = GetArray(root, "achievements", "items");
         if (achievements is null)
         {
             throw new JsonException("OpenXBL did not return an achievement collection.");
@@ -151,8 +304,15 @@ public static class OpenXblResponseParser
         return parsed
             .GroupBy(item => item.Id, StringComparer.Ordinal)
             .Select(group => group.First())
-            .OrderBy(item => item.UnlockedAt)
+            .OrderBy(item => item.UnlockedAt ?? DateTimeOffset.MaxValue)
+            .ThenBy(item => item.Id, StringComparer.Ordinal)
             .ToArray();
+    }
+
+    public static string? ParseContinuationToken(string json)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(json);
+        return FindContinuationToken(ParseJsonRoot(json), 0);
     }
 
     private static AchievementEvent? ParseAchievement(
@@ -179,21 +339,28 @@ public static class OpenXblResponseParser
             unlockedValue = GetString(item, "timeUnlocked", "unlockedAt", "dateUnlocked");
         }
 
-        if (!DateTimeOffset.TryParse(
+        DateTimeOffset? unlockedAt = null;
+        if (DateTimeOffset.TryParse(
                 unlockedValue,
                 CultureInfo.InvariantCulture,
                 DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
-                out var unlockedAt))
+                out var parsedUnlockedAt) &&
+            parsedUnlockedAt >= EarliestCredibleAchievementUtc)
         {
-            return null;
+            unlockedAt = parsedUnlockedAt;
         }
 
         var achievementId = GetString(item, "id");
         var serviceConfigId = GetString(item, "serviceConfigId", "scid");
         var name = GetString(item, "name");
-        if (string.IsNullOrWhiteSpace(achievementId) || string.IsNullOrWhiteSpace(name))
+        if (string.IsNullOrWhiteSpace(achievementId))
         {
             return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            name = $"Xbox achievement {achievementId}";
         }
 
         var titleId = string.Empty;
@@ -214,6 +381,11 @@ public static class OpenXblResponseParser
 
         if (string.IsNullOrWhiteSpace(titleId))
         {
+            titleId = GetString(item, "titleId");
+        }
+
+        if (string.IsNullOrWhiteSpace(titleId))
+        {
             titleId = fallbackTitleId ?? string.Empty;
         }
 
@@ -227,12 +399,102 @@ public static class OpenXblResponseParser
             IsRare = GetRarity(item),
             ImageUrl = NullIfWhiteSpace(GetImageUrl(item)),
             SourceProvider = "OpenXBL",
-            UnlockedAt = unlockedAt
+            UnlockedAt = unlockedAt,
+            UnlockTimeEstimated = unlockedAt is null
         };
     }
 
-    private static JsonElement? GetArray(JsonElement root, params string[] propertyNames)
+    private static JsonElement? GetArray(JsonElement root, params string[] propertyNames) =>
+        GetArray(root, 0, propertyNames);
+
+    private static string? FindContinuationToken(JsonElement element, int depth)
     {
+        if (depth > 6)
+        {
+            return null;
+        }
+
+        if (element.ValueKind == JsonValueKind.String && depth < 2)
+        {
+            var nestedJson = element.GetString();
+            if (!string.IsNullOrWhiteSpace(nestedJson))
+            {
+                try
+                {
+                    using var nestedDocument = JsonDocument.Parse(nestedJson.Trim().TrimStart('\uFEFF'));
+                    return FindContinuationToken(nestedDocument.RootElement, depth + 1);
+                }
+                catch (JsonException)
+                {
+                    return null;
+                }
+            }
+
+            return null;
+        }
+
+        if (element.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in element.EnumerateArray())
+            {
+                var nested = FindContinuationToken(item, depth + 1);
+                if (!string.IsNullOrWhiteSpace(nested))
+                {
+                    return nested;
+                }
+            }
+
+            return null;
+        }
+
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        if (TryGetProperty(element, "continuationToken", out var token) && token.ValueKind == JsonValueKind.String)
+        {
+            return NullIfWhiteSpace(token.GetString() ?? string.Empty);
+        }
+
+        foreach (var property in element.EnumerateObject())
+        {
+            var nested = FindContinuationToken(property.Value, depth + 1);
+            if (!string.IsNullOrWhiteSpace(nested))
+            {
+                return nested;
+            }
+        }
+
+        return null;
+    }
+
+    private static JsonElement? GetArray(JsonElement root, int depth, string[] propertyNames)
+    {
+        if (depth > 5)
+        {
+            return null;
+        }
+
+        if (root.ValueKind == JsonValueKind.String)
+        {
+            var nestedJson = root.GetString();
+            if (!string.IsNullOrWhiteSpace(nestedJson))
+            {
+                try
+                {
+                    using var nestedDocument = JsonDocument.Parse(nestedJson.Trim().TrimStart('\uFEFF'));
+                    return GetArray(nestedDocument.RootElement.Clone(), depth + 1, propertyNames);
+                }
+                catch (JsonException)
+                {
+                    return null;
+                }
+            }
+
+            return null;
+        }
+
         if (root.ValueKind == JsonValueKind.Array)
         {
             return root;
@@ -248,13 +510,42 @@ public static class OpenXblResponseParser
                     return values;
                 }
             }
+
+            foreach (var containerName in new[]
+                     {
+                         "data", "result", "response", "payload", "value", "body", "content", "titleHistory", "history"
+                     })
+            {
+                if (!TryGetProperty(root, containerName, out var container))
+                {
+                    continue;
+                }
+
+                var nested = GetArray(container, depth + 1, propertyNames);
+                if (nested is not null)
+                {
+                    return nested;
+                }
+            }
         }
 
         return null;
     }
 
+    private static JsonElement ParseJsonRoot(string json)
+    {
+        using var document = JsonDocument.Parse(json.Trim().TrimStart('\uFEFF'));
+        return document.RootElement.Clone();
+    }
+
     private static bool IsAchieved(JsonElement item)
     {
+        if (TryGetProperty(item, "unlocked", out var unlocked) &&
+            unlocked.ValueKind is JsonValueKind.True or JsonValueKind.False)
+        {
+            return unlocked.GetBoolean();
+        }
+
         var state = GetString(item, "progressState", "achievementState");
         if (state.Equals("Achieved", StringComparison.OrdinalIgnoreCase) || state == "1")
         {
@@ -285,6 +576,19 @@ public static class OpenXblResponseParser
 
     private static int GetNonNegativeInteger(JsonElement element, string propertyName) =>
         TryGetInteger(element, propertyName, out var value) ? Math.Max(0, value) : 0;
+
+    private static int GetFirstNonNegativeInteger(JsonElement element, params string[] propertyNames)
+    {
+        foreach (var propertyName in propertyNames)
+        {
+            if (TryGetInteger(element, propertyName, out var value))
+            {
+                return Math.Max(0, value);
+            }
+        }
+
+        return 0;
+    }
 
     private static bool GetRarity(JsonElement item)
     {

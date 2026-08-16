@@ -23,7 +23,7 @@ Achievement Relay:
 - accepts only HTTPS webhook URLs on approved Discord-owned hosts;
 - encrypts both saved values with current-user Windows DPAPI and separate entropy values;
 - does not place installer-entered credentials on a command line;
-- deletes the one-time DPAPI-encrypted installer handoff on first launch;
+- durably stores fresh DPAPI ciphertext before deleting the one-time installer handoff;
 - redacts Discord-webhook-shaped log content; and
 - disables Discord mention parsing.
 
@@ -31,10 +31,18 @@ DPAPI protects secrets at rest from other ordinary Windows users; it does not pr
 
 ## Provider and network boundary
 
-The API key is sent only to `https://xbl.io/api/v2/` in the `X-Authorization` header. Discord payloads are sent only to a URL accepted by `WebhookUrlValidator`. HTTP responses are size-bounded and requests use timeouts. No provider response is treated as executable content.
+The API key is sent only to OpenXBL's `https://api.xbl.io/` service in the `X-Authorization` header. Route negotiation changes only the path on that fixed HTTPS origin. Discord payloads are sent only to a URL accepted by `WebhookUrlValidator`. HTTP responses are size-bounded and requests use timeouts. No provider response is treated as executable content.
 
-OpenXBL is an independent third party. A compromise or behavioral change at that provider is outside Achievement Relay's security boundary; users can revoke the API key and disconnect the account at any time.
+Steam monitoring needs no credential. A narrow out-of-process helper reads local Steamworks state for the detected App ID and emits versioned JSON snapshots over redirected standard I/O. It is bundled with the reviewed MIT-licensed Facepunch.Steamworks 2.5.2 package; the repository check pins its SHA-256. The helper has no settings, webhook, or Steam mutation code. Public rarity requests are fixed to `https://api.steampowered.com/` and carry no personal key.
+
+OpenXBL, Valve/Steam, and Discord are independent third parties. A compromise or behavioral change at a provider is outside Achievement Relay's security boundary; users can revoke the Xbox key, disable Steam monitoring, or remove the webhook at any time.
 
 ## Release integrity
 
-Production releases should use a protected, persistent code-signing certificate. Development-signed beta packages include only their public certificate; generated private keys are not included in release assets. Verify release origin, SHA-256 hashes, and Authenticode/MSIX signatures when security is important.
+Official self-updating releases use the protected private key for the persistent, project-owned **Achievement Relay Open Source** certificate and RFC 3161 timestamping. The certificate is self-signed, RSA-3072, code-signing-only, and not a certificate authority. Its public DER certificate and metadata are reviewable in `release/`; its private PFX exists only in protected recovery storage and masked GitHub Actions secrets. Development-signed pull-request packages use different temporary identities whose private keys are not included in artifacts and cannot form a trusted update chain across builds.
+
+The app accepts update metadata only from the official repository's latest stable GitHub Release. The exact manifest bytes have a detached RSA/SHA-256 signature made by the release certificate; the embedded certificate must have the code-signing EKU and its SHA-256 fingerprint must match a pin in the running app. That signature is rechecked whenever cached policy is used. The release tag, manifest product/package versions, exact asset names, GitHub URLs, installer size, SHA-256, and embedded Windows product/file versions must then agree. The signed Windows package version must also be numerically capable of upgrading the installed package. Windows validates the installer's Authenticode signature and the signer must match the same pin. The installer is launched only after the file checks are repeated immediately before execution. A reviewed `minimumSupportedVersion` in `release/update-policy.json` is the sole mechanism that can make an update required and pause monitoring; network failure or unauthenticated metadata never does so.
+
+The first official installation includes the public project certificate and, with explicit administrator approval, adds only that leaf to **Local Computer → Trusted People**. This is necessary because the certificate does not chain to a commercial Windows trust root. It may also produce a SmartScreen reputation warning. After that one-time trust decision, Windows Authenticode validation and the app's independent SHA-256 certificate pin both protect automatic updates.
+
+Keep the signing key out of the repository and use the same protected publisher identity for later releases. To rotate a certificate, first ship a transition release signed by the currently trusted certificate that pins both the old and replacement fingerprints; only then sign a later release with the replacement. Never replace a release installer or manifest in place after publication—publish a higher version instead.

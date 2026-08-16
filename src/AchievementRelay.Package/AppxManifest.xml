@@ -5,8 +5,9 @@
   xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
   xmlns:uap11="http://schemas.microsoft.com/appx/manifest/uap/windows10/11"
   xmlns:desktop6="http://schemas.microsoft.com/appx/manifest/desktop/windows10/6"
+  xmlns:virtualization="http://schemas.microsoft.com/appx/manifest/virtualization/windows10"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-  IgnorableNamespaces="uap uap5 uap11 desktop6 rescap">
+  IgnorableNamespaces="uap uap5 uap11 desktop6 virtualization rescap">
 
   <Identity
     Name="Conroy.AchievementRelay"
@@ -17,9 +18,14 @@
   <Properties>
     <DisplayName>Achievement Relay</DisplayName>
     <PublisherDisplayName>Achievement Relay Open Source</PublisherDisplayName>
-    <Description>Automatically relay Xbox account achievements to Discord.</Description>
+    <Description>Automatically relay new Xbox and Steam achievements to Discord.</Description>
     <Logo>Assets\StoreLogo.png</Logo>
     <desktop6:FileSystemWriteVirtualization>disabled</desktop6:FileSystemWriteVirtualization>
+    <virtualization:FileSystemWriteVirtualization>
+      <virtualization:ExcludedDirectories>
+        <virtualization:ExcludedDirectory>$(KnownFolder:LocalAppData)\AchievementRelay</virtualization:ExcludedDirectory>
+      </virtualization:ExcludedDirectories>
+    </virtualization:FileSystemWriteVirtualization>
   </Properties>
 
   <Dependencies>
@@ -41,8 +47,8 @@
       <uap:VisualElements
         AppListEntry="default"
         DisplayName="Achievement Relay"
-        Description="Xbox account achievements for Discord"
-        BackgroundColor="#090D14"
+        Description="New Xbox and Steam achievements for Discord"
+        BackgroundColor="#07090A"
         Square44x44Logo="Assets\Square44x44Logo.png"
         Square150x150Logo="Assets\Square150x150Logo.png">
         <uap:DefaultTile
@@ -50,7 +56,7 @@
           Wide310x150Logo="Assets\Wide310x150Logo.png" />
         <uap:SplashScreen
           Image="Assets\SplashScreen.png"
-          BackgroundColor="#090D14" />
+          BackgroundColor="#07090A" />
       </uap:VisualElements>
 
       <Extensions>

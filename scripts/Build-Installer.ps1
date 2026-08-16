@@ -1,10 +1,10 @@
 [CmdletBinding()]
 param(
     [ValidatePattern('^\d+\.\d+\.\d+$')]
-    [string] $Version = '0.2.0',
+    [string] $Version = '0.4.0',
 
     [ValidatePattern('^\d+\.\d+\.\d+\.\d+$')]
-    [string] $MsixVersion = '0.2.0.0',
+    [string] $MsixVersion = '0.4.0.0',
 
     [string] $PackageDirectory,
 
@@ -16,7 +16,12 @@ param(
 
     [string] $PfxPassword,
 
-    [string] $TimestampUrl
+    [string] $TimestampUrl,
+
+    [ValidateSet('AchievementRelay.Development.cer', 'AchievementRelay.Publisher.cer')]
+    [string] $CertificateFileName = 'AchievementRelay.Development.cer',
+
+    [switch] $ForceUpdateMode
 )
 
 $ErrorActionPreference = 'Stop'
@@ -73,8 +78,12 @@ $compilerArguments = @(
     "/DPackageDirectory=$PackageDirectory",
     "/DOutputDirectory=$OutputDirectory",
     "/DRepositoryRoot=$repositoryRoot",
-    $installerScript
+    "/DCertificateFileName=$CertificateFileName"
 )
+if ($ForceUpdateMode) {
+    $compilerArguments += '/DForceUpdateMode=1'
+}
+$compilerArguments += $installerScript
 
 Write-Host 'Building the single-file Windows installer...'
 & $IsccPath @compilerArguments

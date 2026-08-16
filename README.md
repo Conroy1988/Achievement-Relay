@@ -1,121 +1,122 @@
 ![Achievement Relay — Every achievement. Reliably shared.](docs/images/achievement-relay-banner.png)
 
-# Achievement Relay — Xbox achievements to Discord for Windows
+# Achievement Relay
 
-Achievement Relay is an open-source Windows 10/11 app that checks your Xbox account for newly unlocked achievements and automatically posts them to a Discord channel webhook. It is designed for Xbox-enabled PC games, PC Game Pass titles, and other unlocks that appear on the connected Xbox profile.
+Relay new Xbox and local Steam achievements to Discord from one secure Windows tray app.
 
+[![Latest release](https://img.shields.io/github/v/release/Conroy1988/Achievement-Relay?display_name=tag&sort=semver&color=D72B32)](https://github.com/Conroy1988/Achievement-Relay/releases/latest)
 [![CI](https://github.com/Conroy1988/Achievement-Relay/actions/workflows/ci.yml/badge.svg)](https://github.com/Conroy1988/Achievement-Relay/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-56e39f.svg)](LICENSE)
-[![Windows 10/11](https://img.shields.io/badge/Windows-10%202004%2B-5865f2.svg)](docs/INSTALL.md)
-[![Support on Ko-fi](https://img.shields.io/badge/Support_on_Ko--fi-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/D4P124RWI9)
+[![Windows 10/11](https://img.shields.io/badge/Windows-10%20%7C%2011-E8E1D5?logo=windows&logoColor=07090A)](docs/INSTALL.md)
+[![License: MIT](https://img.shields.io/badge/License-MIT-AEB4B7.svg)](LICENSE)
+[![Community & Support](https://img.shields.io/badge/Discord-Community%20%26%20Support-5865F2?logo=discord&logoColor=white)](https://discord.gg/3ZdXhYjgDm)
+[![Support on Ko-fi](https://img.shields.io/badge/Ko--fi-Support-D72B32?logo=ko-fi&logoColor=white)](https://ko-fi.com/D4P124RWI9)
+
+[**Download for Windows**](https://github.com/Conroy1988/Achievement-Relay/releases/latest/download/AchievementRelay_Setup.exe) · [Getting started](GETTING_STARTED.md) · [Release notes](docs/RELEASE-NOTES-0.4.0.md) · [Community & Support](https://discord.gg/3ZdXhYjgDm)
+
+![Achievement Relay v0.4.0 command-red interface](docs/images/achievement-relay-interface.png)
+
+## One simple relay
+
+Achievement Relay watches the Xbox account you connect and the Steam game running on your PC. When it can prove an achievement is new, it sends a rich post to the Discord channel you choose.
+
+- **Xbox:** checks your account through your own [OpenXBL](https://xbl.io) API key and can recover achievements earned while the app was closed.
+- **Steam:** reads the signed-in local Steam client's achievement state through an isolated, read-only bridge. No Steam Web API key, Steam64 ID, or Steam password is required.
+- **Discord:** sends achievement name, game, platform, rarity, description, unlock time, player name, and artwork when available.
+- **Safe by default:** first observations become silent baselines, so installing or upgrading cannot dump years of old achievements into Discord.
+- **Private:** the Discord webhook and optional OpenXBL key are encrypted for the current Windows account with DPAPI. There is no analytics service, advertising, cloud database, or developer-operated relay server.
+- **Quiet:** runs in the notification area, supports Windows startup, retains failed live deliveries for retry, and includes redacted diagnostics.
+
+## What's new in v0.4.0
+
+- A complete high-contrast **command-red** interface with clearer status, setup, activity, settings, and help screens.
+- A new Achievement Relay shield-and-trophy identity across the app, installer, Windows package, and GitHub project.
+- A featured **Community & Support** experience linking directly to the [TKB community Discord](https://discord.gg/3ZdXhYjgDm), while retaining Ko-fi support.
+- A verified self-updater that checks on launch and about every six hours, prepares optional updates quietly, and immediately handles authenticated required updates.
+- The same CRNY **Relay Online** soundtrack in installs and updates, locally played at 10% volume with Play/Pause and a direct [SoundCloud link](https://soundcloud.com/daniel-conroy-224318319/crny-relay-online).
+- Local, keyless Steam monitoring alongside the existing Xbox relay, with strict anti-backlog rules for both sources.
+
+See the [full v0.4.0 release notes](docs/RELEASE-NOTES-0.4.0.md) and [changelog](CHANGELOG.md).
 
 > [!IMPORTANT]
-> Version 0.2 is a beta and uses [OpenXBL](https://xbl.io), an independent, unofficial Xbox API provider. You need your own OpenXBL account/API key and are also subject to OpenXBL's availability, limits, and terms. Achievement Relay is not affiliated with Microsoft, Xbox, OpenXBL, or Discord.
+> **Moving from a pre-official 0.3.x updater test:** install v0.4.0 once from this repository's official release page. The 0.3.x test builds used an intentionally temporary signing identity whose private key was destroyed, so they cannot authenticate the new permanent release channel. Your encrypted connections, settings, baselines, pending deliveries, and preferences remain in place. Automatic verified updates take over from v0.4.0 onward.
 
-> [!WARNING]
-> The 0.1.x Windows-notification approach cannot see achievements shown only in the Xbox Game Bar overlay. Upgrade to 0.2; it checks the Xbox account instead and does not require a Windows Notification Center toast.
+> [!IMPORTANT]
+> **First-install Windows trust:** v0.4.0 uses a persistent, project-owned self-signed certificate. SmartScreen may appear, and Setup asks for administrator approval once to add only the public **Achievement Relay Open Source** certificate to Windows Trusted People. Later automatic updates reuse that exact pinned identity. See the [signing notice](docs/INSTALL.md#signing-notice) and its [public fingerprint](release/publisher-certificate.json).
 
-## Highlights
+> [!NOTE]
+> Xbox support uses OpenXBL, an independent and unofficial provider that requires your own key and is subject to its availability, limits, and terms. Achievement Relay is not affiliated with Microsoft, Xbox, Valve, Steam, OpenXBL, or Discord.
 
-- Checks the connected Xbox account about once a minute—no Game Bar scraping, OCR, or Windows notification permission.
-- Posts a Discord embed with achievement name, game, Gamerscore, rarity, description, unlock time, player name, and artwork when the Xbox response supplies them.
-- Creates a first-run baseline so installing the app never floods Discord with old achievements.
-- Recovers achievements earned while the app was closed and retries failed Discord delivery without duplicate posts.
-- Encrypts the OpenXBL API key and Discord webhook with Windows DPAPI for the current Windows user.
-- Runs quietly in the system tray, supports Windows startup, and includes manual sync, diagnostics, activity history, and a safe redacted support summary.
-- Provides a gaming-themed `.exe` installer with optional account setup, a clear **configure later** path, and a desktop-shortcut toggle.
+## Install in minutes
+
+1. Download [`AchievementRelay_Setup.exe`](https://github.com/Conroy1988/Achievement-Relay/releases/latest/download/AchievementRelay_Setup.exe).
+2. Approve the one-time Windows certificate-trust prompt if this PC has not installed an official Achievement Relay release before.
+3. Choose Xbox, Steam, or both. You may connect now or finish in the app's step-by-step Setup screen.
+4. Add the Discord webhook for the channel that should receive achievements. Add an OpenXBL key only if you want Xbox monitoring.
+5. Finish setup and play normally. Achievement Relay stays in the notification area and posts only newly proven unlocks.
+
+The installer selects x64 or Arm64 automatically. Release packages are self-contained, so users do not need to install .NET. See [Getting Started](GETTING_STARTED.md) for the walkthrough and [Installation](docs/INSTALL.md) for signing, SmartScreen, architecture, and manual fallback details.
+
+## How it works
 
 ```mermaid
 flowchart LR
     X["Xbox account"] --> O["OpenXBL API"]
     O --> R["Achievement Relay"]
-    R --> D["Discord webhook"]
+    S["Local Steam client"] --> R
+    R --> D["Your Discord webhook"]
 ```
 
-No Xbox password, Microsoft password, Discord bot, public Achievement Relay server, or developer-operated relay service is required.
+No Xbox password, Microsoft password, Steam account credential, Steam API key, Discord bot, or hosted Achievement Relay account is required.
 
-## Install and connect
+### Detection boundaries
 
-1. Download `AchievementRelay_Setup.exe` from the [latest GitHub Release](https://github.com/Conroy1988/Achievement-Relay/releases/latest).
-2. In the installer, choose either:
-   - **Connect OpenXBL and Discord now** — paste your OpenXBL API key and Discord webhook; or
-   - **Skip — I will do this later** — the app opens at Guided setup.
-3. Choose whether to create a desktop shortcut and install.
-4. On first launch, the app verifies the Xbox account and Discord channel, securely stores both secrets, and establishes a no-spam baseline.
-5. Leave Achievement Relay in the notification area while playing. A new unlock normally posts within about one minute.
+- The first complete Xbox or Steam observation is a silent history baseline.
+- Xbox uses stable achievement identities after its baseline and can recover later unlocks observed after downtime.
+- Steam posts only a locked-to-unlocked transition directly observed while the app is running, or Steam's completed-achievement callback from that helper session. Offline Steam history is deliberately folded into the next silent baseline.
+- Steam games must publish achievements through Steamworks. Steam monitoring on Arm64 requires Windows 11 x64 emulation; Xbox remains available on Windows 10 Arm64.
+- Xbox delivery is account polling rather than instant push: normal delay is approximately 0–60 seconds plus Xbox/OpenXBL propagation time.
+- OpenXBL's service limits can change. Achievement Relay tracks allowance headers, preserves a protected request reserve, and gradually hydrates historical identity data. Check [OpenXBL pricing](https://xbl.io/pricing) for current limits.
 
-The complete walkthrough is in [Getting Started](GETTING_STARTED.md). SmartScreen, signing, architecture selection, and manual installation are covered in [Installation](docs/INSTALL.md).
+## Verified automatic updates
 
-## Compatibility and limits
+Achievement Relay checks the official stable GitHub release on launch and periodically while running. It accepts an update only after all of these agree:
 
-Achievement Relay can relay an unlock when:
+- the GitHub release tag and signed manifest versions;
+- the exact installer asset name, size, and SHA-256;
+- the installer's embedded product and package versions;
+- Windows Authenticode trust; and
+- the publisher-certificate fingerprint pinned into the running app.
 
-- the game records an achievement on the connected Xbox network profile;
-- OpenXBL returns that achievement and is reachable within the account's request allowance;
-- Achievement Relay is running, or it is started after the offline unlock; and
-- the PC can reach the configured Discord webhook.
+Optional updates found while running are prepared without interrupting play and open on the next launch. A reviewed, authenticated release can raise the minimum supported version; only then does monitoring pause and the updater open immediately. Offline checks, unsigned manifests, altered files, and failed validation never invent a required update.
 
-Important limits:
-
-- Steam-only achievements are not supported yet.
-- Xbox may delay achievements earned offline before syncing them to the profile.
-- The account feed can include console or cloud-gaming unlocks on the same Xbox account; version 0.2 does not reliably filter by device platform.
-- Delivery is account polling, not instant push. The normal delay is approximately 0–60 seconds plus any Xbox/OpenXBL delay.
-- OpenXBL currently advertises a free allowance sufficient for the default one-minute polling interval, but its plans and limits can change. Check [OpenXBL pricing](https://xbl.io/pricing).
+The first install explicitly trusts the project's public leaf certificate; later installers must pass Windows validation and the independent certificate pin above. The full trust model and certificate-rotation rules are documented in [Installation](docs/INSTALL.md), [Security](SECURITY.md), and [Release Process](docs/RELEASING.md).
 
 ## Privacy and security
 
-The API key is sent only to OpenXBL. Achievement details are sent to the Discord webhook selected by the user. The app has no analytics, ads, cloud database, or telemetry.
+The optional Xbox API key is sent only to OpenXBL. Steam state is read locally; optional rarity uses Steam's public global-percentage endpoint only after a new unlock. Achievement details and optional artwork are sent only to the Discord webhook selected by the user.
 
-If account details are entered in the installer, they are passed through a one-time current-user DPAPI-encrypted handoff—never command-line arguments—and the app deletes that handoff after first launch. See [Privacy](PRIVACY.md), [Security](SECURITY.md), and [Architecture](docs/ARCHITECTURE.md) for the exact data flow.
+Installer-entered secrets use a one-time current-user DPAPI-encrypted handoff—never command-line arguments—and are deleted after durable import. Read [Privacy](PRIVACY.md), [Security](SECURITY.md), and [Architecture](docs/ARCHITECTURE.md) for the exact data flow.
 
 ## Build and test
 
-Requirements:
-
-- Windows 10 version 2004 (build 19041) or newer;
-- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0);
-- Windows 10/11 SDK with `MakeAppx.exe` and `SignTool.exe`; and
-- [Inno Setup 6](https://jrsoftware.org/isinfo.php) for `AchievementRelay_Setup.exe`.
+Building requires Windows 10 2004 or newer, the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0), Windows 10/11 SDK packaging tools, and [Inno Setup 6](https://jrsoftware.org/isinfo.php).
 
 ```powershell
 dotnet restore .\AchievementRelay.sln
 dotnet build .\AchievementRelay.sln --configuration Release
 dotnet run --project .\tests\AchievementRelay.Core.Tests --configuration Release
 .\scripts\Test-Repository.ps1
+.\scripts\Build-Release.ps1 -Version 0.4.0.0
 ```
 
-Create x64 and Arm64 packages plus the setup executable:
+Maintainer instructions are in [Release Process](docs/RELEASING.md). Detailed reliability and provider research is available in [OpenXBL reliability](docs/OPENXBL-RELIABILITY.md) and [Steam integration](docs/STEAM-INTEGRATION.md).
 
-```powershell
-.\scripts\Build-Release.ps1 -Version 0.2.0.0
-```
+## Community & Support
 
-Maintainer instructions are in [Release Process](docs/RELEASING.md).
+Need help, want to share feedback, or just want to talk games? [Join the TKB community Discord](https://discord.gg/3ZdXhYjgDm). Please use a redacted diagnostic summary and never post an OpenXBL key or Discord webhook URL.
 
-## Roadmap
+Achievement Relay is free and open source. If it makes sharing your wins easier, you can also [support future development on Ko-fi](https://ko-fi.com/D4P124RWI9). Contributions are appreciated, never required.
 
-- [x] Xbox account achievement polling through a user-supplied OpenXBL key
-- [x] Discord webhook embeds, retry, deduplication, and offline recovery
-- [x] DPAPI-protected secrets and redacted diagnostics
-- [x] Gaming-themed guided installer and desktop-shortcut choice
-- [ ] First-party Xbox integration if Microsoft makes an appropriate cross-title API available
-- [ ] Trusted production signing and automatic updates
-- [ ] Optional Steam achievement provider
-- [ ] Additional outbound destinations
-
-Issues and pull requests are welcome. Read [Contributing](CONTRIBUTING.md) before sharing diagnostics. Never post an OpenXBL API key or Discord webhook URL in an issue.
-
-## Support the project
-
-Achievement Relay is free and open source. If it makes sharing your unlocks easier, [support future development on Ko-fi](https://ko-fi.com/D4P124RWI9). The link is also available in the app's About screen; contributions are appreciated, never required.
-
-## References
-
-- [OpenXBL API documentation](https://api.xbl.io/docs)
-- [OpenXBL pricing and request limits](https://xbl.io/pricing)
-- [Discord Support: Intro to Webhooks](https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks)
-- [Microsoft: Xbox achievement JSON](https://learn.microsoft.com/gaming/gdk/docs/reference/live/rest/json/json-achievementv2)
-- [Microsoft: Sign an MSIX package with SignTool](https://learn.microsoft.com/windows/msix/package/sign-app-package-using-signtool)
+Issues and pull requests are welcome; please read [Contributing](CONTRIBUTING.md). Original artwork and licensed interface assets are covered by [Third-party art notices](THIRD-PARTY-NOTICES.md).
 
 Xbox, Microsoft, Discord, Steam, OpenXBL, and related marks belong to their respective owners.

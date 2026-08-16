@@ -1,6 +1,6 @@
 # Contributing
 
-Thank you for helping make Xbox achievements on Discord more reliable.
+Thank you for helping make Xbox and Steam achievements on Discord more reliable.
 
 ## Before opening an issue
 
@@ -24,8 +24,8 @@ Provider payload examples must be synthetic or thoroughly redacted. Replace acco
    .\scripts\Test-Repository.ps1
    ```
 
-5. Test the installed build on Windows. Verify first baseline, one real post, manual sync, Discord failure/retry, tray behavior, startup, upgrade, and uninstall.
-6. If installer behavior changes, build `AchievementRelay_Setup.exe` and test both **Connect now** and **Skip — configure later**, plus the desktop-shortcut toggle.
+5. Test the installed build on Windows. Verify the first baseline and two no-history syncs before testing one real post, manual sync, Discord failure/retry, tray behavior, startup, upgrade, and uninstall.
+6. If installer or update behavior changes, build `AchievementRelay_Setup.exe` and test both **Connect now** and **Skip — configure later**, the desktop-shortcut toggle, and `/UPDATE=1` with both existing-shortcut states. Verify cancellation leaves the app running and a successful update preserves settings/state.
 7. Explain privacy implications whenever authentication material, account data, local storage, logging, networking, or installer handoff behavior changes.
 
 ## Parser contributions
@@ -33,7 +33,8 @@ Provider payload examples must be synthetic or thoroughly redacted. Replace acco
 Prefer strict provider-schema handling:
 
 - accept only achievements explicitly marked achieved and not revoked;
-- require a valid unlock timestamp and stable achievement identifier;
+- require a stable achievement identifier, while accepting that Xbox 360 unlock timestamps can be missing or unusable;
+- treat provider timestamps as display metadata and post-baseline proof only—not as event identity or a general cursor;
 - tolerate harmless JSON property casing and documented alternate fields;
 - ignore incomplete entries instead of inventing values; and
 - derive deterministic event IDs that include the account and achievement identity.

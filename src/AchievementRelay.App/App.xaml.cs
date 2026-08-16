@@ -1,5 +1,6 @@
 using System.Threading;
 using System.Windows;
+using AchievementRelay.Core.Services;
 
 namespace AchievementRelay.App;
 
@@ -46,6 +47,14 @@ public partial class App : System.Windows.Application
         _mainWindow = new MainWindow(_services, settings);
         MainWindow = _mainWindow;
 
+        var requestedMinimized = e.Args.Contains("--minimized", StringComparer.OrdinalIgnoreCase);
+        if (!requestedMinimized)
+        {
+            _mainWindow.Show();
+        }
+
+        var updateState = await _services.UpdateService.CheckAsync(force: false);
+
         if (installerImport.Found)
         {
             if (installerImport.Completed)
@@ -64,9 +73,30 @@ public partial class App : System.Windows.Application
             }
         }
 
-        var relayStarted = settings.SetupCompleted && await _services.RelayCoordinator.StartAsync();
-        var setupReady = settings.SetupCompleted && relayStarted;
-        var startMinimized = e.Args.Contains("--minimized", StringComparer.OrdinalIgnoreCase) &&
+        var automaticUpdaterStarted =
+            await _mainWindow.TryStartAutomaticUpdateOnLaunchAsync(updateState);
+        if (automaticUpdaterStarted)
+        {
+            _mainWindow.RefreshStatus();
+            _services.UpdateService.StartAutomaticChecks();
+            return;
+        }
+
+        updateState = _services.UpdateService.Snapshot;
+        var updateRequired = updateState.IsRequired;
+
+        var apiKey = _services.WebhookProtector.TryUnprotectOpenXblApiKey(settings.ProtectedOpenXblApiKey);
+        var webhookValue = _services.WebhookProtector.TryUnprotect(settings.ProtectedWebhookUrl);
+        var webhookConfigured = WebhookUrlValidator.TryNormalize(webhookValue, out _, out _);
+        var xboxConfigured = OpenXblApiKeyValidator.TryNormalize(apiKey, out _, out _) &&
+                             !string.IsNullOrWhiteSpace(settings.XboxUserId);
+        var xboxStarted = !updateRequired && settings.SetupCompleted && webhookConfigured && xboxConfigured &&
+                          await _services.RelayCoordinator.StartAsync();
+        var steamStarted = !updateRequired && settings.SetupCompleted && webhookConfigured && settings.SteamEnabled &&
+                            await _services.SteamMonitorCoordinator.StartAsync();
+        var setupReady = settings.SetupCompleted && (xboxStarted || steamStarted);
+        var startMinimized = !updateRequired &&
+                             requestedMinimized &&
                              setupReady &&
                              settings.StartMinimized;
 
@@ -75,11 +105,19 @@ public partial class App : System.Windows.Application
             _mainWindow.Show();
             if (!setupReady)
             {
-                _mainWindow.ShowSetup();
+                if (updateRequired)
+                {
+                    _mainWindow.ShowRequiredUpdate();
+                }
+                else
+                {
+                    _mainWindow.ShowSetup();
+                }
             }
         }
 
         _mainWindow.RefreshStatus();
+        _services.UpdateService.StartAutomaticChecks();
     }
 
     public void ExitApplication()

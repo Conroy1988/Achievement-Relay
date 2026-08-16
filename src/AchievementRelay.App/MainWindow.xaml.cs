@@ -3,14 +3,17 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
 using AchievementRelay.App.Services;
 using AchievementRelay.Core.Models;
 using AchievementRelay.Core.Services;
 using Button = System.Windows.Controls.Button;
 using Forms = System.Windows.Forms;
 using MessageBox = System.Windows.MessageBox;
+using TextBox = System.Windows.Controls.TextBox;
 
 namespace AchievementRelay.App;
 
@@ -18,15 +21,37 @@ public partial class MainWindow : Window
 {
     private const string GitHubUrl = "https://github.com/Conroy1988/Achievement-Relay";
     private const string KoFiUrl = "https://ko-fi.com/D4P124RWI9";
+    private const string CommunityDiscordUrl = "https://discord.gg/3ZdXhYjgDm";
+    private const string ArtLicensesUrl = GitHubUrl + "/blob/main/THIRD-PARTY-NOTICES.md";
     private const string OpenXblProfileUrl = "https://xbl.io/profile";
     private const string DiscordWebhookGuideUrl = "https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks";
+    private const int DwmUseImmersiveDarkMode = 20;
+    private const int DwmUseImmersiveDarkModeLegacy = 19;
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(
+        IntPtr windowHandle,
+        int attribute,
+        ref int attributeValue,
+        int attributeSize);
 
     private readonly AppServices _services;
     private readonly ObservableCollection<ActivityEntry> _activity = [];
+    private readonly SemaphoreSlim _updatePolicyGate = new(1, 1);
+    private readonly SemaphoreSlim _automaticUpdateGate = new(1, 1);
+    private readonly HashSet<string> _automaticallyPreparedUpdateVersions = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _automaticUpdateFailureVersions = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _automaticUpdateLaunchVersions = new(StringComparer.Ordinal);
     private AppSettings _settings;
     private Forms.NotifyIcon? _trayIcon;
     private bool _isExiting;
     private bool _hasShownTrayHint;
+    private string? _shownUpdateNoticeVersion;
+    private bool _enforcingRequiredUpdate;
+    private bool _updateOperationInProgress;
+    private bool _updateInstallerStarted;
+    private bool _requiredPolicyApplied;
+    private volatile bool _automaticUpdatesEnabled;
 
     public MainWindow(AppServices services, AppSettings settings)
     {
@@ -38,16 +63,40 @@ public partial class MainWindow : Window
         ActivityList.ItemsSource = _activity;
         _services.ActivityLog.EntryAdded += OnActivityEntryAdded;
         _services.RelayCoordinator.StatusChanged += OnRelayStatusChanged;
+        _services.SteamMonitorCoordinator.StatusChanged += OnSteamStatusChanged;
+        _services.UpdateService.StateChanged += OnUpdateStateChanged;
 
         PopulateControls();
         InitializeTrayIcon();
+        ApplyUpdateState(_services.UpdateService.Snapshot);
         RefreshStatus();
+        UpdateSetupProgress();
+        UpdateNavigationState();
     }
 
     public void ShowSetup()
     {
-        MainTabs.SelectedIndex = 1;
+        OpenSetupAtRecommendedStep();
         ShowFromTray();
+    }
+
+    public void ShowRequiredUpdate()
+    {
+        NavigateTo(0);
+        ShowFromTray();
+        ApplyUpdateState(_services.UpdateService.Snapshot);
+    }
+
+    public Task<bool> TryStartAutomaticUpdateOnLaunchAsync(AppUpdateSnapshot snapshot)
+    {
+        _automaticUpdatesEnabled = true;
+        var action = UpdatePolicy.SelectAutomaticAction(snapshot.Requirement, isAppLaunch: true);
+        return action == AutomaticUpdateAction.None
+            ? Task.FromResult(false)
+            : TryApplyAutomaticUpdateAsync(
+                snapshot,
+                action == AutomaticUpdateAction.LaunchInstaller,
+                "app launch");
     }
 
     public void RefreshStatus()
@@ -55,7 +104,15 @@ public partial class MainWindow : Window
         var apiKeyConfigured = TryGetOpenXblApiKey(out _);
         var accountConfigured = apiKeyConfigured && !string.IsNullOrWhiteSpace(_settings.XboxUserId);
         var webhookConfigured = TryGetWebhook(out _);
-        var relayRunning = _services.RelayCoordinator.IsRunning;
+        var xboxRunning = _services.RelayCoordinator.IsRunning;
+        var steamMonitorRunning = _services.SteamMonitorCoordinator.IsRunning;
+        var steamSupported = _services.SteamMonitorCoordinator.IsSupportedPlatform;
+        var steamInstalled = _services.SteamMonitorCoordinator.IsSteamInstalled;
+        var steamClientRunning = _services.SteamMonitorCoordinator.IsSteamRunning;
+        var steamGame = _services.SteamMonitorCoordinator.CurrentGameName;
+        var steamPhase = _services.SteamMonitorCoordinator.Phase;
+        var steamError = _services.SteamMonitorCoordinator.LastError;
+        var relayRunning = xboxRunning || steamMonitorRunning;
         var lastError = _services.RelayCoordinator.LastSyncError;
         var lastSync = _services.RelayCoordinator.LastSuccessfulSync;
 
@@ -66,57 +123,173 @@ public partial class MainWindow : Window
                 : $"Connected as {_settings.XboxGamertag}";
             SetStatus(XboxStatusText, "Connected", StatusTone.Success);
             XboxStatusDetail.Text = accountLabel;
-            SetupXboxStatus.Text = $"Status: {accountLabel}";
-            SetupXboxStatus.Foreground = Brush("AccentBrush");
+            SetupXboxStatus.Text = $"✓ API key stored securely  •  {accountLabel}";
+            SetupXboxStatus.Foreground = Brush("SuccessBrush");
             SettingsXboxStatus.Text = $"{accountLabel}. The API key is encrypted for this Windows account.";
         }
         else if (apiKeyConfigured)
         {
             SetStatus(XboxStatusText, "Reconnect", StatusTone.Warning);
             XboxStatusDetail.Text = "The saved key needs to be verified";
-            SetupXboxStatus.Text = "Status: select Save and connect to retry the encrypted key, or paste a replacement";
+            SetupXboxStatus.Text = "✓ API key stored securely  •  Select Save and connect to retry verification";
             SetupXboxStatus.Foreground = Brush("WarningBrush");
             SettingsXboxStatus.Text = "An API key is stored, but no Xbox account has been verified.";
         }
         else
         {
             SetStatus(XboxStatusText, "Not connected", StatusTone.Warning);
-            XboxStatusDetail.Text = "Complete step 1 in Guided setup";
+            XboxStatusDetail.Text = "Open Setup to connect Xbox";
             SetupXboxStatus.Text = "Status: not connected";
             SetupXboxStatus.Foreground = Brush("WarningBrush");
             SettingsXboxStatus.Text = "No OpenXBL API key or Xbox account is configured.";
+        }
+
+        if (accountConfigured)
+        {
+            SetupXboxSourceCheckBox.IsChecked = true;
+            SetupXboxSourceCheckBox.IsEnabled = true;
+            SkipXboxButton.Visibility = Visibility.Collapsed;
+            SetupXboxSourceCheckBox.ToolTip = "Xbox is connected. Disconnect it from Settings if you no longer want to monitor it.";
+            SetupXboxChoiceStatus.Text = string.IsNullOrWhiteSpace(_settings.XboxGamertag)
+                ? "Connected"
+                : $"Connected as {_settings.XboxGamertag}";
+            SetupXboxChoiceStatus.Foreground = Brush("SuccessBrush");
+        }
+        else
+        {
+            SetupXboxSourceCheckBox.IsEnabled = true;
+            SkipXboxButton.Visibility = Visibility.Visible;
+            SetupXboxSourceCheckBox.ToolTip = null;
+            SetupXboxChoiceStatus.Text = apiKeyConfigured
+                ? "Saved key needs verification"
+                : "Optional · free OpenXBL key";
+            SetupXboxChoiceStatus.Foreground = Brush(apiKeyConfigured ? "WarningBrush" : "MutedTextBrush");
+        }
+
+        if (!_settings.SteamEnabled)
+        {
+            SetStatus(SteamStatusText, "Disabled", StatusTone.Neutral);
+            SteamStatusDetail.Text = "Enable Steam in Setup or Settings";
+            SetupSteamStatus.Text = "Status: Steam monitoring is disabled";
+            SetupSteamStatus.Foreground = Brush("MutedTextBrush");
+            SettingsSteamStatus.Text = "Steam monitoring is disabled.";
+        }
+        else if (!steamSupported)
+        {
+            SetStatus(SteamStatusText, "Unavailable", StatusTone.Warning);
+            SteamStatusDetail.Text = "Steam on Arm64 requires Windows 11";
+            SetupSteamStatus.Text = "Status: Steam monitoring on Arm64 requires Windows 11; Xbox remains available";
+            SetupSteamStatus.Foreground = Brush("WarningBrush");
+            SettingsSteamStatus.Text = "This Arm64 version of Windows cannot run Steam's x64 achievement component. Upgrade to Windows 11 or use Xbox monitoring.";
+        }
+        else if (!steamInstalled)
+        {
+            SetStatus(SteamStatusText, "Steam not found", StatusTone.Warning);
+            SteamStatusDetail.Text = "Install or start the desktop Steam client";
+            SetupSteamStatus.Text = "Status: Steam is not installed for this Windows user yet";
+            SetupSteamStatus.Foreground = Brush("WarningBrush");
+            SettingsSteamStatus.Text = "Steam is enabled, but its local installation was not found. Achievement Relay will keep checking.";
+        }
+        else if (!string.IsNullOrWhiteSpace(steamError))
+        {
+            SetStatus(SteamStatusText, "Retrying", StatusTone.Warning);
+            SteamStatusDetail.Text = steamGame ?? "Steam monitoring will retry automatically";
+            SetupSteamStatus.Text = $"Status: {steamError}";
+            SetupSteamStatus.Foreground = Brush("WarningBrush");
+            SettingsSteamStatus.Text = steamError;
+        }
+        else if (!string.IsNullOrWhiteSpace(steamGame) && steamPhase == SteamMonitoringPhase.Monitoring)
+        {
+            SetStatus(SteamStatusText, "Monitoring", StatusTone.Success);
+            SteamStatusDetail.Text = steamGame;
+            SetupSteamStatus.Text = $"✓ Monitoring {steamGame}; existing unlocks are baselined silently";
+            SetupSteamStatus.Foreground = Brush("SuccessBrush");
+            SettingsSteamStatus.Text = $"Monitoring {steamGame}. Only directly proven live unlocks are relayed.";
+        }
+        else if (!string.IsNullOrWhiteSpace(steamGame))
+        {
+            SetStatus(SteamStatusText, "Preparing", StatusTone.Warning);
+            SteamStatusDetail.Text = steamPhase switch
+            {
+                SteamMonitoringPhase.LoadingStats => $"Loading achievement stats for {steamGame}",
+                SteamMonitoringPhase.EstablishingBaseline => $"Establishing the safe baseline for {steamGame}",
+                _ => $"Connecting the Steam observer for {steamGame}"
+            };
+            SetupSteamStatus.Text = $"Status: {FormatSteamPhase(steamPhase)} for {steamGame}; wait for baseline confirmation before testing an unlock";
+            SetupSteamStatus.Foreground = Brush("WarningBrush");
+            SettingsSteamStatus.Text = $"{steamGame} is detected, but achievement monitoring is not ready until the first complete baseline is stored.";
+        }
+        else if (steamMonitorRunning)
+        {
+            SetStatus(SteamStatusText, "Ready", StatusTone.Success);
+            SteamStatusDetail.Text = steamClientRunning ? "Waiting for a Steam game" : "Waiting for Steam to start";
+            SetupSteamStatus.Text = steamClientRunning
+                ? "✓ Steam found — waiting for a game to start"
+                : "✓ Steam found — monitoring starts automatically with your next game";
+            SetupSteamStatus.Foreground = Brush("SuccessBrush");
+            SettingsSteamStatus.Text = steamClientRunning
+                ? "Steam monitoring is ready and waiting for a game."
+                : "Steam monitoring is ready and waiting for the Steam client.";
+        }
+        else
+        {
+            SetStatus(SteamStatusText, "Ready", StatusTone.Warning);
+            SteamStatusDetail.Text = "Finish setup to start monitoring";
+            SetupSteamStatus.Text = "✓ Steam found — finish setup to begin monitoring";
+            SetupSteamStatus.Foreground = Brush("SuccessBrush");
+            SettingsSteamStatus.Text = "Steam is installed. Save settings to start automatic monitoring.";
         }
 
         if (webhookConfigured)
         {
             SetStatus(DiscordStatusText, "Connected", StatusTone.Success);
             DiscordStatusDetail.Text = "Webhook stored with Windows encryption";
-            SetupWebhookStatus.Text = "Status: webhook configured";
-            SetupWebhookStatus.Foreground = Brush("AccentBrush");
+            SetupWebhookStatus.Text = "✓ Webhook stored securely  •  Select Save and test to retest it";
+            SetupWebhookStatus.Foreground = Brush("SuccessBrush");
             SettingsWebhookStatus.Text = "A Discord webhook is configured and encrypted for this Windows account.";
         }
         else
         {
             SetStatus(DiscordStatusText, "Not connected", StatusTone.Warning);
-            DiscordStatusDetail.Text = "Complete step 2 in Guided setup";
+            DiscordStatusDetail.Text = "Open Setup to connect Discord";
             SetupWebhookStatus.Text = "Status: not connected";
             SetupWebhookStatus.Foreground = Brush("WarningBrush");
             SettingsWebhookStatus.Text = "No usable Discord webhook is configured.";
         }
 
+        var activeError = (xboxRunning && !string.IsNullOrWhiteSpace(lastError)) ||
+                          (steamMonitorRunning && !string.IsNullOrWhiteSpace(steamError));
         var relayLabel = relayRunning
-            ? string.IsNullOrWhiteSpace(lastError) ? "Monitoring" : "Retrying"
+            ? activeError ? "Retrying" : "Monitoring"
             : "Stopped";
         SetStatus(
             RelayStatusText,
             relayLabel,
-            relayRunning && string.IsNullOrWhiteSpace(lastError) ? StatusTone.Success : StatusTone.Warning);
+            relayRunning && !activeError ? StatusTone.Success : StatusTone.Warning);
+
+        var activeProviders = new[]
+        {
+            xboxRunning ? "Xbox" : null,
+            steamMonitorRunning ? "Steam" : null
+        }.Where(value => value is not null).Select(value => value!).ToArray();
+        RelayStatusDetail.Text = activeProviders.Length == 0
+            ? "No achievement source is active"
+            : $"{string.Join(" + ", activeProviders)} monitoring";
 
         SidebarMonitorStatus.Text = relayRunning
-            ? string.IsNullOrWhiteSpace(lastError) ? "● Monitoring Xbox" : "● Retrying sync"
+            ? activeError ? "● Retrying a provider" : $"● Monitoring {string.Join(" + ", activeProviders)}"
             : "○ Setup required";
         SidebarMonitorStatus.Foreground = Brush(
-            relayRunning && string.IsNullOrWhiteSpace(lastError) ? "AccentBrush" : "WarningBrush");
+            relayRunning && !activeError ? "SuccessBrush" : "WarningBrush");
+
+        UpdateSetupSummary(accountConfigured, webhookConfigured);
+        ApplyHomeState(
+            accountConfigured,
+            webhookConfigured,
+            xboxRunning,
+            steamMonitorRunning,
+            activeError,
+            activeProviders);
 
         var accountDiagnostic = accountConfigured
             ? string.IsNullOrWhiteSpace(_settings.XboxGamertag) ? "connected" : $"connected as {_settings.XboxGamertag}"
@@ -128,13 +301,130 @@ public partial class MainWindow : Window
             Environment.NewLine,
             $"Xbox account: {accountDiagnostic}",
             $"OpenXBL key: {(apiKeyConfigured ? "encrypted and stored" : "not configured")}",
-            $"Account monitor: {(relayRunning ? "running" : "not running")}",
-            $"Last successful sync: {lastSyncDiagnostic}",
-            $"Last sync error: {(string.IsNullOrWhiteSpace(lastError) ? "none" : lastError)}",
+            $"Xbox monitor: {(xboxRunning ? "running" : "not running")}",
+            $"Last Xbox sync: {lastSyncDiagnostic}",
+            $"Last Xbox error: {(string.IsNullOrWhiteSpace(lastError) ? "none" : lastError)}",
+            $"Steam monitoring: {(_settings.SteamEnabled ? steamMonitorRunning ? "running" : "enabled but stopped" : "disabled")}",
+            $"Steam platform support: {(steamSupported ? "supported" : "requires Windows 11 on Arm64")}",
+            $"Steam installation: {(steamInstalled ? "found" : "not found")}",
+            $"Steam client: {(steamClientRunning ? "running" : "not running")}",
+            $"Steam game: {steamGame ?? "none detected"}",
+            $"Steam phase: {FormatSteamPhase(steamPhase)}",
+            $"Last Steam observation: {FormatLocalTimestamp(_services.SteamMonitorCoordinator.LastObservationUtc)}",
+            $"Last Steam error: {(string.IsNullOrWhiteSpace(steamError) ? "none" : steamError)}",
             $"Discord: {(webhookConfigured ? "configured" : "not configured")}",
+            $"Update status: {FormatUpdateStatus(_services.UpdateService.Snapshot)}",
+            $"Windows package version: {_services.UpdateService.CurrentPackageVersion}",
             $"Polling interval: {Math.Clamp(_settings.PollIntervalSeconds, 60, 3600)} seconds",
             $"Install context: {(StartupService.IsPackaged() ? "MSIX packaged" : "classic Windows app")}",
+            $"Installer handoff: {_services.Paths.PendingInstallerSetupFile} (deleted after durable import)",
             $"Local data: {_services.Paths.DataDirectory}");
+
+        if (_services.UpdateService.IsUpdateRequired)
+        {
+            SetStatus(RelayStatusText, "Update required", StatusTone.Error);
+            RelayStatusDetail.Text = "Monitoring is paused until the verified update is installed";
+            SidebarMonitorStatus.Text = "● Update required";
+            SidebarMonitorStatus.Foreground = Brush("ErrorBrush");
+        }
+
+        ApplyUpdateState(_services.UpdateService.Snapshot);
+    }
+
+    private void ApplyHomeState(
+        bool accountConfigured,
+        bool webhookConfigured,
+        bool xboxRunning,
+        bool steamRunning,
+        bool activeError,
+        IReadOnlyCollection<string> activeProviders)
+    {
+        var update = _services.UpdateService.Snapshot;
+        var hasProvider = accountConfigured || _settings.SteamEnabled;
+        var isReady = _settings.SetupCompleted && webhookConfigured && hasProvider;
+
+        if (update.IsRequired)
+        {
+            SetStatus(RelayStatusText, "Update required", StatusTone.Error);
+            HomeTitleText.Text = "Update before you continue";
+            HomeSummaryText.Text = "A verified required update is ready. Monitoring is paused until it is installed.";
+            HomePrimaryActionButton.Content = "Install verified update";
+            HomePrimaryActionButton.Tag = "update";
+            return;
+        }
+
+        if (update.HasUpdate)
+        {
+            SetStatus(RelayStatusText, "Update available", StatusTone.Warning);
+            HomeTitleText.Text = "A new version is ready";
+            HomeSummaryText.Text = "Install it from here when convenient. Your settings and achievement history will be preserved.";
+            HomePrimaryActionButton.Content = "Update now";
+            HomePrimaryActionButton.Tag = "update";
+            return;
+        }
+
+        if (!isReady)
+        {
+            SetStatus(RelayStatusText, "Setup needed", StatusTone.Warning);
+            HomeTitleText.Text = "Let’s get your relay ready";
+            HomeSummaryText.Text = !hasProvider
+                ? "Choose Xbox, Steam, or both. Then connect the Discord channel that should receive your achievements."
+                : !webhookConfigured
+                    ? "Your achievement source is ready. Connect a Discord channel to finish."
+                    : "Review the final setup step to start monitoring.";
+            HomePrimaryActionButton.Content = "Continue setup";
+            HomePrimaryActionButton.Tag = "setup";
+            return;
+        }
+
+        if (activeError || (!xboxRunning && !steamRunning))
+        {
+            SetStatus(RelayStatusText, activeError ? "Retrying" : "Needs attention", StatusTone.Warning);
+            HomeTitleText.Text = activeError ? "We’re retrying automatically" : "Monitoring is not active";
+            HomeSummaryText.Text = activeError
+                ? "Your settings are safe. Open Help & support for the latest provider status and quick checks."
+                : "Open Help & support to restart a connection or review the technical status.";
+            HomePrimaryActionButton.Content = "Open help";
+            HomePrimaryActionButton.Tag = "help";
+            return;
+        }
+
+        SetStatus(RelayStatusText, "Ready", StatusTone.Success);
+        HomeTitleText.Text = "You’re ready to play";
+        HomeSummaryText.Text = activeProviders.Count == 0
+            ? "Achievement Relay is ready and waiting quietly."
+            : $"{string.Join(" and ", activeProviders)} monitoring is active. New achievements will appear in Discord automatically.";
+        HomePrimaryActionButton.Content = "Send a test post";
+        HomePrimaryActionButton.Tag = "test";
+    }
+
+    private void UpdateSetupSummary(bool accountConfigured, bool webhookConfigured)
+    {
+        if (SetupReviewSourcesText is null || SetupReviewDiscordText is null)
+        {
+            return;
+        }
+
+        var sources = new List<string>();
+        if (accountConfigured || SetupXboxSourceCheckBox.IsChecked == true)
+        {
+            sources.Add(accountConfigured ? "Xbox connected" : "Xbox selected");
+        }
+        if (SetupSteamEnabledCheckBox.IsChecked == true)
+        {
+            sources.Add("Steam enabled");
+        }
+
+        SetupReviewSourcesText.Text = sources.Count == 0
+            ? "Choose Xbox, Steam, or both"
+            : string.Join(" + ", sources);
+        SetupReviewSourcesText.Foreground = sources.Count == 0
+            ? Brush("WarningBrush")
+            : Brush("SuccessBrush");
+        SetupReviewDiscordText.Text = webhookConfigured
+            ? "Discord connected"
+            : "Connect Discord before finishing";
+        SetupReviewDiscordText.Foreground = Brush(webhookConfigured ? "SuccessBrush" : "WarningBrush");
     }
 
     public void PrepareForExit()
@@ -142,6 +432,8 @@ public partial class MainWindow : Window
         _isExiting = true;
         _services.ActivityLog.EntryAdded -= OnActivityEntryAdded;
         _services.RelayCoordinator.StatusChanged -= OnRelayStatusChanged;
+        _services.SteamMonitorCoordinator.StatusChanged -= OnSteamStatusChanged;
+        _services.UpdateService.StateChanged -= OnUpdateStateChanged;
         if (_trayIcon is not null)
         {
             _trayIcon.Visible = false;
@@ -150,7 +442,31 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnWindowLoaded(object sender, RoutedEventArgs e) => RefreshStatus();
+    private void OnWindowLoaded(object sender, RoutedEventArgs e)
+    {
+        RefreshStatus();
+        UpdateNavigationState();
+        UpdateSetupProgress();
+    }
+
+    private void OnWindowSourceInitialized(object? sender, EventArgs e)
+    {
+        var darkModeEnabled = 1;
+        var windowHandle = new WindowInteropHelper(this).Handle;
+        var result = DwmSetWindowAttribute(
+            windowHandle,
+            DwmUseImmersiveDarkMode,
+            ref darkModeEnabled,
+            sizeof(int));
+        if (result != 0)
+        {
+            DwmSetWindowAttribute(
+                windowHandle,
+                DwmUseImmersiveDarkModeLegacy,
+                ref darkModeEnabled,
+                sizeof(int));
+        }
+    }
 
     private void OnWindowClosing(object? sender, CancelEventArgs e)
     {
@@ -166,7 +482,7 @@ public partial class MainWindow : Window
             _trayIcon.ShowBalloonTip(
                 2500,
                 "Achievement Relay is still running",
-                "Xbox account sync continues in the notification area. Use the tray icon to reopen or exit.",
+                "Xbox and Steam monitoring continue in the notification area. Use the tray icon to reopen or exit.",
                 Forms.ToolTipIcon.Info);
             _hasShownTrayHint = true;
         }
@@ -199,19 +515,30 @@ public partial class MainWindow : Window
 
     private void PopulateControls()
     {
-        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.2.0";
-        AboutVersionText.Text = $"Version {version} beta";
+        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.4.0";
+        AboutVersionText.Text = $"Version {version}";
+
+        var xboxConfigured = TryGetOpenXblApiKey(out _) && !string.IsNullOrWhiteSpace(_settings.XboxUserId);
+        if (xboxConfigured)
+        {
+            SetupXboxSourceCheckBox.IsChecked = true;
+            SetupXboxSourceCheckBox.IsEnabled = true;
+        }
 
         SetupDisplayNameTextBox.Text = _settings.DisplayName;
+        SetupSteamEnabledCheckBox.IsChecked = _settings.SteamEnabled;
         SetupStartWithWindowsCheckBox.IsChecked = _settings.StartWithWindows;
         SetupStartMinimizedCheckBox.IsChecked = _settings.StartMinimized;
 
         SettingsDisplayNameTextBox.Text = _settings.DisplayName;
         SettingsDiscordUsernameTextBox.Text = _settings.DiscordUsername;
+        SettingsSteamEnabledCheckBox.IsChecked = _settings.SteamEnabled;
         SettingsRareOnlyCheckBox.IsChecked = _settings.PostRareOnly;
         SettingsRawDetailsCheckBox.IsChecked = _settings.IncludeRawDetailsWhenUncertain;
         SettingsStartWithWindowsCheckBox.IsChecked = _settings.StartWithWindows;
         SettingsStartMinimizedCheckBox.IsChecked = _settings.StartMinimized;
+
+        PopulateSecretControls();
     }
 
     private void ShowFromTray()
@@ -228,32 +555,327 @@ public partial class MainWindow : Window
         Focus();
     }
 
-    private void ShowDashboard_Click(object sender, RoutedEventArgs e) => MainTabs.SelectedIndex = 0;
+    private void ShowDashboard_Click(object sender, RoutedEventArgs e) => NavigateTo(0);
 
-    private void ShowSetup_Click(object sender, RoutedEventArgs e) => MainTabs.SelectedIndex = 1;
+    private void ShowSetup_Click(object sender, RoutedEventArgs e) => OpenSetupAtRecommendedStep();
 
-    private void ShowActivity_Click(object sender, RoutedEventArgs e) => MainTabs.SelectedIndex = 2;
+    private void ShowActivity_Click(object sender, RoutedEventArgs e) => NavigateTo(2);
 
-    private void ShowSettings_Click(object sender, RoutedEventArgs e) => MainTabs.SelectedIndex = 3;
+    private void ShowSettings_Click(object sender, RoutedEventArgs e) => NavigateTo(3);
 
     private void ShowDiagnostics_Click(object sender, RoutedEventArgs e)
     {
-        MainTabs.SelectedIndex = 4;
+        NavigateTo(4);
         RefreshStatus();
     }
 
-    private void ShowAbout_Click(object sender, RoutedEventArgs e) => MainTabs.SelectedIndex = 5;
+    private void ShowAbout_Click(object sender, RoutedEventArgs e) => NavigateTo(4);
+
+    private void NavigateTo(int index)
+    {
+        MainTabs.SelectedIndex = Math.Clamp(index, 0, 4);
+        UpdateNavigationState();
+    }
+
+    private void UpdateNavigationState()
+    {
+        if (HomeNavButton is null)
+        {
+            return;
+        }
+
+        var buttons = new[]
+        {
+            HomeNavButton,
+            SetupNavButton,
+            ActivityNavButton,
+            SettingsNavButton,
+            HelpNavButton
+        };
+        for (var index = 0; index < buttons.Length; index++)
+        {
+            buttons[index].Style = (Style)FindResource(
+                MainTabs.SelectedIndex == index ? "NavButtonActive" : "NavButton");
+        }
+    }
+
+    private void OpenSetupAtRecommendedStep()
+    {
+        NavigateTo(1);
+        var xboxConfigured = TryGetOpenXblApiKey(out _) && !string.IsNullOrWhiteSpace(_settings.XboxUserId);
+        var webhookConfigured = TryGetWebhook(out _);
+        var providerConfigured = xboxConfigured || _settings.SteamEnabled;
+
+        if (_settings.SetupCompleted && providerConfigured && webhookConfigured)
+        {
+            SetSetupStep(0);
+        }
+        else if (!providerConfigured)
+        {
+            SetSetupStep(0);
+        }
+        else if (SetupXboxSourceCheckBox.IsChecked == true && !xboxConfigured)
+        {
+            SetSetupStep(1);
+        }
+        else if (!webhookConfigured)
+        {
+            SetSetupStep(2);
+        }
+        else
+        {
+            SetSetupStep(3);
+        }
+    }
+
+    private void SetSetupStep(int index)
+    {
+        SetupSteps.SelectedIndex = Math.Clamp(index, 0, 3);
+        UpdateSetupProgress();
+    }
+
+    private void UpdateSetupProgress()
+    {
+        if (SetupSteps is null || SetupProgressText is null || SetupProgressBar is null)
+        {
+            return;
+        }
+
+        var step = Math.Clamp(SetupSteps.SelectedIndex, 0, 3);
+        var labels = new[] { "Choose platforms", "Connect Xbox", "Connect Discord", "Finish" };
+        SetupProgressText.Text = $"Step {step + 1} of 4 · {labels[step]}";
+        SetupProgressBar.Value = step + 1;
+        UpdateSetupSummary(
+            TryGetOpenXblApiKey(out _) && !string.IsNullOrWhiteSpace(_settings.XboxUserId),
+            TryGetWebhook(out _));
+    }
+
+    private void SetupNextFromSources_Click(object sender, RoutedEventArgs e)
+    {
+        if (SetupXboxSourceCheckBox.IsChecked != true && SetupSteamEnabledCheckBox.IsChecked != true)
+        {
+            ShowMessage("Choose Xbox, Steam, or both before continuing.", MessageBoxImage.Warning);
+            return;
+        }
+
+        var xboxConfigured = TryGetOpenXblApiKey(out _) && !string.IsNullOrWhiteSpace(_settings.XboxUserId);
+        SetSetupStep(SetupXboxSourceCheckBox.IsChecked == true && !xboxConfigured ? 1 : 2);
+    }
+
+    private void SetupXboxSource_Click(object sender, RoutedEventArgs e)
+    {
+        var xboxConfigured = TryGetOpenXblApiKey(out _) && !string.IsNullOrWhiteSpace(_settings.XboxUserId);
+        if (xboxConfigured && SetupXboxSourceCheckBox.IsChecked != true)
+        {
+            SetupXboxSourceCheckBox.IsChecked = true;
+            ShowMessage("Xbox is already connected. Use Settings → Xbox → Disconnect Xbox if you want to remove it.", MessageBoxImage.Information);
+        }
+    }
+
+    private void SetupBackToSources_Click(object sender, RoutedEventArgs e) => SetSetupStep(0);
+
+    private void SkipXboxSetup_Click(object sender, RoutedEventArgs e)
+    {
+        var xboxConfigured = TryGetOpenXblApiKey(out _) && !string.IsNullOrWhiteSpace(_settings.XboxUserId);
+        if (!xboxConfigured)
+        {
+            SetupXboxSourceCheckBox.IsChecked = false;
+        }
+
+        SetSetupStep(2);
+    }
+
+    private void SetupNextFromXbox_Click(object sender, RoutedEventArgs e)
+    {
+        if (!TryGetOpenXblApiKey(out _) || string.IsNullOrWhiteSpace(_settings.XboxUserId))
+        {
+            ShowMessage("Connect and verify the Xbox account first, or choose Skip Xbox to continue with Steam only.", MessageBoxImage.Warning);
+            return;
+        }
+
+        SetSetupStep(2);
+    }
+
+    private void SetupBackFromDiscord_Click(object sender, RoutedEventArgs e)
+    {
+        var xboxConfigured = TryGetOpenXblApiKey(out _) && !string.IsNullOrWhiteSpace(_settings.XboxUserId);
+        SetSetupStep(SetupXboxSourceCheckBox.IsChecked == true && !xboxConfigured ? 1 : 0);
+    }
+
+    private void SetupNextFromDiscord_Click(object sender, RoutedEventArgs e)
+    {
+        if (!TryGetWebhook(out _))
+        {
+            ShowMessage("Save and test a Discord webhook before continuing.", MessageBoxImage.Warning);
+            return;
+        }
+
+        SetSetupStep(3);
+    }
+
+    private void SetupBackFromFinish_Click(object sender, RoutedEventArgs e) => SetSetupStep(2);
+
+    private void GoToXboxSetup_Click(object sender, RoutedEventArgs e)
+    {
+        NavigateTo(1);
+        SetupXboxSourceCheckBox.IsChecked = true;
+        SetSetupStep(1);
+    }
+
+    private void GoToSteamSetup_Click(object sender, RoutedEventArgs e)
+    {
+        NavigateTo(1);
+        SetSetupStep(0);
+    }
+
+    private void GoToDiscordSetup_Click(object sender, RoutedEventArgs e)
+    {
+        NavigateTo(1);
+        SetSetupStep(2);
+    }
+
+    private void HomePrimaryAction_Click(object sender, RoutedEventArgs e)
+    {
+        switch (HomePrimaryActionButton.Tag as string)
+        {
+            case "update":
+                UpdateNow_Click(sender, e);
+                break;
+            case "help":
+                NavigateTo(4);
+                RefreshStatus();
+                break;
+            case "test":
+                SendSampleAchievement_Click(sender, e);
+                break;
+            default:
+                OpenSetupAtRecommendedStep();
+                break;
+        }
+    }
 
     private void OpenOpenXbl_Click(object sender, RoutedEventArgs e) => OpenExternal(OpenXblProfileUrl);
 
     private void OpenDiscordWebhookGuide_Click(object sender, RoutedEventArgs e) =>
         OpenExternal(DiscordWebhookGuideUrl);
 
+    private async void CheckForUpdates_Click(object sender, RoutedEventArgs e)
+    {
+        SetButtonBusy(sender, true);
+        try
+        {
+            var result = await _services.UpdateService.CheckAsync(force: true);
+            ApplyUpdateState(result);
+            if (result.Stage == AppUpdateStage.Current)
+            {
+                ShowMessage("Achievement Relay is up to date.", MessageBoxImage.Information);
+            }
+            else if (result.Stage == AppUpdateStage.Failed)
+            {
+                ShowMessage(result.Message, MessageBoxImage.Warning);
+            }
+        }
+        finally
+        {
+            SetButtonBusy(sender, false);
+        }
+    }
+
+    private async void UpdateNow_Click(object sender, RoutedEventArgs e)
+    {
+        if (_updateOperationInProgress || _updateInstallerStarted)
+        {
+            return;
+        }
+
+        _updateOperationInProgress = true;
+        SetUpdateActionButtonsEnabled(false);
+        try
+        {
+            var downloaded = await _services.UpdateService.DownloadAsync();
+            if (downloaded.Stage != AppUpdateStage.ReadyToInstall)
+            {
+                ShowMessage(downloaded.Message, MessageBoxImage.Warning);
+                return;
+            }
+
+            var launch = await _services.UpdateService.LaunchInstallerAsync();
+            if (!launch.Success)
+            {
+                ShowMessage(
+                    $"The verified update could not be opened.{Environment.NewLine}{Environment.NewLine}{launch.Message}",
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            _updateInstallerStarted = true;
+            ApplyUpdateState(_services.UpdateService.Snapshot);
+            if (launch.ProcessId is int processId)
+            {
+                _ = MonitorUpdaterExitAsync(processId);
+            }
+        }
+        finally
+        {
+            _updateOperationInProgress = false;
+            if (!_updateInstallerStarted)
+            {
+                SetUpdateActionButtonsEnabled(true);
+            }
+        }
+    }
+
+    private void OpenUpdateNotes_Click(object sender, RoutedEventArgs e)
+    {
+        if (_services.UpdateService.Snapshot.ReleasePage is Uri releasePage)
+        {
+            OpenExternal(releasePage.ToString());
+        }
+    }
+
+    private void ToggleSetupXboxApiKeyVisibility_Click(object sender, RoutedEventArgs e) =>
+        ToggleSecretVisibility(
+            SetupXboxApiKeyPasswordBox,
+            SetupXboxApiKeyRevealTextBox,
+            SetupXboxApiKeyRevealButton,
+            "Reveal Key",
+            "Hide Key");
+
+    private void ToggleSettingsXboxApiKeyVisibility_Click(object sender, RoutedEventArgs e) =>
+        ToggleSecretVisibility(
+            SettingsXboxApiKeyPasswordBox,
+            SettingsXboxApiKeyRevealTextBox,
+            SettingsXboxApiKeyRevealButton,
+            "Reveal Key",
+            "Hide Key");
+
+    private void ToggleSetupWebhookVisibility_Click(object sender, RoutedEventArgs e) =>
+        ToggleSecretVisibility(
+            SetupWebhookPasswordBox,
+            SetupWebhookRevealTextBox,
+            SetupWebhookRevealButton,
+            "Reveal Webhook",
+            "Hide Webhook");
+
+    private void ToggleSettingsWebhookVisibility_Click(object sender, RoutedEventArgs e) =>
+        ToggleSecretVisibility(
+            SettingsWebhookPasswordBox,
+            SettingsWebhookRevealTextBox,
+            SettingsWebhookRevealButton,
+            "Reveal Webhook",
+            "Hide Webhook");
+
     private async void SaveAndTestOpenXbl_Click(object sender, RoutedEventArgs e) =>
-        await SaveAndTestOpenXblAsync(sender, SetupXboxApiKeyPasswordBox.Password, SetupXboxStatus);
+        await SaveAndTestOpenXblAsync(
+            sender,
+            GetSecretValue(SetupXboxApiKeyPasswordBox, SetupXboxApiKeyRevealTextBox),
+            SetupXboxStatus);
 
     private async void SaveAndTestSettingsOpenXbl_Click(object sender, RoutedEventArgs e) =>
-        await SaveAndTestOpenXblAsync(sender, SettingsXboxApiKeyPasswordBox.Password, SettingsXboxStatus);
+        await SaveAndTestOpenXblAsync(
+            sender,
+            GetSecretValue(SettingsXboxApiKeyPasswordBox, SettingsXboxApiKeyRevealTextBox),
+            SettingsXboxStatus);
 
     private async Task SaveAndTestOpenXblAsync(object sender, string value, TextBlock statusTarget)
     {
@@ -275,10 +897,18 @@ public partial class MainWindow : Window
         statusTarget.Foreground = Brush("WarningBrush");
         try
         {
+            _settings = _settings with
+            {
+                ProtectedOpenXblApiKey = _services.WebhookProtector.ProtectOpenXblApiKey(apiKey)
+            };
+            await _services.SettingsStore.SaveAsync(_settings);
+            PopulateSecretControls();
+
             var accountResult = await _services.OpenXblClient.GetAccountAsync(apiKey);
             if (!accountResult.Success || accountResult.Account is null)
             {
-                statusTarget.Text = $"Status: {accountResult.Message}";
+                RefreshStatus();
+                statusTarget.Text = $"Status: API key saved, but {accountResult.Message}";
                 statusTarget.Foreground = Brush("ErrorBrush");
                 _services.ActivityLog.Warning(accountResult.Message);
                 return;
@@ -289,6 +919,7 @@ public partial class MainWindow : Window
                 accountResult.Account.Xuid);
             if (!titleProgressResult.Success || titleProgressResult.Titles is null)
             {
+                RefreshStatus();
                 statusTarget.Text = $"Status: account found, but {titleProgressResult.Message}";
                 statusTarget.Foreground = Brush("ErrorBrush");
                 _services.ActivityLog.Warning(titleProgressResult.Message);
@@ -325,8 +956,6 @@ public partial class MainWindow : Window
                     titleProgressResult.Titles);
             }
 
-            SetupXboxApiKeyPasswordBox.Clear();
-            SettingsXboxApiKeyPasswordBox.Clear();
             PopulateControls();
             RefreshStatus();
 
@@ -334,10 +963,12 @@ public partial class MainWindow : Window
                 ? " Earlier unlocks were baselined and will not be posted."
                 : " The existing sync position was preserved.";
             statusTarget.Text = $"Status: connected as {accountResult.Account.Gamertag}.{baselineNote}";
-            statusTarget.Foreground = Brush("AccentBrush");
+            statusTarget.Foreground = Brush("SuccessBrush");
             _services.ActivityLog.Success("OpenXBL account connection verified. Existing achievements will not be reposted.");
 
-            if (_settings.SetupCompleted && TryGetWebhook(out _))
+            if (_settings.SetupCompleted &&
+                !_services.UpdateService.IsUpdateRequired &&
+                TryGetWebhook(out _))
             {
                 await _services.RelayCoordinator.StartAsync();
                 RefreshStatus();
@@ -351,8 +982,16 @@ public partial class MainWindow : Window
 
     private async void SaveAndTestWebhook_Click(object sender, RoutedEventArgs e)
     {
-        var value = SetupWebhookPasswordBox.Password;
-        if (!WebhookUrlValidator.TryNormalize(value, out var webhookUri, out var error) || webhookUri is null)
+        var value = GetSecretValue(SetupWebhookPasswordBox, SetupWebhookRevealTextBox);
+        Uri? webhookUri;
+        string? error = null;
+        if (string.IsNullOrWhiteSpace(value) &&
+            TryGetWebhook(out var storedWebhook) &&
+            storedWebhook is not null)
+        {
+            webhookUri = storedWebhook;
+        }
+        else if (!WebhookUrlValidator.TryNormalize(value, out webhookUri, out error) || webhookUri is null)
         {
             SetupWebhookStatus.Text = $"Status: {error}";
             SetupWebhookStatus.Foreground = Brush("ErrorBrush");
@@ -364,7 +1003,7 @@ public partial class MainWindow : Window
         {
             _settings = _settings with { ProtectedWebhookUrl = _services.WebhookProtector.Protect(webhookUri.ToString()) };
             await _services.SettingsStore.SaveAsync(_settings);
-            SetupWebhookPasswordBox.Clear();
+            PopulateSecretControls();
 
             var result = await _services.WebhookClient.SendAsync(
                 webhookUri,
@@ -374,7 +1013,7 @@ public partial class MainWindow : Window
             SetupWebhookStatus.Text = result.Success
                 ? "Status: connected — check Discord for the test post"
                 : $"Status: saved, but the test failed — {result.Message}";
-            SetupWebhookStatus.Foreground = Brush(result.Success ? "AccentBrush" : "ErrorBrush");
+            SetupWebhookStatus.Foreground = Brush(result.Success ? "SuccessBrush" : "ErrorBrush");
             _services.ActivityLog.Info(result.Success
                 ? "Discord webhook saved and tested successfully."
                 : $"Discord webhook test failed: {result.Message}");
@@ -387,15 +1026,22 @@ public partial class MainWindow : Window
 
     private async void FinishSetup_Click(object sender, RoutedEventArgs e)
     {
-        if (!TryGetOpenXblApiKey(out _) || string.IsNullOrWhiteSpace(_settings.XboxUserId))
+        if (BlockForRequiredUpdate())
         {
-            ShowMessage("Complete step 1 and connect an Xbox account through OpenXBL before finishing setup.", MessageBoxImage.Warning);
+            return;
+        }
+
+        var xboxConfigured = TryGetOpenXblApiKey(out _) && !string.IsNullOrWhiteSpace(_settings.XboxUserId);
+        var steamEnabled = SetupSteamEnabledCheckBox.IsChecked == true;
+        if (!xboxConfigured && !steamEnabled)
+        {
+            ShowMessage("Choose at least one source: connect Xbox through OpenXBL, enable Steam monitoring, or use both.", MessageBoxImage.Warning);
             return;
         }
 
         if (!TryGetWebhook(out _))
         {
-            ShowMessage("Complete step 2 and save a valid Discord webhook before finishing setup.", MessageBoxImage.Warning);
+            ShowMessage("Complete step 3 and save a valid Discord webhook before finishing setup.", MessageBoxImage.Warning);
             return;
         }
 
@@ -406,6 +1052,7 @@ public partial class MainWindow : Window
             _settings = _settings with
             {
                 DisplayName = NormalizePlayerName(SetupDisplayNameTextBox.Text),
+                SteamEnabled = steamEnabled,
                 StartWithWindows = startWithWindows,
                 StartMinimized = SetupStartMinimizedCheckBox.IsChecked == true,
                 SetupCompleted = true
@@ -413,17 +1060,44 @@ public partial class MainWindow : Window
 
             await _services.SettingsStore.SaveAsync(_settings);
             var startupApplied = await _services.StartupService.SetEnabledAsync(startWithWindows);
-            await _services.RelayCoordinator.StartAsync();
+            if (!xboxConfigured)
+            {
+                await _services.RelayCoordinator.StopAsync();
+            }
+
+            if (!steamEnabled)
+            {
+                await _services.SteamMonitorCoordinator.StopAsync();
+            }
+
+            var xboxStarted = xboxConfigured && await _services.RelayCoordinator.StartAsync();
+            var steamStarted = steamEnabled && await _services.SteamMonitorCoordinator.StartAsync();
+            if (!xboxStarted && !steamStarted)
+            {
+                _settings = _settings with { SetupCompleted = false };
+                await _services.SettingsStore.SaveAsync(_settings);
+                PopulateControls();
+                RefreshStatus();
+                var providerError = steamEnabled
+                    ? _services.SteamMonitorCoordinator.LastError
+                    : _services.RelayCoordinator.LastSyncError;
+                ShowMessage(
+                    providerError ?? "Achievement monitoring could not start. Open Help & support, then reinstall if a required component is reported missing.",
+                    MessageBoxImage.Error);
+                return;
+            }
+
             PopulateControls();
             RefreshStatus();
-            MainTabs.SelectedIndex = 0;
-            _services.ActivityLog.Success("Guided setup completed. Xbox account monitoring is active.");
+            NavigateTo(0);
+            var sources = xboxStarted && steamStarted ? "Xbox and Steam" : xboxStarted ? "Xbox" : "Steam";
+            _services.ActivityLog.Success($"Setup completed. {sources} monitoring is active.");
 
             var startupNote = startWithWindows && !startupApplied
                 ? Environment.NewLine + Environment.NewLine + "Windows did not enable startup automatically. You can enable Achievement Relay in Settings > Apps > Startup."
                 : string.Empty;
             ShowMessage(
-                "Setup is complete. Achievement Relay checks the connected Xbox account about once a minute while it runs." + startupNote,
+                $"Setup is complete. Achievement Relay is monitoring {sources}. Existing achievements are a silent baseline; only later unlocks are posted." + startupNote,
                 MessageBoxImage.Information);
         }
         finally
@@ -436,8 +1110,8 @@ public partial class MainWindow : Window
     {
         if (!TryGetWebhook(out var webhookUri) || webhookUri is null)
         {
-            ShowMessage("Connect a Discord webhook in Guided setup first.", MessageBoxImage.Warning);
-            MainTabs.SelectedIndex = 1;
+            ShowMessage("Connect a Discord webhook in Setup first.", MessageBoxImage.Warning);
+            GoToDiscordSetup_Click(sender, e);
             return;
         }
 
@@ -476,7 +1150,7 @@ public partial class MainWindow : Window
         {
             DiscordUsername = NormalizeWebhookName(SettingsDiscordUsernameTextBox.Text)
         };
-        var replacement = SettingsWebhookPasswordBox.Password;
+        var replacement = GetSecretValue(SettingsWebhookPasswordBox, SettingsWebhookRevealTextBox);
         if (!string.IsNullOrWhiteSpace(replacement))
         {
             if (!WebhookUrlValidator.TryNormalize(replacement, out webhookUri, out var error) || webhookUri is null)
@@ -508,7 +1182,7 @@ public partial class MainWindow : Window
     private async void SaveSettings_Click(object sender, RoutedEventArgs e)
     {
         var protectedWebhook = _settings.ProtectedWebhookUrl;
-        var replacement = SettingsWebhookPasswordBox.Password;
+        var replacement = GetSecretValue(SettingsWebhookPasswordBox, SettingsWebhookRevealTextBox);
         if (!string.IsNullOrWhiteSpace(replacement))
         {
             if (!WebhookUrlValidator.TryNormalize(replacement, out var webhookUri, out var error) || webhookUri is null)
@@ -529,20 +1203,48 @@ public partial class MainWindow : Window
                 ProtectedWebhookUrl = protectedWebhook,
                 DiscordUsername = NormalizeWebhookName(SettingsDiscordUsernameTextBox.Text),
                 DisplayName = NormalizePlayerName(SettingsDisplayNameTextBox.Text),
+                SteamEnabled = SettingsSteamEnabledCheckBox.IsChecked == true,
                 PostRareOnly = SettingsRareOnlyCheckBox.IsChecked == true,
                 IncludeRawDetailsWhenUncertain = SettingsRawDetailsCheckBox.IsChecked == true,
                 StartWithWindows = startWithWindows,
                 StartMinimized = SettingsStartMinimizedCheckBox.IsChecked == true
             };
 
+            var xboxConfigured = TryGetOpenXblApiKey(out _) && !string.IsNullOrWhiteSpace(_settings.XboxUserId);
+            var webhookConfigured = TryGetWebhook(out _) || !string.IsNullOrWhiteSpace(replacement);
+            var hasProvider = xboxConfigured || _settings.SteamEnabled;
+            _settings = _settings with { SetupCompleted = _settings.SetupCompleted && webhookConfigured && hasProvider };
             await _services.SettingsStore.SaveAsync(_settings);
             var startupApplied = await _services.StartupService.SetEnabledAsync(startWithWindows);
-            SettingsWebhookPasswordBox.Clear();
-            PopulateControls();
-            if (_settings.SetupCompleted && TryGetOpenXblApiKey(out _) && TryGetWebhook(out _))
+            if (_services.UpdateService.IsUpdateRequired)
+            {
+                await _services.RelayCoordinator.StopAsync();
+                await _services.SteamMonitorCoordinator.StopAsync();
+            }
+            else if (!xboxConfigured)
+            {
+                await _services.RelayCoordinator.StopAsync();
+            }
+            else if (_settings.SetupCompleted && webhookConfigured)
             {
                 await _services.RelayCoordinator.StartAsync();
             }
+
+            if (!_services.UpdateService.IsUpdateRequired && !_settings.SteamEnabled)
+            {
+                await _services.SteamMonitorCoordinator.StopAsync();
+            }
+            else if (!_services.UpdateService.IsUpdateRequired &&
+                     _settings.SetupCompleted &&
+                     webhookConfigured)
+            {
+                // Preference/webhook edits are read at delivery time. Keep an
+                // active helper session intact so saving unrelated settings
+                // cannot create a small observation gap during gameplay.
+                await _services.SteamMonitorCoordinator.StartAsync();
+            }
+
+            PopulateControls();
 
             RefreshStatus();
             _services.ActivityLog.Success("Settings saved.");
@@ -575,21 +1277,24 @@ public partial class MainWindow : Window
         try
         {
             await _services.RelayCoordinator.StopAsync();
+            var keepSetupCompleted = _settings.SetupCompleted && _settings.SteamEnabled && TryGetWebhook(out _);
             _settings = _settings with
             {
                 ProtectedOpenXblApiKey = string.Empty,
                 XboxUserId = string.Empty,
                 XboxGamertag = string.Empty,
-                SetupCompleted = false
+                SetupCompleted = keepSetupCompleted
             };
             await _services.SettingsStore.SaveAsync(_settings);
             await _services.SyncStateStore.ClearAsync();
-            SetupXboxApiKeyPasswordBox.Clear();
-            SettingsXboxApiKeyPasswordBox.Clear();
             _services.ActivityLog.Info("Saved OpenXBL connection removed.");
+            SetupXboxSourceCheckBox.IsChecked = false;
             PopulateControls();
             RefreshStatus();
-            MainTabs.SelectedIndex = 1;
+            if (!keepSetupCompleted)
+            {
+                OpenSetupAtRecommendedStep();
+            }
         }
         finally
         {
@@ -614,13 +1319,68 @@ public partial class MainWindow : Window
         try
         {
             await _services.RelayCoordinator.StopAsync();
+            await _services.SteamMonitorCoordinator.StopAsync();
             _settings = _settings with { ProtectedWebhookUrl = string.Empty, SetupCompleted = false };
             await _services.SettingsStore.SaveAsync(_settings);
-            SetupWebhookPasswordBox.Clear();
-            SettingsWebhookPasswordBox.Clear();
             _services.ActivityLog.Info("Saved Discord webhook removed.");
+            PopulateControls();
             RefreshStatus();
-            MainTabs.SelectedIndex = 1;
+            NavigateTo(1);
+            SetSetupStep(2);
+        }
+        finally
+        {
+            SetButtonBusy(sender, false);
+        }
+    }
+
+    private async void RefreshSteam_Click(object sender, RoutedEventArgs e)
+    {
+        if (BlockForRequiredUpdate())
+        {
+            return;
+        }
+
+        var enabled = MainTabs.SelectedIndex == 1
+            ? SetupSteamEnabledCheckBox.IsChecked == true
+            : SettingsSteamEnabledCheckBox.IsChecked == true;
+        if (!enabled)
+        {
+            await _services.SteamMonitorCoordinator.StopAsync();
+            _settings = _settings with { SteamEnabled = false };
+            await _services.SettingsStore.SaveAsync(_settings);
+            PopulateControls();
+            RefreshStatus();
+            ShowMessage("Steam monitoring is switched off. Enable it first, then refresh.", MessageBoxImage.Information);
+            return;
+        }
+
+        SetButtonBusy(sender, true);
+        try
+        {
+            _settings = _settings with { SteamEnabled = true };
+            await _services.SettingsStore.SaveAsync(_settings);
+            var started = await _services.SteamMonitorCoordinator.RestartAsync();
+            PopulateControls();
+            RefreshStatus();
+            if (!started)
+            {
+                ShowMessage(
+                    _services.SteamMonitorCoordinator.LastError ??
+                    "Steam monitoring could not start. Reinstall Achievement Relay if Help & support reports that the component is missing.",
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            var game = _services.SteamMonitorCoordinator.CurrentGameName;
+            var phase = _services.SteamMonitorCoordinator.Phase;
+            ShowMessage(
+                game is null
+                    ? "Steam monitoring is ready. Start a Steam game normally; Achievement Relay will baseline its existing unlocks silently and then watch for new ones."
+                    : phase == SteamMonitoringPhase.Monitoring
+                        ? $"Steam monitoring is active for {game}. Only new unlocks will be relayed."
+                        : $"{game} is detected, but Steam is still {FormatSteamPhase(phase)}. Wait for Activity to confirm that the baseline is established before testing an unlock.",
+                MessageBoxImage.Information);
         }
         finally
         {
@@ -630,17 +1390,22 @@ public partial class MainWindow : Window
 
     private async void SyncNow_Click(object sender, RoutedEventArgs e)
     {
+        if (BlockForRequiredUpdate())
+        {
+            return;
+        }
+
         if (!TryGetOpenXblApiKey(out _) || string.IsNullOrWhiteSpace(_settings.XboxUserId))
         {
-            ShowMessage("Connect the Xbox account in Guided setup before syncing.", MessageBoxImage.Warning);
-            MainTabs.SelectedIndex = 1;
+            ShowMessage("Connect the Xbox account in Setup before syncing.", MessageBoxImage.Warning);
+            GoToXboxSetup_Click(sender, e);
             return;
         }
 
         if (!TryGetWebhook(out _))
         {
             ShowMessage("Connect the Discord webhook before syncing so new achievements have a destination.", MessageBoxImage.Warning);
-            MainTabs.SelectedIndex = 1;
+            GoToDiscordSetup_Click(sender, e);
             return;
         }
 
@@ -678,16 +1443,27 @@ public partial class MainWindow : Window
             $"Packaged: {StartupService.IsPackaged()}",
             $"OpenXBL configured: {TryGetOpenXblApiKey(out _)}",
             $"Xbox account verified: {!string.IsNullOrWhiteSpace(_settings.XboxUserId)}",
-            $"Account monitor running: {_services.RelayCoordinator.IsRunning}",
-            $"Last successful sync: {(lastSync is null ? "not yet" : lastSync.Value.ToString("O"))}",
-            $"Last sync error: {_services.RelayCoordinator.LastSyncError ?? "none"}",
+            $"Xbox monitor running: {_services.RelayCoordinator.IsRunning}",
+            $"Last Xbox sync: {(lastSync is null ? "not yet" : lastSync.Value.ToString("O"))}",
+            $"Last Xbox error: {_services.RelayCoordinator.LastSyncError ?? "none"}",
+            $"Steam enabled: {_settings.SteamEnabled}",
+            $"Steam platform supported: {_services.SteamMonitorCoordinator.IsSupportedPlatform}",
+            $"Steam installed: {_services.SteamMonitorCoordinator.IsSteamInstalled}",
+            $"Steam client running: {_services.SteamMonitorCoordinator.IsSteamRunning}",
+            $"Steam monitor running: {_services.SteamMonitorCoordinator.IsRunning}",
+            $"Steam game detected: {_services.SteamMonitorCoordinator.CurrentGameName ?? "none"}",
+            $"Steam phase: {FormatSteamPhase(_services.SteamMonitorCoordinator.Phase)}",
+            $"Last Steam observation: {(_services.SteamMonitorCoordinator.LastObservationUtc?.ToString("O") ?? "not yet")}",
+            $"Last Steam error: {_services.SteamMonitorCoordinator.LastError ?? "none"}",
             $"Discord configured: {TryGetWebhook(out _)}",
             $"Setup completed: {_settings.SetupCompleted}",
+            $"Update status: {FormatUpdateStatus(_services.UpdateService.Snapshot)}",
+            $"Windows package version: {_services.UpdateService.CurrentPackageVersion}",
             $"Data folder: {_services.Paths.DataDirectory}");
 
         System.Windows.Clipboard.SetText(summary);
         ShowMessage(
-            "Support summary copied. It does not contain the API key, Xbox user ID, gamertag, webhook URL or token.",
+            "Support summary copied. It does not contain the API key, Xbox or Steam account IDs, gamertag, Steam name, webhook URL or token.",
             MessageBoxImage.Information);
     }
 
@@ -697,12 +1473,371 @@ public partial class MainWindow : Window
         OpenExternal(File.Exists(localPrivacyPolicy) ? localPrivacyPolicy : $"{GitHubUrl}/blob/main/PRIVACY.md");
     }
 
+    private void OpenArtLicenses_Click(object sender, RoutedEventArgs e)
+    {
+        var localNotices = Path.Combine(AppContext.BaseDirectory, "THIRD-PARTY-NOTICES.md");
+        OpenExternal(File.Exists(localNotices) ? localNotices : ArtLicensesUrl);
+    }
+
     private void OpenGitHub_Click(object sender, RoutedEventArgs e) => OpenExternal(GitHubUrl);
 
     private void OpenKoFi_Click(object sender, RoutedEventArgs e) => OpenExternal(KoFiUrl);
 
+    private void OpenCommunityDiscord_Click(object sender, RoutedEventArgs e) =>
+        OpenExternal(CommunityDiscordUrl);
+
     private void OnRelayStatusChanged(object? sender, EventArgs e) =>
         Dispatcher.InvokeAsync(RefreshStatus);
+
+    private void OnSteamStatusChanged(object? sender, EventArgs e) =>
+        Dispatcher.InvokeAsync(RefreshStatus);
+
+    private void OnUpdateStateChanged(object? sender, AppUpdateSnapshot snapshot)
+    {
+        Dispatcher.InvokeAsync(() =>
+        {
+            RefreshStatus();
+            _ = HandleUpdateStateTransitionAsync(snapshot);
+        });
+    }
+
+    private async Task HandleUpdateStateTransitionAsync(AppUpdateSnapshot snapshot)
+    {
+        await ApplyUpdatePolicyAsync(snapshot);
+        if (!_automaticUpdatesEnabled ||
+            !snapshot.HasUpdate ||
+            snapshot.Stage is not (AppUpdateStage.Available or
+                AppUpdateStage.Required or
+                AppUpdateStage.ReadyToInstall))
+        {
+            return;
+        }
+
+        var action = UpdatePolicy.SelectAutomaticAction(snapshot.Requirement, isAppLaunch: false);
+        if (action == AutomaticUpdateAction.None)
+        {
+            return;
+        }
+
+        var launchInstaller = action == AutomaticUpdateAction.LaunchInstaller;
+        await TryApplyAutomaticUpdateAsync(
+            snapshot,
+            launchInstaller,
+            launchInstaller ? "required update detection" : "background update detection");
+    }
+
+    private async Task<bool> TryApplyAutomaticUpdateAsync(
+        AppUpdateSnapshot requestedSnapshot,
+        bool launchInstaller,
+        string trigger)
+    {
+        var operationStarted = false;
+        await _automaticUpdateGate.WaitAsync();
+        try
+        {
+            var snapshot = _services.UpdateService.Snapshot;
+            if (!snapshot.HasUpdate ||
+                string.IsNullOrWhiteSpace(snapshot.LatestVersion) ||
+                !string.Equals(
+                    snapshot.LatestVersion,
+                    requestedSnapshot.LatestVersion,
+                    StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            var version = snapshot.LatestVersion;
+            if (_automaticUpdateFailureVersions.Contains(version))
+            {
+                return false;
+            }
+            if (_updateInstallerStarted || _automaticUpdateLaunchVersions.Contains(version))
+            {
+                return _updateInstallerStarted;
+            }
+            if (!launchInstaller && _automaticallyPreparedUpdateVersions.Contains(version))
+            {
+                return false;
+            }
+            if (_updateOperationInProgress)
+            {
+                return false;
+            }
+
+            _updateOperationInProgress = true;
+            operationStarted = true;
+            SetUpdateActionButtonsEnabled(false);
+            _services.ActivityLog.Info(
+                $"Automatic update processing started for Achievement Relay {version} ({trigger}).");
+
+            if (snapshot.Stage != AppUpdateStage.ReadyToInstall)
+            {
+                snapshot = await _services.UpdateService.DownloadAsync();
+            }
+
+            if (snapshot.Stage != AppUpdateStage.ReadyToInstall)
+            {
+                _automaticUpdateFailureVersions.Add(version);
+                _services.ActivityLog.Warning(
+                    $"Automatic update processing stopped for version {version}. Use Retry update after reviewing the status.");
+                return false;
+            }
+
+            _automaticallyPreparedUpdateVersions.Add(version);
+            if (!launchInstaller)
+            {
+                _services.ActivityLog.Success(
+                    $"Achievement Relay {version} is verified and prepared for the next app launch.");
+                return false;
+            }
+
+            var launch = await _services.UpdateService.LaunchInstallerAsync();
+            if (!launch.Success)
+            {
+                _automaticUpdateFailureVersions.Add(version);
+                _services.ActivityLog.Warning(
+                    $"Automatic updater launch stopped for version {version}. Use Install update to retry.");
+                return false;
+            }
+
+            _automaticUpdateLaunchVersions.Add(version);
+            _updateInstallerStarted = true;
+            ApplyUpdateState(_services.UpdateService.Snapshot);
+            if (launch.ProcessId is int processId)
+            {
+                _ = MonitorUpdaterExitAsync(processId);
+            }
+
+            return true;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            var version = requestedSnapshot.LatestVersion ?? "unknown";
+            _automaticUpdateFailureVersions.Add(version);
+            _services.ActivityLog.Warning(
+                $"Automatic update processing failed safely for version {version}: {exception.Message}");
+            return false;
+        }
+        finally
+        {
+            if (operationStarted)
+            {
+                _updateOperationInProgress = false;
+                if (!_updateInstallerStarted)
+                {
+                    SetUpdateActionButtonsEnabled(true);
+                }
+            }
+
+            _automaticUpdateGate.Release();
+        }
+    }
+
+    private void ApplyUpdateState(AppUpdateSnapshot snapshot)
+    {
+        AboutUpdateStatusText.Text = snapshot.Message;
+        AboutUpdateStatusText.Foreground = snapshot.IsRequired
+            ? Brush("ErrorBrush")
+            : snapshot.Stage == AppUpdateStage.Current
+                ? Brush("SuccessBrush")
+                : snapshot.Stage == AppUpdateStage.Failed
+                    ? Brush("WarningBrush")
+                    : Brush("MutedTextBrush");
+        const string automaticUpdateSummary =
+            "Launch-time updates open automatically; optional updates found while running prepare quietly.";
+        AboutUpdateCheckedText.Text = snapshot.LastCheckedUtc is DateTimeOffset checkedAt
+            ? $"Last checked {checkedAt.ToLocalTime():yyyy-MM-dd HH:mm:ss zzz} · {automaticUpdateSummary}"
+            : $"Automatic checks use the official GitHub Releases feed. {automaticUpdateSummary}";
+
+        var hasReleasePage = snapshot.ReleasePage is not null;
+        AboutUpdateNotesButton.Visibility = hasReleasePage ? Visibility.Visible : Visibility.Collapsed;
+        UpdateBannerNotesButton.Visibility = hasReleasePage ? Visibility.Visible : Visibility.Collapsed;
+        AboutUpdateActionButton.Visibility = snapshot.HasUpdate ? Visibility.Visible : Visibility.Collapsed;
+        UpdateBannerActionButton.Visibility = snapshot.HasUpdate ? Visibility.Visible : Visibility.Collapsed;
+        UpdateBanner.Visibility = snapshot.HasUpdate ? Visibility.Visible : Visibility.Collapsed;
+
+        if (snapshot.HasUpdate)
+        {
+            UpdateBannerTitle.Text = snapshot.IsRequired
+                ? $"UPDATE REQUIRED · VERSION {snapshot.LatestVersion}"
+                : $"UPDATE AVAILABLE · VERSION {snapshot.LatestVersion}";
+            UpdateBannerMessage.Text = snapshot.Message;
+            UpdateBanner.BorderBrush = snapshot.IsRequired
+                ? Brush("ErrorBrush")
+                : Brush("WarningBrush");
+        }
+
+        var downloading = snapshot.Stage == AppUpdateStage.Downloading;
+        UpdateBannerProgress.Visibility = downloading ? Visibility.Visible : Visibility.Collapsed;
+        UpdateBannerProgress.Value = Math.Clamp(snapshot.DownloadProgress ?? 0, 0, 1);
+
+        var actionLabel = _updateInstallerStarted
+            ? "Updater open"
+            : snapshot.Stage == AppUpdateStage.ReadyToInstall
+                ? "Install update"
+                : snapshot.Stage == AppUpdateStage.Downloading
+                    ? $"Downloading {snapshot.DownloadProgress ?? 0:P0}"
+                    : snapshot.Stage == AppUpdateStage.Failed
+                        ? "Retry update"
+                        : "Update now";
+        UpdateBannerActionButton.Content = actionLabel;
+        AboutUpdateActionButton.Content = actionLabel;
+        SetUpdateActionButtonsEnabled(
+            !downloading && !_updateOperationInProgress && !_updateInstallerStarted);
+
+        if (snapshot.HasUpdate &&
+            (snapshot.Stage is AppUpdateStage.Available or AppUpdateStage.Required) &&
+            !string.Equals(_shownUpdateNoticeVersion, snapshot.LatestVersion, StringComparison.Ordinal) &&
+            _trayIcon is not null)
+        {
+            _trayIcon.ShowBalloonTip(
+                5000,
+                snapshot.IsRequired ? "Achievement Relay update required" : "Achievement Relay update available",
+                snapshot.IsRequired
+                    ? $"Monitoring is paused until version {snapshot.LatestVersion} is installed."
+                    : $"Version {snapshot.LatestVersion} can be installed from the app.",
+                snapshot.IsRequired ? Forms.ToolTipIcon.Warning : Forms.ToolTipIcon.Info);
+            _shownUpdateNoticeVersion = snapshot.LatestVersion;
+        }
+    }
+
+    private async Task EnforceRequiredUpdateAsync()
+    {
+        if (_enforcingRequiredUpdate)
+        {
+            return;
+        }
+
+        _enforcingRequiredUpdate = true;
+        try
+        {
+            await _services.RelayCoordinator.StopAsync();
+            await _services.SteamMonitorCoordinator.StopAsync();
+            RefreshStatus();
+            ShowRequiredUpdate();
+        }
+        finally
+        {
+            _enforcingRequiredUpdate = false;
+        }
+    }
+
+    private async Task ApplyUpdatePolicyAsync(AppUpdateSnapshot snapshot)
+    {
+        await _updatePolicyGate.WaitAsync();
+        try
+        {
+            if (!ReferenceEquals(snapshot, _services.UpdateService.Snapshot))
+            {
+                return;
+            }
+
+            if (snapshot.IsRequired)
+            {
+                if (!_requiredPolicyApplied)
+                {
+                    await EnforceRequiredUpdateAsync();
+                    _requiredPolicyApplied = true;
+                }
+            }
+            else if (_requiredPolicyApplied)
+            {
+                await ResumeMonitoringAfterUpdatePolicyAsync();
+                _requiredPolicyApplied = false;
+            }
+        }
+        catch (Exception exception)
+        {
+            _services.ActivityLog.Warning($"Update policy transition failed safely: {exception.Message}");
+        }
+        finally
+        {
+            _updatePolicyGate.Release();
+        }
+    }
+
+    private async Task ResumeMonitoringAfterUpdatePolicyAsync()
+    {
+        if (!_settings.SetupCompleted || !TryGetWebhook(out _))
+        {
+            RefreshStatus();
+            return;
+        }
+
+        var xboxConfigured = TryGetOpenXblApiKey(out _) &&
+                             !string.IsNullOrWhiteSpace(_settings.XboxUserId);
+        if (xboxConfigured)
+        {
+            await _services.RelayCoordinator.StartAsync();
+        }
+        if (_settings.SteamEnabled)
+        {
+            await _services.SteamMonitorCoordinator.StartAsync();
+        }
+
+        RefreshStatus();
+    }
+
+    private async Task MonitorUpdaterExitAsync(int processId)
+    {
+        try
+        {
+            using var process = Process.GetProcessById(processId);
+            await process.WaitForExitAsync();
+        }
+        catch (SystemException)
+        {
+            // The Setup bootstrap process may hand off to its extracted process.
+        }
+        finally
+        {
+            await Dispatcher.InvokeAsync(RestoreAfterUpdaterExitAsync).Task.Unwrap();
+        }
+    }
+
+    private async Task RestoreAfterUpdaterExitAsync()
+    {
+        _updateInstallerStarted = false;
+        ApplyUpdateState(_services.UpdateService.Snapshot);
+        if (!_services.UpdateService.IsUpdateRequired)
+        {
+            await ResumeMonitoringAfterUpdatePolicyAsync();
+        }
+    }
+
+    private bool BlockForRequiredUpdate()
+    {
+        if (!_services.UpdateService.IsUpdateRequired)
+        {
+            return false;
+        }
+
+        ShowRequiredUpdate();
+        ShowMessage(
+            "This release is below the minimum supported version. Install the verified update before restarting achievement monitoring.",
+            MessageBoxImage.Warning);
+        return true;
+    }
+
+    private void SetUpdateActionButtonsEnabled(bool enabled)
+    {
+        UpdateBannerActionButton.IsEnabled = enabled;
+        AboutUpdateActionButton.IsEnabled = enabled;
+        HomePrimaryActionButton.IsEnabled =
+            !string.Equals(HomePrimaryActionButton.Tag as string, "update", StringComparison.Ordinal) || enabled;
+    }
+
+    private static string FormatUpdateStatus(AppUpdateSnapshot snapshot) => snapshot.Stage switch
+    {
+        AppUpdateStage.Current => $"current ({snapshot.CurrentVersion})",
+        AppUpdateStage.Available => $"version {snapshot.LatestVersion} available",
+        AppUpdateStage.Required => $"version {snapshot.LatestVersion} required",
+        AppUpdateStage.Downloading => $"downloading version {snapshot.LatestVersion}",
+        AppUpdateStage.ReadyToInstall => $"version {snapshot.LatestVersion} ready to install",
+        AppUpdateStage.Checking => "checking GitHub",
+        AppUpdateStage.Failed => "check or download failed",
+        _ => "not checked"
+    };
 
     private void OnActivityEntryAdded(object? sender, ActivityEntry entry)
     {
@@ -728,8 +1863,97 @@ public partial class MainWindow : Window
         return OpenXblApiKeyValidator.TryNormalize(value, out apiKey, out _);
     }
 
-    private string NormalizePlayerName(string value) =>
-        string.IsNullOrWhiteSpace(value) ? _settings.XboxGamertag : value.Trim();
+    private void PopulateSecretControls()
+    {
+        var apiKey = TryGetOpenXblApiKey(out var storedApiKey) ? storedApiKey : string.Empty;
+        var webhook = TryGetWebhook(out var storedWebhook) && storedWebhook is not null
+            ? storedWebhook.ToString()
+            : string.Empty;
+
+        SetSecretValue(
+            SetupXboxApiKeyPasswordBox,
+            SetupXboxApiKeyRevealTextBox,
+            SetupXboxApiKeyRevealButton,
+            apiKey,
+            "Reveal Key");
+        SetSecretValue(
+            SettingsXboxApiKeyPasswordBox,
+            SettingsXboxApiKeyRevealTextBox,
+            SettingsXboxApiKeyRevealButton,
+            apiKey,
+            "Reveal Key");
+        SetSecretValue(
+            SetupWebhookPasswordBox,
+            SetupWebhookRevealTextBox,
+            SetupWebhookRevealButton,
+            webhook,
+            "Reveal Webhook");
+        SetSecretValue(
+            SettingsWebhookPasswordBox,
+            SettingsWebhookRevealTextBox,
+            SettingsWebhookRevealButton,
+            webhook,
+            "Reveal Webhook");
+    }
+
+    private static string GetSecretValue(PasswordBox passwordBox, TextBox revealTextBox) =>
+        revealTextBox.Visibility == Visibility.Visible ? revealTextBox.Text : passwordBox.Password;
+
+    private static void SetSecretValue(
+        PasswordBox passwordBox,
+        TextBox revealTextBox,
+        Button revealButton,
+        string value,
+        string revealLabel)
+    {
+        revealTextBox.Clear();
+        revealTextBox.Visibility = Visibility.Collapsed;
+        passwordBox.Password = value;
+        passwordBox.Visibility = Visibility.Visible;
+        revealButton.Content = revealLabel;
+        revealButton.IsEnabled = true;
+    }
+
+    private static void ToggleSecretVisibility(
+        PasswordBox passwordBox,
+        TextBox revealTextBox,
+        Button revealButton,
+        string revealLabel,
+        string hideLabel)
+    {
+        if (revealTextBox.Visibility == Visibility.Visible)
+        {
+            passwordBox.Password = revealTextBox.Text;
+            revealTextBox.Clear();
+            revealTextBox.Visibility = Visibility.Collapsed;
+            passwordBox.Visibility = Visibility.Visible;
+            revealButton.Content = revealLabel;
+            passwordBox.Focus();
+            return;
+        }
+
+        revealTextBox.Text = passwordBox.Password;
+        passwordBox.Visibility = Visibility.Collapsed;
+        revealTextBox.Visibility = Visibility.Visible;
+        revealButton.Content = hideLabel;
+        revealTextBox.Focus();
+        revealTextBox.CaretIndex = revealTextBox.Text.Length;
+    }
+
+    private string NormalizePlayerName(string value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            return value.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(_settings.XboxGamertag))
+        {
+            return _settings.XboxGamertag;
+        }
+
+        return _services.SteamMonitorCoordinator.SteamPlayerName ?? string.Empty;
+    }
 
     private static string NormalizeWebhookName(string value) =>
         string.IsNullOrWhiteSpace(value) ? "Achievement Relay" : value.Trim();
@@ -766,12 +1990,26 @@ public partial class MainWindow : Window
         target.Text = value;
         target.Foreground = tone switch
         {
-            StatusTone.Success => Brush("AccentBrush"),
+            StatusTone.Success => Brush("SuccessBrush"),
             StatusTone.Warning => Brush("WarningBrush"),
             StatusTone.Error => Brush("ErrorBrush"),
-            _ => Brush("TextBrush")
+            _ => Brush("MutedTextBrush")
         };
     }
+
+    private static string FormatLocalTimestamp(DateTimeOffset? value) =>
+        value is null ? "not yet" : value.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss zzz");
+
+    private static string FormatSteamPhase(SteamMonitoringPhase phase) => phase switch
+    {
+        SteamMonitoringPhase.WaitingForGame => "waiting for a game",
+        SteamMonitoringPhase.Connecting => "connecting",
+        SteamMonitoringPhase.LoadingStats => "loading achievement stats",
+        SteamMonitoringPhase.EstablishingBaseline => "establishing the baseline",
+        SteamMonitoringPhase.Monitoring => "monitoring",
+        SteamMonitoringPhase.Retrying => "retrying",
+        _ => "unknown"
+    };
 
     private System.Windows.Media.Brush Brush(string resourceName) =>
         (System.Windows.Media.Brush)FindResource(resourceName);
@@ -780,6 +2018,7 @@ public partial class MainWindow : Window
     {
         Success,
         Warning,
-        Error
+        Error,
+        Neutral
     }
 }

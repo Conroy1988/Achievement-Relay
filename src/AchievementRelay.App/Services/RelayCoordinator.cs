@@ -15,15 +15,14 @@ public sealed class RelayCoordinator(
     SettingsStore settingsStore,
     SecureWebhookProtector secretProtector,
     XboxSyncStateStore syncStateStore,
-    EventLedger eventLedger,
-    DiscordWebhookClient webhookClient,
+    AchievementDeliveryService deliveryService,
     ActivityLog activityLog) : IDisposable
 {
-    private static readonly TimeSpan DeliveryRetryOverlap = TimeSpan.FromHours(24);
     private static readonly TimeSpan FutureClockTolerance = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan BackgroundWorkInterval = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan MaximumProviderBackoff = TimeSpan.FromHours(2);
 
     private readonly SemaphoreSlim _syncGate = new(1, 1);
-    private readonly SemaphoreSlim _relayGate = new(1, 1);
     private readonly object _lifecycleGate = new();
     private readonly object _statusGate = new();
     private CancellationTokenSource? _lifetimeCancellation;
@@ -170,7 +169,6 @@ public sealed class RelayCoordinator(
         finally
         {
             _syncGate.Dispose();
-            _relayGate.Dispose();
         }
     }
 
@@ -198,7 +196,7 @@ public sealed class RelayCoordinator(
             var interval = TimeSpan.FromSeconds(Math.Clamp(settings.PollIntervalSeconds, 60, 3600));
             if (outcome.RetryAfter is { } retryAfter && retryAfter > interval)
             {
-                interval = retryAfter > TimeSpan.FromMinutes(15) ? TimeSpan.FromMinutes(15) : retryAfter;
+                interval = retryAfter > MaximumProviderBackoff ? MaximumProviderBackoff : retryAfter;
             }
 
             await Task.Delay(interval, cancellationToken);
@@ -246,17 +244,17 @@ public sealed class RelayCoordinator(
 
             var now = DateTimeOffset.UtcNow;
             var state = await syncStateStore.LoadAsync(cancellationToken);
-            var currentSnapshots = XboxSyncStateStore.CreateTitleSnapshots(progressFetch.Titles);
             if (!string.Equals(state.AccountXuid, accountXuid, StringComparison.Ordinal) ||
                 state.BaselineUtc is null ||
                 state.LastSuccessfulPollUtc is null)
             {
+                var baselineSnapshots = XboxSyncStateStore.CreateTitleSnapshots(progressFetch.Titles);
                 await syncStateStore.SaveAsync(new XboxSyncState
                 {
                     AccountXuid = accountXuid,
                     BaselineUtc = now,
                     LastSuccessfulPollUtc = now,
-                    Titles = currentSnapshots
+                    Titles = baselineSnapshots
                 }, cancellationToken);
                 const string baselineMessage = "Xbox baseline established. Achievements earned before setup will not be reposted.";
                 SetSuccess(now);
@@ -268,164 +266,238 @@ public sealed class RelayCoordinator(
                 return new XboxSyncOutcome(true, baselineMessage, BaselineEstablished: true);
             }
 
-            var overlapStart = state.LastSuccessfulPollUtc.Value - DeliveryRetryOverlap;
-            var cutoff = overlapStart > state.BaselineUtc.Value ? overlapStart : state.BaselineUtc.Value;
-            var changedTitles = progressFetch.Titles
-                .Where(title => HasProgressChanged(title, state.Titles))
-                .OrderByDescending(title => title.LastPlayedAt)
-                .ThenBy(title => title.Name ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+            var visibleTitles = progressFetch.Titles
+                .GroupBy(title => title.TitleId, StringComparer.Ordinal)
+                .Select(group => group
+                    .OrderByDescending(title => title.CurrentAchievements)
+                    .ThenByDescending(title => title.CurrentGamerscore)
+                    .ThenByDescending(title => title.LastPlayedAt)
+                    .First())
                 .ToArray();
+            var currentSnapshots = state.Titles.ToDictionary(
+                entry => entry.Key,
+                entry => entry.Value,
+                StringComparer.Ordinal);
+            var pendingTitles = state.PendingTitles.ToDictionary(
+                entry => entry.Key,
+                entry => entry.Value,
+                StringComparer.Ordinal);
 
-            var posted = 0;
-            foreach (var title in changedTitles)
+            // The title index is cheap; title detail may require route probes
+            // and continuation pages. Queue all changes durably, but expand at
+            // most one title in this sync and never advance an unprocessed
+            // count. That prevents a newly revealed history page from causing
+            // either a Discord flood or an OpenXBL request burst.
+            foreach (var title in visibleTitles)
             {
+                if (HasProgressChanged(title, currentSnapshots))
+                {
+                    QueueTitleWork(title, state, currentSnapshots, pendingTitles, now);
+                }
+                else if (!currentSnapshots.ContainsKey(title.TitleId))
+                {
+                    currentSnapshots[title.TitleId] = new XboxTitleSnapshot
+                    {
+                        CurrentAchievements = Math.Max(0, title.CurrentAchievements),
+                        CurrentGamerscore = Math.Max(0, title.CurrentGamerscore)
+                    };
+                }
+            }
+
+            foreach (var pending in pendingTitles.ToArray())
+            {
+                if (IsPendingWorkSatisfied(pending.Value, currentSnapshots))
+                {
+                    pendingTitles.Remove(pending.Key);
+                }
+            }
+
+            var lastBackgroundWorkUtc = state.LastBackgroundWorkUtc;
+            var backgroundWorkDue = !manual && XboxSyncWorkPlanner.IsBackgroundWorkDue(
+                lastBackgroundWorkUtc,
+                now,
+                BackgroundWorkInterval);
+            var selectedWork = XboxSyncWorkPlanner.SelectNext(pendingTitles.Values, backgroundWorkDue);
+            var posted = 0;
+            var safelyBaselined = 0;
+            TimeSpan? backgroundRetryAfter = null;
+
+            async Task SaveProgressAsync(DateTimeOffset? successfulPollUtc)
+            {
+                await syncStateStore.SaveAsync(state with
+                {
+                    LastSuccessfulPollUtc = successfulPollUtc,
+                    LastBackgroundWorkUtc = lastBackgroundWorkUtc,
+                    Titles = currentSnapshots,
+                    PendingTitles = pendingTitles
+                }, cancellationToken);
+            }
+
+            if (selectedWork is not null)
+            {
+                var isBackgroundWork = !selectedWork.IsPriority;
                 var detailFetch = await openXblClient.GetTitleAchievementsAsync(
                     normalizedApiKey,
                     accountXuid,
-                    title.TitleId,
+                    selectedWork.TitleId,
+                    selectedWork.CurrentAchievements,
+                    isBackgroundWork ? OpenXblRequestPriority.Background : OpenXblRequestPriority.Essential,
                     cancellationToken);
+
+                if (isBackgroundWork)
+                {
+                    lastBackgroundWorkUtc = now;
+                    backgroundRetryAfter = ShouldPauseAllOpenXblWork(detailFetch)
+                        ? detailFetch.RetryAfter
+                        : null;
+                }
+
                 if (!detailFetch.Success || detailFetch.Achievements is null)
                 {
+                    await SaveProgressAsync(isBackgroundWork ? now : state.LastSuccessfulPollUtc);
+                    if (isBackgroundWork)
+                    {
+                        SetSuccess(now);
+                        return new XboxSyncOutcome(
+                            true,
+                            "Xbox monitoring is active. Historical identity baselining was safely deferred to protect the OpenXBL allowance.",
+                            RetryAfter: backgroundRetryAfter);
+                    }
+
                     return SetError(detailFetch.Message, manual, detailFetch.RetryAfter);
                 }
 
-                var previousCount = state.Titles.TryGetValue(title.TitleId, out var previous)
-                    ? previous.CurrentAchievements
-                    : 0;
-                if (title.CurrentAchievements > previousCount &&
-                    detailFetch.Achievements.Count < title.CurrentAchievements)
+                var hadPreviousSnapshot = currentSnapshots.TryGetValue(selectedWork.TitleId, out var previous);
+                var previousCount = hadPreviousSnapshot ? previous!.CurrentAchievements : 0;
+                var delta = AchievementDeltaDetector.Detect(
+                    previousCount,
+                    hadPreviousSnapshot ? previous!.UnlockedAchievementIds : null,
+                    selectedWork.CurrentAchievements,
+                    detailFetch.Achievements,
+                    state.BaselineUtc.Value,
+                    now,
+                    FutureClockTolerance);
+                if (!delta.IsComplete)
                 {
-                    return SetError(
-                        $"OpenXBL reported new progress for {title.Name ?? "an Xbox title"}, but its achievement details have not caught up yet. Achievement Relay will retry without advancing the sync position.",
-                        manual);
-                }
-
-                var candidates = detailFetch.Achievements
-                    .Where(achievement =>
-                        achievement.UnlockedAt > cutoff &&
-                        achievement.UnlockedAt <= now + FutureClockTolerance)
-                    .Select(achievement => string.IsNullOrWhiteSpace(achievement.GameName)
-                        ? achievement with { GameName = title.Name }
-                        : achievement)
-                    .OrderBy(achievement => achievement.UnlockedAt)
-                    .ToArray();
-
-                if (title.CurrentAchievements > previousCount && candidates.Length == 0)
-                {
-                    return SetError(
-                        $"OpenXBL reported a new unlock for {title.Name ?? "an Xbox title"}, but no new timestamped achievement is available yet. Achievement Relay will retry without advancing the sync position.",
-                        manual);
-                }
-
-                foreach (var achievement in candidates)
-                {
-                    var handling = await ProcessAsync(achievement, settings, cancellationToken);
-                    if (handling == AchievementHandlingResult.RetryRequired)
+                    await SaveProgressAsync(isBackgroundWork ? now : state.LastSuccessfulPollUtc);
+                    var incompleteMessage =
+                        $"OpenXBL reported progress for {selectedWork.Name ?? "an Xbox title"}, but its achievement details have not caught up yet. Achievement Relay will retry without advancing the sync position.";
+                    if (isBackgroundWork)
                     {
+                        SetSuccess(now);
+                        return new XboxSyncOutcome(
+                            true,
+                            "Xbox monitoring is active. An older title remains queued until OpenXBL returns its complete identity list.",
+                            RetryAfter: backgroundRetryAfter);
+                    }
+
+                    return SetError(incompleteMessage, manual, detailFetch.RetryAfter);
+                }
+
+                if (delta.UnidentifiedIncrease > 0)
+                {
+                    safelyBaselined += delta.UnidentifiedIncrease;
+                    activityLog.Info(
+                        $"Silently baselined {delta.UnidentifiedIncrease} existing achievement{(delta.UnidentifiedIncrease == 1 ? "" : "s")} for {selectedWork.Name ?? "an Xbox title"}. Nothing historical was sent to Discord; only later unlocks are eligible.");
+                }
+
+                foreach (var achievement in delta.NewAchievements.Select(item =>
+                             PrepareForDelivery(item, selectedWork.Name, now)))
+                {
+                    var handling = await deliveryService.DeliverAsync(achievement, settings, cancellationToken);
+                    if (handling == AchievementDeliveryResult.RetryRequired)
+                    {
+                        await SaveProgressAsync(state.LastSuccessfulPollUtc);
                         return SetError(
                             $"Discord delivery is pending for {achievement.Name}; the relay will retry automatically.",
                             manual);
                     }
 
-                    if (handling == AchievementHandlingResult.Posted)
+                    if (handling == AchievementDeliveryResult.Posted)
                     {
                         posted++;
                     }
                 }
+
+                currentSnapshots[selectedWork.TitleId] = new XboxTitleSnapshot
+                {
+                    CurrentAchievements = Math.Max(selectedWork.CurrentAchievements, previousCount),
+                    CurrentGamerscore = Math.Max(
+                        selectedWork.CurrentGamerscore,
+                        hadPreviousSnapshot ? previous!.CurrentGamerscore : 0),
+                    UnlockedAchievementIds = delta.CurrentAchievementIds.ToArray()
+                };
+                pendingTitles.Remove(selectedWork.TitleId);
             }
 
-            await syncStateStore.SaveAsync(state with
+            // Count-only snapshots hydrate in the same fifteen-minute
+            // background slot, never from a manual Sync Now click. A priority
+            // achievement change always wins this slot.
+            if (selectedWork is null && backgroundWorkDue)
             {
-                LastSuccessfulPollUtc = now,
-                Titles = currentSnapshots
-            }, cancellationToken);
+                var hydrationTitle = visibleTitles
+                    .Where(title => !pendingTitles.ContainsKey(title.TitleId) &&
+                                    currentSnapshots.TryGetValue(title.TitleId, out var snapshot) &&
+                                    !snapshot.HasAchievementIdentityBaseline &&
+                                    !HasProgressChanged(title, currentSnapshots))
+                    .OrderByDescending(title => title.LastPlayedAt)
+                    .ThenBy(title => title.Name ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+                    .FirstOrDefault();
+                if (hydrationTitle is not null)
+                {
+                    lastBackgroundWorkUtc = now;
+                    var hydrationFetch = await openXblClient.GetTitleAchievementsAsync(
+                        normalizedApiKey,
+                        accountXuid,
+                        hydrationTitle.TitleId,
+                        hydrationTitle.CurrentAchievements,
+                        OpenXblRequestPriority.Background,
+                        cancellationToken);
+                    backgroundRetryAfter = ShouldPauseAllOpenXblWork(hydrationFetch)
+                        ? hydrationFetch.RetryAfter
+                        : null;
+                    if (hydrationFetch.Success && hydrationFetch.Achievements is not null)
+                    {
+                        var hydrationDelta = AchievementDeltaDetector.Detect(
+                            hydrationTitle.CurrentAchievements,
+                            null,
+                            hydrationTitle.CurrentAchievements,
+                            hydrationFetch.Achievements,
+                            state.BaselineUtc.Value,
+                            now,
+                            FutureClockTolerance);
+                        if (hydrationDelta.IsComplete)
+                        {
+                            currentSnapshots[hydrationTitle.TitleId] = currentSnapshots[hydrationTitle.TitleId] with
+                            {
+                                UnlockedAchievementIds = hydrationDelta.CurrentAchievementIds.ToArray()
+                            };
+                        }
+                    }
+                }
+            }
+
+            await SaveProgressAsync(now);
             SetSuccess(now);
 
-            var message = posted == 0
-                ? "Xbox account is up to date. No new achievements were found."
-                : $"Posted {posted} new Xbox achievement{(posted == 1 ? string.Empty : "s")} to Discord.";
+            var message = posted > 0
+                ? $"Posted {posted} new Xbox achievement{(posted == 1 ? string.Empty : "s")} to Discord."
+                : safelyBaselined > 0
+                    ? "Existing achievement history was baselined silently. Monitoring will post only later unlocks."
+                    : pendingTitles.Count > 0
+                        ? $"Xbox monitoring is active. {pendingTitles.Count} older title{(pendingTitles.Count == 1 ? "" : "s")} remain queued for gradual, silent identity baselining."
+                        : "Xbox account is up to date. No new achievements were found.";
             if (manual)
             {
                 activityLog.Success(message);
             }
 
-            return new XboxSyncOutcome(true, message, posted);
+            return new XboxSyncOutcome(true, message, posted, RetryAfter: backgroundRetryAfter);
         }
         finally
         {
             _syncGate.Release();
         }
-    }
-
-    private async Task<AchievementHandlingResult> ProcessAsync(
-        AchievementEvent achievement,
-        AppSettings settings,
-        CancellationToken cancellationToken)
-    {
-        await _relayGate.WaitAsync(cancellationToken);
-        try
-        {
-            if (await eventLedger.ContainsAsync(achievement.Id, cancellationToken))
-            {
-                return AchievementHandlingResult.Handled;
-            }
-
-            if (settings.PostRareOnly && !achievement.IsRare)
-            {
-                await eventLedger.MarkProcessedAsync(achievement.Id, cancellationToken);
-                activityLog.Info($"Skipped common achievement because Rare Only is enabled: {achievement.Name}.");
-                return AchievementHandlingResult.Handled;
-            }
-
-            var webhookValue = secretProtector.TryUnprotect(settings.ProtectedWebhookUrl);
-            if (!WebhookUrlValidator.TryNormalize(webhookValue, out var webhookUri, out _) || webhookUri is null)
-            {
-                activityLog.Warning($"Found {achievement.Name}, but Discord is not configured.");
-                return AchievementHandlingResult.RetryRequired;
-            }
-
-            activityLog.Info($"Xbox achievement detected: {achievement.Name}.");
-            var payload = DiscordWebhookPayloadFactory.Create(achievement, settings);
-            var result = await SendWithRetryAsync(webhookUri, payload, cancellationToken);
-            if (!result.Success)
-            {
-                activityLog.Error($"Could not relay {achievement.Name}: {result.Message}");
-                return AchievementHandlingResult.RetryRequired;
-            }
-
-            await eventLedger.MarkProcessedAsync(achievement.Id, cancellationToken);
-            activityLog.Success($"Posted {achievement.Name} to Discord.");
-            return AchievementHandlingResult.Posted;
-        }
-        finally
-        {
-            _relayGate.Release();
-        }
-    }
-
-    private async Task<RelayResult> SendWithRetryAsync(
-        Uri webhookUri,
-        string payload,
-        CancellationToken cancellationToken)
-    {
-        var delays = new[] { TimeSpan.Zero, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(12) };
-        RelayResult result = RelayResult.Fail("Delivery did not start.");
-
-        foreach (var delay in delays)
-        {
-            if (delay > TimeSpan.Zero)
-            {
-                await Task.Delay(delay, cancellationToken);
-            }
-
-            result = await webhookClient.SendAsync(webhookUri, payload, cancellationToken);
-            if (result.Success || result.StatusCode is >= 400 and < 500 and not 429)
-            {
-                break;
-            }
-        }
-
-        return result;
     }
 
     private XboxSyncOutcome SetError(string message, bool log, TimeSpan? retryAfter = null)
@@ -459,6 +531,76 @@ public sealed class RelayCoordinator(
 
     private void RaiseStatusChanged() => StatusChanged?.Invoke(this, EventArgs.Empty);
 
+    private static void QueueTitleWork(
+        XboxTitleProgress title,
+        XboxSyncState state,
+        IReadOnlyDictionary<string, XboxTitleSnapshot> currentSnapshots,
+        IDictionary<string, XboxTitleSyncWork> pendingTitles,
+        DateTimeOffset observedAt)
+    {
+        pendingTitles.TryGetValue(title.TitleId, out var existing);
+        currentSnapshots.TryGetValue(title.TitleId, out var previous);
+        var playedAfterMonitoringBegan = title.LastPlayedAt is { } lastPlayedAt &&
+                                         state.BaselineUtc is { } baselineUtc &&
+                                         lastPlayedAt > baselineUtc;
+        var changedKnownSummary = previous is not null &&
+                                  (title.CurrentAchievements > previous.CurrentAchievements ||
+                                   title.CurrentGamerscore > previous.CurrentGamerscore);
+        var increasedWhileQueued = existing is not null &&
+                                   (title.CurrentAchievements > existing.CurrentAchievements ||
+                                    title.CurrentGamerscore > existing.CurrentGamerscore);
+        var firstObserved = existing?.FirstObservedUtc is { } existingFirst &&
+                            existingFirst != default
+            ? existingFirst
+            : observedAt;
+
+        pendingTitles[title.TitleId] = new XboxTitleSyncWork
+        {
+            TitleId = title.TitleId,
+            Name = string.IsNullOrWhiteSpace(title.Name) ? existing?.Name : title.Name,
+            CurrentAchievements = Math.Max(
+                Math.Max(0, title.CurrentAchievements),
+                existing?.CurrentAchievements ?? 0),
+            CurrentGamerscore = Math.Max(
+                Math.Max(0, title.CurrentGamerscore),
+                existing?.CurrentGamerscore ?? 0),
+            LastPlayedAt = Max(existing?.LastPlayedAt, title.LastPlayedAt),
+            FirstObservedUtc = firstObserved,
+            LastObservedUtc = observedAt,
+            IsPriority = existing?.IsPriority == true ||
+                         previous?.HasAchievementIdentityBaseline == true ||
+                         changedKnownSummary ||
+                         increasedWhileQueued ||
+                         playedAfterMonitoringBegan
+        };
+    }
+
+    private static bool IsPendingWorkSatisfied(
+        XboxTitleSyncWork work,
+        IReadOnlyDictionary<string, XboxTitleSnapshot> currentSnapshots) =>
+        currentSnapshots.TryGetValue(work.TitleId, out var snapshot) &&
+        snapshot.HasAchievementIdentityBaseline &&
+        snapshot.CurrentAchievements >= work.CurrentAchievements &&
+        snapshot.CurrentGamerscore >= work.CurrentGamerscore;
+
+    private static bool ShouldPauseAllOpenXblWork(OpenXblAchievementsResult result) =>
+        result.AllowanceProtected || result.StatusCode == 429;
+
+    private static DateTimeOffset? Max(DateTimeOffset? left, DateTimeOffset? right)
+    {
+        if (left is null)
+        {
+            return right;
+        }
+
+        if (right is null)
+        {
+            return left;
+        }
+
+        return left.Value >= right.Value ? left : right;
+    }
+
     private static bool HasProgressChanged(
         XboxTitleProgress title,
         IReadOnlyDictionary<string, XboxTitleSnapshot> previousTitles)
@@ -468,14 +610,25 @@ public sealed class RelayCoordinator(
             return title.CurrentAchievements > 0 || title.CurrentGamerscore > 0;
         }
 
-        return title.CurrentAchievements != previous.CurrentAchievements ||
-               title.CurrentGamerscore != previous.CurrentGamerscore;
+        return title.CurrentAchievements > previous.CurrentAchievements ||
+               title.CurrentGamerscore > previous.CurrentGamerscore;
     }
 
-    private enum AchievementHandlingResult
+    private static AchievementEvent PrepareForDelivery(
+        AchievementEvent achievement,
+        string? fallbackGameName,
+        DateTimeOffset observedAt)
     {
-        Handled,
-        Posted,
-        RetryRequired
+        var reportedTimeIsUsable = achievement.UnlockedAt is { } unlockedAt &&
+                                   unlockedAt <= observedAt + FutureClockTolerance;
+        return achievement with
+        {
+            GameName = string.IsNullOrWhiteSpace(achievement.GameName)
+                ? fallbackGameName
+                : achievement.GameName,
+            UnlockedAt = reportedTimeIsUsable ? achievement.UnlockedAt : observedAt,
+            UnlockTimeEstimated = achievement.UnlockTimeEstimated || !reportedTimeIsUsable
+        };
     }
+
 }

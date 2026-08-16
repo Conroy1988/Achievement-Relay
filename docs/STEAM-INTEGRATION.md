@@ -34,7 +34,7 @@ Achievement Relay does not copy SAN code or its Electron architecture. It implem
 
 The helper uses [Facepunch.Steamworks](https://github.com/Facepunch/Facepunch.Steamworks), release 2.5.2, whose package identifies upstream commit `5a22fa22dd8e337e9fa55ce0d18c07c022262063`. It is MIT licensed.
 
-The reviewed wrapper source sets `SteamAppId`/`SteamGameId` for the requested App ID during `SteamClient.Init`, initializes the client interfaces, and pumps callbacks asynchronously by default. It raises `OnUserStatsReceived` after Steam returns the current user's stats; the helper requires that current-user callback before it reads even one achievement state. Valve documents `Result.Fail` when a user simply has no saved stats, so callback arrival—not an OK-only check—is the safe readiness boundary for a brand-new player. Its `Achievement` read surface maps `State` to `GetAchievement`, display text to read-only attributes, unlock time to `GetAchievementAndUnlockTime`, and icons to the Steam image API. Although the wrapper also exposes mutation methods, the isolated helper does not call or reference them; repository checks reject `Trigger`, `Clear`, and `StoreStats` usage.
+The reviewed wrapper source sets `SteamAppId`/`SteamGameId` for the requested App ID during `SteamClient.Init`, initializes the client interfaces, and pumps callbacks asynchronously by default. Facepunch 2.5.2 intentionally implements `RequestCurrentStats()` as a no-op because the normal game process is hydrated by Steam before launch. Achievement Relay's observer is different: it is a separate process launched after the game. It therefore calls the wrapper's public `Friend.RequestUserStatsAsync()` for the signed-in local Steam ID and requires that explicit request to complete before reading even one achievement state. The request has a 20-second deadline and is repeated after `UserStatsUnloaded_t`; a stalled request exits the helper for a bounded restart instead of waiting forever. Valve documents both that `Result.Fail` can mean a user simply has no saved stats and that `RequestUserStats` snapshots are not updated automatically. Completed response/callback arrival—not an OK-only check—is therefore the safe readiness boundary for a brand-new player, and the helper refreshes the read-only local-user snapshot every ten seconds after its baseline so changes stored by the game or another local Steamworks process become visible. Each observation uses the union of the current-user and explicitly refreshed local-user read surfaces. Display text comes from read-only attributes, unlock times come from `GetAchievementAndUnlockTime`/`GetUserAchievementAndUnlockTime`, and icons come from the Steam image API. Although the wrapper also exposes mutation methods, the isolated helper does not call or reference them; repository checks reject `Trigger`, `Clear`, and `StoreStats` usage.
 
 The reviewed package is committed under `third_party/packages` so a future registry mutation or outage cannot silently change release input:
 
@@ -60,7 +60,7 @@ The helper never invokes achievement mutation methods. Its source uses only iden
 These rules are non-negotiable:
 
 1. A snapshot is accepted only when the protocol version matches, Steam ID is valid, App ID matches the detected game, identities are unique, and the declared count equals the complete collection.
-2. The helper waits for the current-user-stats callback, never reads or emits achievement state while those stats are loading/unloaded, and then waits for three stable nonempty achievement-schema reads before the initial snapshot. An unload-generation marker is checked on every polling tick, and a changed Steam account ID is a second reset boundary, so even an unload/reload completed between ticks cannot compare two account sessions. This prevents an early all-locked cache or account switch from turning into a false backlog while still supporting a brand-new user whose callback reports no saved stats.
+2. The helper explicitly requests the local user's stats, never reads or emits achievement state while that request is loading/unloaded, and then waits for three stable nonempty achievement-schema reads before the initial snapshot. A completed empty-player response remains a valid readiness boundary. An unload-generation marker is checked on every polling tick and triggers a fresh bounded request; a changed Steam account ID is a second reset boundary, so even an unload/reload completed between ticks cannot compare two account sessions. This prevents an early all-locked cache or account switch from turning into a false backlog while still supporting a brand-new user with no saved stats.
 3. With no saved state for the Steam account/App ID, the first complete snapshot is a baseline. Historical unlocked IDs are stored but never sent.
 4. The helper subscribes to Steam's completed-achievement callback before initialization. A `0/0` completion received during that helper lifetime is direct live proof and can safely close the launch-to-baseline race.
 5. Every helper process labels its first complete snapshot. Merely appearing unlocked on that or any later snapshot is history, regardless of how recent its timestamp looks.
@@ -104,7 +104,8 @@ The Steam account ID and local player name are never included in the copied supp
 - Steam not installed or not running: show **Ready/Waiting**; retry detection without pop-up spam.
 - No active game: remain ready and make no Steam network request.
 - Steamworks initialization failure: show one deduplicated warning, let the helper exit, and restart after five seconds while the game remains active.
-- Stats not ready: helper waits; it never publishes an empty baseline.
+- Stats not ready: explicitly request the local account record; after 20 seconds emit a structured error and restart without publishing an empty baseline.
+- No complete initial snapshot: the main app keeps the status at **Preparing**, reports a 45-second watchdog error, and restarts the isolated helper.
 - Incomplete/duplicate snapshot: post nothing, save nothing, and retry.
 - Helper protocol mismatch or missing packaged files: show a reinstall-required diagnostic.
 - Discord/network failure: retain the durably pending live identity and retry it without reclassifying history, using bounded 1/2/5/15/30-minute backoff after the normal short transport retries.
@@ -125,7 +126,7 @@ Core checks prove:
 - RGBA artwork produces a valid PNG container;
 - Discord includes Steam platform/player/rarity/attachment metadata and suppresses mentions.
 
-Repository checks additionally enforce the dependency hash, helper files, package wiring, Steam-only installer path, UI controls, and anti-backlog source invariants. CI builds the .NET Framework helper, executes its JSON protocol self-test, builds both MSIX architectures, and retains the signed test installer.
+Repository checks additionally enforce the dependency hash, explicit local-user stats bootstrap, bounded startup watchdog, helper files, package wiring, Steam-only installer path, truthful UI phases, and anti-backlog source invariants. CI builds the .NET Framework helper, executes a JSON protocol self-test that proves successful, empty-player, and timed-out stats-request gates, builds both MSIX architectures, and retains the signed test installer.
 
 ## Real-Windows release gates
 
@@ -133,7 +134,7 @@ Before a production release, test on x64 and Windows on Arm where hardware is av
 
 1. Fresh Steam-only install with Discord configured and OpenXBL blank.
 2. Upgrade from 0.2 with the tray app already running.
-3. Existing game with many historical achievements: baseline activity appears and Discord stays silent.
+3. Existing game with many historical achievements: Dashboard remains **Preparing** until baseline activity appears, then changes to **Monitoring** while Discord stays silent.
 4. New achievement after baseline: exactly one Discord post with correct game, player, time, rarity when available, and icon when available.
 5. Restart app/game: no duplicate.
 6. Unlock while Discord is unreachable, restore network, and verify one retry post.

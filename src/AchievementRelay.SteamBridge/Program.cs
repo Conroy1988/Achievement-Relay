@@ -17,6 +17,8 @@ internal static class Program
 {
     private const int ProtocolVersion = 1;
     private const int MaximumSnapshotIconBytes = 1024 * 1024;
+    private static readonly TimeSpan StatsRequestTimeout = TimeSpan.FromSeconds(20);
+    private static readonly TimeSpan StatsRefreshInterval = TimeSpan.FromSeconds(10);
     private static readonly object OutputGate = new object();
     private static volatile bool _stopRequested;
 
@@ -24,8 +26,9 @@ internal static class Program
     {
         if (args.Any(value => string.Equals(value, "--self-test", StringComparison.OrdinalIgnoreCase)))
         {
-            WriteMessage(new BridgeStatus { Status = "self-test", Message = "ok" });
-            return 0;
+            var passed = RunSelfTest();
+            WriteMessage(new BridgeStatus { Status = "self-test", Message = passed ? "ok" : "failed" });
+            return passed ? 0 : 10;
         }
 
         uint appId;
@@ -106,6 +109,18 @@ internal static class Program
             {
                 SteamClient.Init(appId);
                 WriteMessage(new BridgeStatus { Status = "connected", AppId = appId, Message = "Steamworks initialized." });
+                if (!TryRequestLocalStats(statsReady, forceRequest: false, out var statsMessage))
+                {
+                    WriteMessage(new BridgeStatus
+                    {
+                        Status = "error",
+                        AppId = appId,
+                        Message = "Steam did not return the local player's achievement stats within 20 seconds. Achievement Relay will restart the observer automatically."
+                    });
+                    return 5;
+                }
+
+                WriteMessage(new BridgeStatus { Status = "stats-ready", AppId = appId, Message = statsMessage });
                 return RunObservationLoop(
                     appId,
                     parentProcessId,
@@ -156,6 +171,7 @@ internal static class Program
         var stableSchemaReads = 0;
         var schemaReady = false;
         var statsWereReady = false;
+        var lastStatsRefresh = DateTimeOffset.UtcNow;
         var observedStatsGeneration = getStatsGeneration();
         string? observedSteamId = null;
 
@@ -174,6 +190,7 @@ internal static class Program
                 schemaReady = false;
                 lastSchemaRefresh = DateTimeOffset.MinValue;
                 statsWereReady = false;
+                lastStatsRefresh = DateTimeOffset.UtcNow;
                 observedSteamId = null;
                 observedStatsGeneration = currentStatsGeneration;
             }
@@ -194,7 +211,19 @@ internal static class Program
                     statsWereReady = false;
                 }
 
-                Thread.Sleep(250);
+                if (!TryRequestLocalStats(statsReady, forceRequest: false, out var statsMessage))
+                {
+                    WriteMessage(new BridgeStatus
+                    {
+                        Status = "error",
+                        AppId = appId,
+                        Message = "Steam unloaded the local achievement stats and did not return a fresh copy within 20 seconds. Achievement Relay will restart the observer automatically."
+                    });
+                    return 5;
+                }
+
+                WriteMessage(new BridgeStatus { Status = "stats-ready", AppId = appId, Message = statsMessage });
+                lastStatsRefresh = DateTimeOffset.UtcNow;
                 continue;
             }
 
@@ -225,6 +254,27 @@ internal static class Program
 
             observedSteamId = currentSteamId;
             statsWereReady = true;
+            if (previous is not null &&
+                DateTimeOffset.UtcNow - lastStatsRefresh >= StatsRefreshInterval)
+            {
+                // RequestUserStats is explicitly documented as a snapshot that
+                // is not updated automatically. Refresh it on a restrained
+                // cadence so changes made by the actual game process (or a
+                // separate local Steamworks process) become observable here.
+                if (!TryRequestLocalStats(statsReady, forceRequest: true, out _))
+                {
+                    WriteMessage(new BridgeStatus
+                    {
+                        Status = "error",
+                        AppId = appId,
+                        Message = "Steam did not refresh the local player's achievement stats within 20 seconds. Achievement Relay will restart the observer automatically."
+                    });
+                    return 5;
+                }
+
+                lastStatsRefresh = DateTimeOffset.UtcNow;
+            }
+
             if (DateTimeOffset.UtcNow - lastSchemaRefresh >= TimeSpan.FromSeconds(3))
             {
                 lastSchemaRefresh = DateTimeOffset.UtcNow;
@@ -266,19 +316,25 @@ internal static class Program
 
             var observations = new List<BridgeAchievement>(names.Length);
             var complete = true;
+            var localPlayer = new Friend(SteamClient.SteamId);
             foreach (var apiName in names)
             {
                 try
                 {
                     var achievement = new Achievement(apiName);
-                    var unlocked = achievement.State;
+                    // The current-user accessor can reflect a same-App-ID
+                    // change immediately. The Friend accessor reads the
+                    // explicitly refreshed user snapshot. Their union covers
+                    // both Steam client behaviours without ever mutating it.
+                    var unlocked = achievement.State || localPlayer.GetAchievement(apiName, false);
                     var item = new BridgeAchievement
                     {
                         ApiName = apiName,
                         Name = LimitText(string.IsNullOrWhiteSpace(achievement.Name) ? apiName : achievement.Name, 512) ?? apiName,
                         Description = LimitText(achievement.Description, 4096),
                         IsUnlocked = unlocked,
-                        UnlockedAt = ToIsoTimestamp(achievement.UnlockTime)
+                        UnlockedAt = ToIsoTimestamp(localPlayer.GetAchievementUnlockTime(apiName))
+                            ?? ToIsoTimestamp(achievement.UnlockTime)
                     };
                     observations.Add(item);
                 }
@@ -374,6 +430,107 @@ internal static class Program
         }
 
         return 0;
+    }
+
+    private static bool TryRequestLocalStats(
+        ManualResetEventSlim statsReady,
+        bool forceRequest,
+        out string message)
+    {
+        message = string.Empty;
+        try
+        {
+            if (!forceRequest && statsReady.IsSet)
+            {
+                message = "Steam supplied the local player's achievement stats during initialization.";
+                return true;
+            }
+
+            var steamId = SteamClient.SteamId;
+            if (steamId.Equals(default(SteamId)))
+            {
+                return false;
+            }
+
+            // Facepunch 2.5.2 intentionally makes RequestCurrentStats a no-op
+            // because Steam normally hydrates a game before its process starts.
+            // Achievement Relay is a separate helper launched after the game,
+            // so explicitly request the signed-in local user's current record.
+            // Completion itself is the safe readiness boundary: Valve can
+            // return Result.Fail for a player with no saved stats yet.
+            var request = new Friend(steamId).RequestUserStatsAsync();
+            if (!CompleteStatsRequest(request, statsReady, StatsRequestTimeout, out var storedStatsFound))
+            {
+                return false;
+            }
+
+            message = storedStatsFound
+                ? "The local player's achievement stats are ready."
+                : "Steam returned no stored player stats; the achievement schema is ready for a silent baseline.";
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    private static bool CompleteStatsRequest(
+        Task<bool> request,
+        ManualResetEventSlim statsReady,
+        TimeSpan timeout,
+        out bool storedStatsFound)
+    {
+        storedStatsFound = false;
+        try
+        {
+            if (!request.Wait(timeout))
+            {
+                return false;
+            }
+
+            storedStatsFound = request.GetAwaiter().GetResult();
+            statsReady.Set();
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    private static bool RunSelfTest()
+    {
+        using (var ready = new ManualResetEventSlim(false))
+        {
+            if (!CompleteStatsRequest(Task.FromResult(true), ready, TimeSpan.FromSeconds(1), out var stored) ||
+                !stored || !ready.IsSet)
+            {
+                return false;
+            }
+        }
+
+        using (var ready = new ManualResetEventSlim(false))
+        {
+            // Result.Fail is how Steam represents a brand-new player with no
+            // stored stats. A completed response must still open the baseline.
+            if (!CompleteStatsRequest(Task.FromResult(false), ready, TimeSpan.FromSeconds(1), out var stored) ||
+                stored || !ready.IsSet)
+            {
+                return false;
+            }
+        }
+
+        using (var ready = new ManualResetEventSlim(false))
+        {
+            var neverCompletes = new TaskCompletionSource<bool>();
+            if (CompleteStatsRequest(neverCompletes.Task, ready, TimeSpan.Zero, out _) || ready.IsSet)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static void TryAttachIcon(BridgeAchievement target)

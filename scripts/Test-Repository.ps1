@@ -158,6 +158,8 @@ if (-not $mainWindowText.Contains('PopulateSecretControls()') -or
 if (-not $mainWindowText.Contains('SteamMonitorCoordinator.StatusChanged') -or
     -not $mainWindowText.Contains('RefreshSteam_Click') -or
     -not $mainWindowText.Contains('await _services.SteamMonitorCoordinator.StartAsync();') -or
+    -not $mainWindowText.Contains('SteamMonitoringPhase.Monitoring') -or
+    -not $mainWindowText.Contains('Steam phase:') -or
     -not $mainWindowXaml.Contains('SetupSteamEnabledCheckBox') -or
     -not $mainWindowXaml.Contains('SettingsSteamEnabledCheckBox') -or
     -not $mainWindowXaml.Contains('x:Name="SteamStatusText"')) {
@@ -278,8 +280,18 @@ if (-not $steamDeltaText.Contains('Merely appearing unlocked is always history')
     -not $steamMonitorText.Contains('await PersistStateAsync();') -or
     -not $steamMonitorText.Contains('SteamAchievementDeltaDetector.Detect') -or
     -not $steamMonitorText.Contains('OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000)') -or
+    -not $steamMonitorText.Contains('InitialObservationTimeout = TimeSpan.FromSeconds(45)') -or
+    -not $steamMonitorText.Contains('SteamMonitoringPhase.EstablishingBaseline') -or
+    -not $steamMonitorText.Contains('CheckBridgeStartupTimeout(current, now)') -or
     -not $steamBridgeText.Contains('if (!schemaReady || names.Length == 0)') -or
     -not $steamBridgeText.Contains('stableSchemaReads >= 3') -or
+    -not $steamBridgeText.Contains('StatsRequestTimeout = TimeSpan.FromSeconds(20)') -or
+    -not $steamBridgeText.Contains('StatsRefreshInterval = TimeSpan.FromSeconds(10)') -or
+    -not $steamBridgeText.Contains('new Friend(steamId).RequestUserStatsAsync()') -or
+    -not $steamBridgeText.Contains('forceRequest: true') -or
+    -not $steamBridgeText.Contains('localPlayer.GetAchievement(apiName, false)') -or
+    -not $steamBridgeText.Contains('CompleteStatsRequest(request, statsReady, StatsRequestTimeout') -or
+    -not $steamBridgeText.Contains('Status = "stats-ready"') -or
     -not $steamBridgeText.Contains('SteamUserStats.OnUserStatsReceived += statsReceived') -or
     -not $steamBridgeText.Contains('SteamUserStats.OnUserStatsUnloaded += statsUnloaded') -or
     -not $steamBridgeText.Contains('SteamUserStats.OnAchievementProgress += achievementProgress') -or

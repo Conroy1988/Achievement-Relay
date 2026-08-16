@@ -14,6 +14,9 @@ All notable changes to Achievement Relay are documented here. The project follow
 
 ### Fixed
 
+- Explicitly requested the signed-in local Steam user's achievement stats after helper initialization and after any unload, fixing the observer's permanent pre-baseline wait when Facepunch's no-op `RequestCurrentStats()` produced no callback
+- Refreshed the read-only local-user stats snapshot every ten seconds after baseline so achievements stored by the game or a separate Steamworks process become observable without relying on cross-process cache propagation
+- Added bounded 20-second stats loading and 45-second complete-baseline watchdogs, structured recovery diagnostics, and truthful Connecting/Loading/Baselining/Monitoring phases so a detected game can never appear ready before its first complete observation
 - Gave each pull-request installer an increasing MSIX revision so updated test builds install over earlier packages instead of failing with `0x80073CFB`
 - Attempted direct shutdown of the running tray app and isolated Steam helper, then delegated any stubborn or elevated instance to Windows' package deployment broker instead of aborting the upgrade
 - Switched account verification from OpenXBL's legacy host to the provider's current `api.xbl.io` service so a saved key can resolve the Xbox profile and complete setup

@@ -64,6 +64,7 @@ public partial class MainWindow : Window
         var steamInstalled = _services.SteamMonitorCoordinator.IsSteamInstalled;
         var steamClientRunning = _services.SteamMonitorCoordinator.IsSteamRunning;
         var steamGame = _services.SteamMonitorCoordinator.CurrentGameName;
+        var steamPhase = _services.SteamMonitorCoordinator.Phase;
         var steamError = _services.SteamMonitorCoordinator.LastError;
         var relayRunning = xboxRunning || steamMonitorRunning;
         var lastError = _services.RelayCoordinator.LastSyncError;
@@ -129,13 +130,26 @@ public partial class MainWindow : Window
             SetupSteamStatus.Foreground = Brush("WarningBrush");
             SettingsSteamStatus.Text = steamError;
         }
-        else if (!string.IsNullOrWhiteSpace(steamGame))
+        else if (!string.IsNullOrWhiteSpace(steamGame) && steamPhase == SteamMonitoringPhase.Monitoring)
         {
             SetStatus(SteamStatusText, "Monitoring", StatusTone.Success);
             SteamStatusDetail.Text = steamGame;
             SetupSteamStatus.Text = $"✓ Monitoring {steamGame}; existing unlocks are baselined silently";
             SetupSteamStatus.Foreground = Brush("AccentBrush");
             SettingsSteamStatus.Text = $"Monitoring {steamGame}. Only directly proven live unlocks are relayed.";
+        }
+        else if (!string.IsNullOrWhiteSpace(steamGame))
+        {
+            SetStatus(SteamStatusText, "Preparing", StatusTone.Warning);
+            SteamStatusDetail.Text = steamPhase switch
+            {
+                SteamMonitoringPhase.LoadingStats => $"Loading achievement stats for {steamGame}",
+                SteamMonitoringPhase.EstablishingBaseline => $"Establishing the safe baseline for {steamGame}",
+                _ => $"Connecting the Steam observer for {steamGame}"
+            };
+            SetupSteamStatus.Text = $"Status: {FormatSteamPhase(steamPhase)} for {steamGame}; wait for baseline confirmation before testing an unlock";
+            SetupSteamStatus.Foreground = Brush("WarningBrush");
+            SettingsSteamStatus.Text = $"{steamGame} is detected, but achievement monitoring is not ready until the first complete baseline is stored.";
         }
         else if (steamMonitorRunning)
         {
@@ -218,6 +232,7 @@ public partial class MainWindow : Window
             $"Steam installation: {(steamInstalled ? "found" : "not found")}",
             $"Steam client: {(steamClientRunning ? "running" : "not running")}",
             $"Steam game: {steamGame ?? "none detected"}",
+            $"Steam phase: {FormatSteamPhase(steamPhase)}",
             $"Last Steam observation: {FormatLocalTimestamp(_services.SteamMonitorCoordinator.LastObservationUtc)}",
             $"Last Steam error: {(string.IsNullOrWhiteSpace(steamError) ? "none" : steamError)}",
             $"Discord: {(webhookConfigured ? "configured" : "not configured")}",
@@ -863,10 +878,13 @@ public partial class MainWindow : Window
             }
 
             var game = _services.SteamMonitorCoordinator.CurrentGameName;
+            var phase = _services.SteamMonitorCoordinator.Phase;
             ShowMessage(
                 game is null
                     ? "Steam monitoring is ready. Start a Steam game normally; Achievement Relay will baseline its existing unlocks silently and then watch for new ones."
-                    : $"Steam monitoring is active for {game}. Only new unlocks will be relayed.",
+                    : phase == SteamMonitoringPhase.Monitoring
+                        ? $"Steam monitoring is active for {game}. Only new unlocks will be relayed."
+                        : $"{game} is detected, but Steam is still {FormatSteamPhase(phase)}. Wait for Activity to confirm that the baseline is established before testing an unlock.",
                 MessageBoxImage.Information);
         }
         finally
@@ -934,6 +952,7 @@ public partial class MainWindow : Window
             $"Steam client running: {_services.SteamMonitorCoordinator.IsSteamRunning}",
             $"Steam monitor running: {_services.SteamMonitorCoordinator.IsRunning}",
             $"Steam game detected: {_services.SteamMonitorCoordinator.CurrentGameName ?? "none"}",
+            $"Steam phase: {FormatSteamPhase(_services.SteamMonitorCoordinator.Phase)}",
             $"Last Steam observation: {(_services.SteamMonitorCoordinator.LastObservationUtc?.ToString("O") ?? "not yet")}",
             $"Last Steam error: {_services.SteamMonitorCoordinator.LastError ?? "none"}",
             $"Discord configured: {TryGetWebhook(out _)}",
@@ -1128,6 +1147,17 @@ public partial class MainWindow : Window
 
     private static string FormatLocalTimestamp(DateTimeOffset? value) =>
         value is null ? "not yet" : value.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss zzz");
+
+    private static string FormatSteamPhase(SteamMonitoringPhase phase) => phase switch
+    {
+        SteamMonitoringPhase.WaitingForGame => "waiting for a game",
+        SteamMonitoringPhase.Connecting => "connecting",
+        SteamMonitoringPhase.LoadingStats => "loading achievement stats",
+        SteamMonitoringPhase.EstablishingBaseline => "establishing the baseline",
+        SteamMonitoringPhase.Monitoring => "monitoring",
+        SteamMonitoringPhase.Retrying => "retrying",
+        _ => "unknown"
+    };
 
     private System.Windows.Media.Brush Brush(string resourceName) =>
         (System.Windows.Media.Brush)FindResource(resourceName);

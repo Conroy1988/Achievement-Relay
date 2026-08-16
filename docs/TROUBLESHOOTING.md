@@ -13,6 +13,12 @@ Start with **Diagnostics**. **Sync Xbox now** tests OpenXBL → Achievement Rela
 
 Achievement Relay checks Steam's active App ID first and then falls back to matching running executable paths against installed Steam manifests. Launchers and anti-cheat transitions get a ten-second grace period.
 
+## Steam stays on Preparing
+
+**Preparing** means the game was detected but no complete safe baseline exists yet. Achievement Relay first connects its isolated observer, explicitly requests the signed-in local player's current stats, and verifies three stable achievement-schema reads. Do not test an unlock until Activity says **Steam baseline established** and the Dashboard changes to **Monitoring**.
+
+The stats request has a 20-second deadline and the complete-baseline watchdog has a 45-second deadline. A stalled helper now reports an error and restarts instead of displaying a false Monitoring state indefinitely. If it keeps retrying, leave the game open, copy the redacted support summary, and attach `achievement-relay.log` without attaching settings or sync-state files.
+
 ## Steam baseline appeared but Discord stayed silent
 
 That is expected. The first complete snapshot for each Steam account and game is a history baseline. Achievement Relay stores every already-unlocked API name without posting it. Unlock a different achievement after Activity reports **Steam baseline established**.
@@ -23,7 +29,7 @@ Never delete `steam-sync-state.json` to force a test: doing so deliberately crea
 
 ## A new Steam achievement did not post
 
-1. Confirm Dashboard showed **Steam: Monitoring** before the unlock.
+1. Confirm Dashboard showed **Steam: Monitoring** and Activity recorded **Steam baseline established** before the unlock.
 2. Check Activity for a complete baseline, Steamworks retry, Discord failure, or rare-only message.
 3. Leave the game open and select **Refresh Steam**.
 4. If Activity already recorded the live transition before Discord failed, the durable pending delivery will retry; an unlock earned while Achievement Relay was closed is intentionally silent.
@@ -33,7 +39,7 @@ Some games do not publish achievements through Steamworks or have broken/delayed
 
 ## Steamworks keeps retrying
 
-Keep the normal Steam desktop client signed in and launch the game through Steam. The helper initializes only for the detected active App ID. Steam family/account switching, Steam offline mode, a game update, anti-cheat, or a launcher can delay current-user stats. The helper retries without advancing state or posting history.
+Keep the normal Steam desktop client signed in and launch the game through Steam. The helper initializes only for the detected active App ID, then explicitly requests the signed-in local player's stats because it starts after the game process. Steam family/account switching, Steam offline mode, a game update, anti-cheat, or a launcher can delay that response. The helper retries without advancing state or posting history.
 
 If Diagnostics says the Steam monitoring component is missing, reinstall the same or newer complete `AchievementRelay_Setup.exe`; do not copy only the main executable. Every package must contain `SteamBridge\AchievementRelay.SteamBridge.exe`, `Facepunch.Steamworks.Win64.dll`, and `steam_api64.dll`.
 

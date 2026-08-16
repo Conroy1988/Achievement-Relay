@@ -9,6 +9,16 @@ using AchievementRelay.Core.Services;
 
 namespace AchievementRelay.App.Services;
 
+public enum SteamMonitoringPhase
+{
+    WaitingForGame,
+    Connecting,
+    LoadingStats,
+    EstablishingBaseline,
+    Monitoring,
+    Retrying
+}
+
 public sealed class SteamMonitorCoordinator(
     SteamGameDetector gameDetector,
     SteamSyncStateStore stateStore,
@@ -22,6 +32,7 @@ public sealed class SteamMonitorCoordinator(
     private static readonly TimeSpan FutureClockTolerance = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan GameExitGracePeriod = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan BridgeRestartDelay = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan InitialObservationTimeout = TimeSpan.FromSeconds(45);
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         PropertyNameCaseInsensitive = true
@@ -44,6 +55,9 @@ public sealed class SteamMonitorCoordinator(
     private string? _steamPlayerName;
     private string? _lastError;
     private DateTimeOffset? _lastObservationUtc;
+    private DateTimeOffset? _bridgeStartedUtc;
+    private bool _bridgeHasObservation;
+    private SteamMonitoringPhase _phase = SteamMonitoringPhase.WaitingForGame;
     private DateTimeOffset _nextDeliveryAttemptUtc;
     private int _consecutiveDeliveryFailures;
 
@@ -108,6 +122,17 @@ public sealed class SteamMonitorCoordinator(
             lock (_statusGate)
             {
                 return _lastObservationUtc;
+            }
+        }
+    }
+
+    public SteamMonitoringPhase Phase
+    {
+        get
+        {
+            lock (_statusGate)
+            {
+                return _phase;
             }
         }
     }
@@ -200,8 +225,13 @@ public sealed class SteamMonitorCoordinator(
             lock (_statusGate)
             {
                 _currentGame = null;
+                _steamPlayerName = null;
                 _gameMissingSinceUtc = null;
+                _lastObservationUtc = null;
                 _lastError = null;
+                _bridgeStartedUtc = null;
+                _bridgeHasObservation = false;
+                _phase = SteamMonitoringPhase.WaitingForGame;
             }
 
             RaiseStatusChanged();
@@ -258,7 +288,12 @@ public sealed class SteamMonitorCoordinator(
                     {
                         _currentGame = detected;
                         _gameDetectedUtc = now;
+                        _steamPlayerName = null;
+                        _lastObservationUtc = null;
                         _lastError = null;
+                        _bridgeStartedUtc = null;
+                        _bridgeHasObservation = false;
+                        _phase = SteamMonitoringPhase.Connecting;
                     }
 
                     _nextBridgeStartUtc = DateTimeOffset.MinValue;
@@ -283,7 +318,11 @@ public sealed class SteamMonitorCoordinator(
                         _currentGame = null;
                         _steamPlayerName = null;
                         _gameMissingSinceUtc = null;
+                        _lastObservationUtc = null;
                         _lastError = null;
+                        _bridgeStartedUtc = null;
+                        _bridgeHasObservation = false;
+                        _phase = SteamMonitoringPhase.WaitingForGame;
                     }
 
                     activityLog.Info($"Steam game closed: {current.Name}.");
@@ -302,6 +341,8 @@ public sealed class SteamMonitorCoordinator(
                 await StartBridgeAsync(current, cancellationToken);
                 _nextBridgeStartUtc = now + BridgeRestartDelay;
             }
+
+            CheckBridgeStartupTimeout(current, now);
 
             await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
         }
@@ -348,8 +389,16 @@ public sealed class SteamMonitorCoordinator(
             }
 
             _bridgeProcess = process;
+            lock (_statusGate)
+            {
+                _bridgeStartedUtc = DateTimeOffset.UtcNow;
+                _bridgeHasObservation = false;
+                _phase = SteamMonitoringPhase.Connecting;
+            }
+
             _bridgeReaderTask = ReadBridgeOutputAsync(process, cancellationToken);
             _bridgeErrorTask = DrainBridgeErrorsAsync(process, cancellationToken);
+            RaiseStatusChanged();
             return true;
         }
         catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception or IOException)
@@ -378,6 +427,12 @@ public sealed class SteamMonitorCoordinator(
             _bridgeProcess = null;
             _bridgeReaderTask = null;
             _bridgeErrorTask = null;
+            lock (_statusGate)
+            {
+                _bridgeStartedUtc = null;
+                _bridgeHasObservation = false;
+            }
+
             if (process is null)
             {
                 return;
@@ -529,11 +584,38 @@ public sealed class SteamMonitorCoordinator(
 
         if (string.Equals(message.Type, "status", StringComparison.OrdinalIgnoreCase))
         {
+            SteamGameInfo? game;
+            lock (_statusGate)
+            {
+                game = _currentGame;
+            }
+
+            if (game is null || (message.AppId != 0 && message.AppId != game.AppId))
+            {
+                return;
+            }
+
             if (string.Equals(message.Status, "error", StringComparison.OrdinalIgnoreCase))
             {
                 SetError(string.IsNullOrWhiteSpace(message.Message)
-                    ? "Steamworks could not initialize for this game. Achievement Relay will retry."
-                    : $"Steamworks could not initialize: {message.Message}");
+                    ? "The Steam observer could not initialize for this game. Achievement Relay will retry."
+                    : message.Message!);
+            }
+            else if (string.Equals(message.Status, "connected", StringComparison.OrdinalIgnoreCase))
+            {
+                SetPhase(SteamMonitoringPhase.LoadingStats);
+                if (string.IsNullOrWhiteSpace(LastError))
+                {
+                    activityLog.Info($"Steam observer connected for {game.Name}. Requesting current achievement stats.");
+                }
+            }
+            else if (string.Equals(message.Status, "stats-ready", StringComparison.OrdinalIgnoreCase))
+            {
+                SetPhase(SteamMonitoringPhase.EstablishingBaseline);
+                if (string.IsNullOrWhiteSpace(LastError))
+                {
+                    activityLog.Info($"Steam achievement stats are ready for {game.Name}. Building a silent baseline.");
+                }
             }
 
             return;
@@ -670,6 +752,18 @@ public sealed class SteamMonitorCoordinator(
             // historical unlocked state as a new event.
             await PersistStateAsync();
 
+            lock (_statusGate)
+            {
+                _steamPlayerName = string.IsNullOrWhiteSpace(snapshot.PlayerName) ? null : snapshot.PlayerName.Trim();
+                _lastObservationUtc = observedAt;
+                _bridgeHasObservation = true;
+                _phase = string.IsNullOrWhiteSpace(_lastError)
+                    ? SteamMonitoringPhase.Monitoring
+                    : SteamMonitoringPhase.Retrying;
+            }
+
+            RaiseStatusChanged();
+
             var pendingAchievements = observations
                 // Once a live transition is durable, a later provider relock
                 // cannot revoke that delivery proof. Retry it from the current
@@ -756,9 +850,11 @@ public sealed class SteamMonitorCoordinator(
                 _steamPlayerName = string.IsNullOrWhiteSpace(snapshot.PlayerName) ? null : snapshot.PlayerName.Trim();
                 _lastObservationUtc = observedAt;
                 _lastError = null;
+                _bridgeHasObservation = true;
+                _phase = SteamMonitoringPhase.Monitoring;
             }
 
-            if (delta.BaselineEstablished)
+            if (snapshot.InitialSnapshot)
             {
                 activityLog.Success($"Steam baseline established for {game.Name}. Existing unlocks were not sent to Discord.");
             }
@@ -788,6 +884,49 @@ public sealed class SteamMonitorCoordinator(
         }
     }
 
+    private void CheckBridgeStartupTimeout(SteamGameInfo? game, DateTimeOffset now)
+    {
+        if (game is null || !IsBridgeAlive())
+        {
+            return;
+        }
+
+        DateTimeOffset? startedAt;
+        bool hasObservation;
+        lock (_statusGate)
+        {
+            startedAt = _bridgeStartedUtc;
+            hasObservation = _bridgeHasObservation;
+        }
+
+        if (hasObservation || startedAt is null || now - startedAt.Value < InitialObservationTimeout)
+        {
+            return;
+        }
+
+        SetError($"Steam did not provide a complete achievement baseline for {game.Name} within 45 seconds. Achievement Relay will restart the observer automatically.");
+        var process = _bridgeProcess;
+        if (process is not null)
+        {
+            TryTerminateBridge(process);
+        }
+    }
+
+    private void SetPhase(SteamMonitoringPhase phase)
+    {
+        var changed = false;
+        lock (_statusGate)
+        {
+            changed = _phase != phase;
+            _phase = phase;
+        }
+
+        if (changed)
+        {
+            RaiseStatusChanged();
+        }
+    }
+
     private void SetError(string message)
     {
         var changed = false;
@@ -795,6 +934,7 @@ public sealed class SteamMonitorCoordinator(
         {
             changed = !string.Equals(_lastError, message, StringComparison.Ordinal);
             _lastError = message;
+            _phase = SteamMonitoringPhase.Retrying;
         }
 
         if (changed)

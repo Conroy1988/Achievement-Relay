@@ -348,14 +348,24 @@ procedure InitializeWizard();
 var
   ButtonTop: Integer;
 begin
+#ifdef ForceUpdateMode
+  UpdateMode := True;
+#else
   UpdateMode := CompareText(Trim(ExpandConstant('{param:UPDATE|0}')), '1') = 0;
+#endif
   if UpdateMode then
   begin
     WizardForm.Caption := 'Update - Achievement Relay';
     WizardForm.WelcomeLabel1.Caption := 'UPGRADE THE ACHIEVEMENT RELAY';
+#ifdef ForceUpdateMode
+    WizardForm.WelcomeLabel2.Caption :=
+      'This signed one-time recovery installer replaces the updater affected by the Windows version-resource padding issue.' + #13#10 + #13#10 +
+      'It keeps your encrypted connections, settings, achievement history, startup preference and desktop shortcut. After this bridge opens Achievement Relay, the verified successor will download and open automatically.';
+#else
     WizardForm.WelcomeLabel2.Caption :=
       'Achievement Relay {#AppVersion} has been downloaded from the official GitHub release and verified by the app.' + #13#10 + #13#10 +
       'Update keeps your encrypted connections, settings, achievement history, startup preference and desktop shortcut. Select Next to review, then Update to apply it.';
+#endif
   end
   else
   begin

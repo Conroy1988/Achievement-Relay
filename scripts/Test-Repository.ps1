@@ -128,6 +128,7 @@ if (-not $installerText.Contains('CRNY - Relay Online.mp3"; Flags: dontcopy noen
 }
 
 if (-not $installerText.Contains("'{param:UPDATE|0}'") -or
+    -not $installerText.Contains('#ifdef ForceUpdateMode') -or
     -not $installerText.Contains('UPGRADE THE ACHIEVEMENT RELAY') -or
     -not $installerText.Contains('(PageID = wpSelectTasks)') -or
     -not $installerText.Contains("Parameters := Parameters + ' -Update -PreserveDesktopShortcut'")) {
@@ -430,17 +431,21 @@ $liveUpdatePolicy = Get-Content -LiteralPath (Join-Path $repositoryRoot 'release
     ConvertFrom-Json
 $liveUpdateWorkflowText = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github\workflows\live-update-test.yml') -Raw
 if ($liveUpdatePolicy.schemaVersion -ne 1 -or
-    $liveUpdatePolicy.minimumSupportedVersion -cne '0.3.1' -or
+    $liveUpdatePolicy.minimumSupportedVersion -cne '0.3.2' -or
     @($liveUpdatePolicy.additionalPublisherCertificateSha256).Count -ne 0 -or
-    -not $liveUpdateWorkflowText.Contains('ed80821ed8ec351fb5a010c7324eaa1a31cd2f5d') -or
-    -not $liveUpdateWorkflowText.Contains('TARGET_VERSION: 0.3.1') -or
+    -not $liveUpdateWorkflowText.Contains('ref: ${{ github.sha }}') -or
+    -not $liveUpdateWorkflowText.Contains('BASELINE_VERSION: 0.3.1') -or
+    -not $liveUpdateWorkflowText.Contains('BASELINE_PACKAGE_VERSION: 0.3.1.1') -or
+    -not $liveUpdateWorkflowText.Contains('TARGET_VERSION: 0.3.2') -or
+    -not $liveUpdateWorkflowText.Contains('TARGET_PACKAGE_VERSION: 0.3.2.0') -or
+    -not $liveUpdateWorkflowText.Contains('-ForceUpdateMode:$ForceUpdateMode') -or
     -not $liveUpdateWorkflowText.Contains('release\live-update-test-policy.json') -or
     -not $liveUpdateWorkflowText.Contains('AllowUntrustedDevelopmentCertificate = $true') -or
     -not $liveUpdateWorkflowText.Contains('AchievementRelay_Baseline_Setup.exe') -or
     -not $liveUpdateWorkflowText.Contains('gh release create') -or
     -not $liveUpdateWorkflowText.Contains('/releases/latest') -or
     -not $liveUpdateWorkflowText.Contains('--latest')) {
-    throw 'The controlled updater test must build its pinned baseline and signed required target, then verify GitHub latest-stable discovery.'
+    throw 'The controlled updater test must build its corrected automatic-update baseline and signed required target, then verify GitHub latest-stable discovery.'
 }
 
 $updatePolicyText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.Core\Services\UpdatePolicy.cs') -Raw

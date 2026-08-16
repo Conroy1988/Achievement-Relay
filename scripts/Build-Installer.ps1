@@ -16,7 +16,9 @@ param(
 
     [string] $PfxPassword,
 
-    [string] $TimestampUrl
+    [string] $TimestampUrl,
+
+    [switch] $ForceUpdateMode
 )
 
 $ErrorActionPreference = 'Stop'
@@ -72,9 +74,12 @@ $compilerArguments = @(
     "/DMsixVersion=$MsixVersion",
     "/DPackageDirectory=$PackageDirectory",
     "/DOutputDirectory=$OutputDirectory",
-    "/DRepositoryRoot=$repositoryRoot",
-    $installerScript
+    "/DRepositoryRoot=$repositoryRoot"
 )
+if ($ForceUpdateMode) {
+    $compilerArguments += '/DForceUpdateMode=1'
+}
+$compilerArguments += $installerScript
 
 Write-Host 'Building the single-file Windows installer...'
 & $IsccPath @compilerArguments

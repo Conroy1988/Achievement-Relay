@@ -21,23 +21,22 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 55
     env:
-      RELEASE_TAG: v0.3.1
-      BASELINE_REF: ed80821ed8ec351fb5a010c7324eaa1a31cd2f5d
-      BASELINE_VERSION: 0.3.0
-      BASELINE_PACKAGE_VERSION: 0.3.0.0
-      TARGET_VERSION: 0.3.1
-      TARGET_PACKAGE_VERSION: 0.3.1.0
+      RELEASE_TAG: v0.3.2
+      BASELINE_VERSION: 0.3.1
+      BASELINE_PACKAGE_VERSION: 0.3.1.1
+      TARGET_VERSION: 0.3.2
+      TARGET_PACKAGE_VERSION: 0.3.2.0
 
     steps:
-      - name: Check out redesigned target
+      - name: Check out target source
         uses: actions/checkout@v6
         with:
           path: target
 
-      - name: Check out pre-redesign baseline
+      - name: Check out automatic-update baseline source
         uses: actions/checkout@v6
         with:
-          ref: ${{ env.BASELINE_REF }}
+          ref: ${{ github.sha }}
           path: baseline
 
       - name: Install .NET 10
@@ -94,7 +93,8 @@ jobs:
               [Parameter(Mandatory)] [string] $RepositoryRoot,
               [Parameter(Mandatory)] [string] $ApplicationVersion,
               [Parameter(Mandatory)] [string] $PackageVersion,
-              [string] $UpdatePolicyPath
+              [string] $UpdatePolicyPath,
+              [switch] $ForceUpdateMode
             )
 
             $artifacts = Join-Path $RepositoryRoot 'artifacts'
@@ -123,7 +123,8 @@ jobs:
               -PackageDirectory $artifacts `
               -OutputDirectory $artifacts `
               -PfxPath $env:TEST_SIGNING_PFX `
-              -PfxPassword $env:TEST_SIGNING_PASSWORD
+              -PfxPassword $env:TEST_SIGNING_PASSWORD `
+              -ForceUpdateMode:$ForceUpdateMode
 
             $manifestArguments = @{
               Version = $ApplicationVersion
@@ -142,16 +143,11 @@ jobs:
 
           $baselineRoot = Join-Path $env:GITHUB_WORKSPACE 'baseline'
           $targetRoot = Join-Path $env:GITHUB_WORKSPACE 'target'
-          # The pinned baseline supplies the old app/UI. Use the current reviewed
-          # release orchestrator so both halves receive the same test-only trust gate.
-          Copy-Item `
-            -LiteralPath (Join-Path $targetRoot 'scripts\Build-Release.ps1') `
-            -Destination (Join-Path $baselineRoot 'scripts\Build-Release.ps1') `
-            -Force
           Build-ControlledPackage `
             -RepositoryRoot $baselineRoot `
             -ApplicationVersion $env:BASELINE_VERSION `
-            -PackageVersion $env:BASELINE_PACKAGE_VERSION
+            -PackageVersion $env:BASELINE_PACKAGE_VERSION `
+            -ForceUpdateMode
           Build-ControlledPackage `
             -RepositoryRoot $targetRoot `
             -ApplicationVersion $env:TARGET_VERSION `
@@ -210,18 +206,30 @@ jobs:
             }
           }
 
+          $baselineVersion = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($baselineSetup)
+          $targetVersion = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($targetSetup)
+          if ($baselineVersion.ProductVersion.Trim() -cne $env:BASELINE_VERSION -or
+              $baselineVersion.FileVersion.Trim() -cne $env:BASELINE_PACKAGE_VERSION -or
+              $targetVersion.ProductVersion.Trim() -cne $env:TARGET_VERSION -or
+              $targetVersion.FileVersion.Trim() -cne $env:TARGET_PACKAGE_VERSION) {
+            throw 'The controlled baseline or target contains unexpected Windows version resources.'
+          }
+
           $baselineSha256 = (Get-FileHash -LiteralPath $baselineSetup -Algorithm SHA256).Hash.ToLowerInvariant()
           $notesPath = Join-Path $targetArtifacts 'LIVE_UPDATE_TEST.md'
           @"
-          ## Controlled required-update test
+          ## Controlled automatic required-update recovery test
 
-          This stable tag exists temporarily so Achievement Relay's production GitHub discovery path can see it.
+          This controlled stable tag lets Achievement Relay's production GitHub discovery path exercise the real release endpoint.
 
-          1. Download and run AchievementRelay_Baseline_Setup.exe (v$($env:BASELINE_VERSION), pre-redesign UI).
-          2. Windows may request administrator approval once to trust the temporary test certificate.
-          3. When the app opens, confirm that v$($env:TARGET_VERSION) is shown as a **required** update and monitoring is paused.
-          4. Select **Update now** and confirm the musical updater opens with 10% volume, Pause/Play, and the CRNY SoundCloud link.
-          5. Complete the updater and confirm the redesigned Home and four-step Setup experience opens with settings and state preserved.
+          The earlier v0.3.1 test exposed a version-resource padding bug in its installed updater. That immutable release is not replaced. Install this corrected bridge once, then automatic updates take over.
+
+          1. Close the currently installed Achievement Relay if it is still showing the v0.3.1 mismatch.
+          2. Download and run AchievementRelay_Baseline_Setup.exe (product v$($env:BASELINE_VERSION), package $($env:BASELINE_PACKAGE_VERSION)).
+          3. Windows may request administrator approval once to trust the temporary test certificate.
+          4. When the baseline app launches, do not select **Update now**. Confirm it automatically discovers, downloads and verifies required v$($env:TARGET_VERSION), pauses monitoring, and opens the updater.
+          5. Confirm the updater starts the CRNY soundtrack at 10% volume and provides Pause/Play plus the direct SoundCloud link.
+          6. Complete the updater and confirm Achievement Relay v$($env:TARGET_VERSION) opens with settings, state, startup preference and shortcut preserved.
 
           Baseline setup SHA-256: $baselineSha256
 
@@ -235,7 +243,7 @@ jobs:
       - name: Retain the matched installer pair
         uses: actions/upload-artifact@v4
         with:
-          name: AchievementRelay-v0.3.1-required-update-test
+          name: AchievementRelay-v0.3.2-automatic-update-test
           path: |
             target/artifacts/AchievementRelay_Baseline_Setup.exe
             target/artifacts/AchievementRelay_Setup.exe
@@ -335,4 +343,4 @@ jobs:
             throw 'The live GitHub installer metadata does not match the signed manifest.'
           }
 
-          Write-Host "Verified live required-update discovery at $($latest.html_url)" -ForegroundColor Green
+          Write-Host "Verified live automatic required-update discovery at $($latest.html_url)" -ForegroundColor Green

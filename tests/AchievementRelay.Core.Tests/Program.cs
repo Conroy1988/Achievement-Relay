@@ -45,11 +45,13 @@ var tests = new (string Name, Action Run)[]
     ("Steam restart silently baselines offline unlocks", SteamRestartBaselinesOfflineUnlocks),
     ("Steam timestamps cannot bypass the baseline", SteamTimestampCannotAuthorizeUnlock),
     ("Steam event identities are stable and account-specific", SteamEventIdentityIsStable),
+    ("Steam bridge Base64 artwork wire format decodes to bytes", SteamBridgeBase64ArtworkWireFormat),
     ("Steam RGBA artwork is encoded as a PNG attachment", SteamArtworkEncodesAsPng),
     ("Steam Discord payload identifies platform and attachment", SteamPayloadIncludesPlatformAndAttachment),
     ("Xbox Discord payload labels the player platform", XboxPayloadUsesPlatformLabel),
     ("Webhook URL validation is strict", ValidatesWebhookUrls),
     ("Discord payload suppresses mentions", PayloadSuppressesMentions),
+    ("Discord payload repairs malformed provider Unicode", PayloadRepairsMalformedUnicode),
     ("Discord identifies estimated provider timestamps", PayloadLabelsEstimatedTimestamp),
     ("Description sharing setting is respected", DescriptionSettingIsRespected),
     ("Connection test suppresses mentions", ConnectionTestSuppressesMentions)
@@ -992,6 +994,13 @@ static void SteamEventIdentityIsStable()
     Assert(first != otherAccount && first != otherGame, "Steam event identity is not scoped to the account and game.");
 }
 
+static void SteamBridgeBase64ArtworkWireFormat()
+{
+    var decoded = JsonSerializer.Deserialize<byte[]>("\"AQIDBA==\"");
+    Assert(decoded is not null && decoded.SequenceEqual(new byte[] { 1, 2, 3, 4 }),
+        "The main app could not decode the helper's Base64 icon representation.");
+}
+
 static void SteamArtworkEncodesAsPng()
 {
     var png = RgbaPngEncoder.Encode(1, 1, new byte[] { 12, 34, 56, 255 });
@@ -1046,6 +1055,15 @@ static void PayloadSuppressesMentions()
     using var document = JsonDocument.Parse(DiscordWebhookPayloadFactory.Create(achievement, new AppSettings()));
     var parse = document.RootElement.GetProperty("allowed_mentions").GetProperty("parse");
     Assert(parse.GetArrayLength() == 0, "Payload allowed Discord mention parsing.");
+}
+
+static void PayloadRepairsMalformedUnicode()
+{
+    var achievement = Achievement("Steam \uD800 Winner", "Provider metadata contains malformed UTF-16.");
+
+    using var document = JsonDocument.Parse(DiscordWebhookPayloadFactory.Create(achievement, new AppSettings()));
+    var title = document.RootElement.GetProperty("embeds")[0].GetProperty("title").GetString();
+    Assert(title?.Contains('\uFFFD') == true, "Malformed provider Unicode was not replaced safely.");
 }
 
 static void PayloadLabelsEstimatedTimestamp()

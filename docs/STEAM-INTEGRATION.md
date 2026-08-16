@@ -79,6 +79,7 @@ This policy deliberately prefers a missed unprovable or offline event over a his
 - A global percentage at or below 10% is labeled rare.
 - If the public rarity request fails or omits the achievement, rarity is unknown. **Rare only** never discards an unknown-rarity unlock.
 - Artwork is read locally only for a newly observed helper transition, limited to 512×512 RGBA, converted to PNG by the platform-neutral core, and uploaded directly to Discord. Artwork failure cannot lose the event.
+- Helper artwork bytes cross the JSON protocol as an explicitly tested Base64 string, matching the main app's `System.Text.Json` byte-array contract; the raw decoded byte count remains the snapshot budget.
 - Steam's unlock time is display metadata only and is used when valid. It never authorizes delivery. If absent or unusable, the local observation time is shown and the Discord footer labels it as detected/estimated.
 - Steam has no Xbox-style Gamerscore, so the field is omitted.
 
@@ -107,9 +108,10 @@ The Steam account ID and local player name are never included in the copied supp
 - Stats not ready: explicitly request the local account record; after 20 seconds emit a structured error and restart without publishing an empty baseline.
 - No complete initial snapshot: the main app keeps the status at **Preparing**, reports a 45-second watchdog error, and restarts the isolated helper.
 - Incomplete/duplicate snapshot: post nothing, save nothing, and retry.
+- Unreadable or oversized helper output: terminate and restart only the isolated helper; a directly proven transition already persisted by the app remains pending.
 - Helper protocol mismatch or missing packaged files: show a reinstall-required diagnostic.
 - Discord/network failure: retain the durably pending live identity and retry it without reclassifying history, using bounded 1/2/5/15/30-minute backoff after the normal short transport retries.
-- Rarity or icon failure: post the achievement without that enrichment.
+- Rarity, icon, or malformed provider-text failure: discard or repair only that enrichment and continue with the proven achievement.
 - App/game exit: attempt graceful helper shutdown, then terminate its isolated process if required.
 
 ## Automated contract matrix

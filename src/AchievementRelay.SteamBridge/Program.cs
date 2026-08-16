@@ -398,13 +398,14 @@ internal static class Program
                 {
                     TryAttachIcon(item);
                     if (item.IconRgba != null &&
-                        attachedIconBytes + item.IconRgba.Length <= MaximumSnapshotIconBytes)
+                        attachedIconBytes + item.IconByteCount <= MaximumSnapshotIconBytes)
                     {
-                        attachedIconBytes += item.IconRgba.Length;
+                        attachedIconBytes += item.IconByteCount;
                     }
                     else
                     {
                         item.IconRgba = null;
+                        item.IconByteCount = 0;
                         item.IconWidth = 0;
                         item.IconHeight = 0;
                     }
@@ -530,6 +531,24 @@ internal static class Program
             }
         }
 
+        // DataContractJsonSerializer encodes byte arrays as numeric JSON
+        // collections, while the main app's System.Text.Json receiver expects
+        // byte[] values as Base64 strings. Exercise the exact helper wire
+        // representation so an unlock with artwork cannot break the protocol.
+        var iconJson = SerializeMessage(new BridgeAchievement
+        {
+            ApiName = "icon-probe",
+            Name = "Icon probe",
+            IconRgba = Convert.ToBase64String(new byte[] { 1, 2, 3, 4 }),
+            IconByteCount = 4,
+            IconWidth = 1,
+            IconHeight = 1
+        });
+        if (iconJson.IndexOf("\"iconRgba\":\"AQIDBA==\"", StringComparison.Ordinal) < 0)
+        {
+            return false;
+        }
+
         return true;
     }
 
@@ -546,7 +565,8 @@ internal static class Program
                 return;
             }
 
-            target.IconRgba = icon.Value.Data;
+            target.IconRgba = Convert.ToBase64String(icon.Value.Data);
+            target.IconByteCount = icon.Value.Data.Length;
             target.IconWidth = checked((int)icon.Value.Width);
             target.IconHeight = checked((int)icon.Value.Height);
         }
@@ -588,16 +608,21 @@ internal static class Program
 
     private static void WriteMessage<T>(T value)
     {
+        var json = SerializeMessage(value);
+        lock (OutputGate)
+        {
+            Console.Out.WriteLine(json);
+            Console.Out.Flush();
+        }
+    }
+
+    private static string SerializeMessage<T>(T value)
+    {
         var serializer = new DataContractJsonSerializer(typeof(T));
         using (var stream = new MemoryStream())
         {
             serializer.WriteObject(stream, value);
-            var json = Encoding.UTF8.GetString(stream.ToArray());
-            lock (OutputGate)
-            {
-                Console.Out.WriteLine(json);
-                Console.Out.Flush();
-            }
+            return Encoding.UTF8.GetString(stream.ToArray());
         }
     }
 
@@ -662,8 +687,9 @@ internal static class Program
         [DataMember(Name = "description", Order = 2, EmitDefaultValue = false)] public string? Description;
         [DataMember(Name = "isUnlocked", Order = 3)] public bool IsUnlocked;
         [DataMember(Name = "unlockedAt", Order = 4, EmitDefaultValue = false)] public string? UnlockedAt;
-        [DataMember(Name = "iconRgba", Order = 5, EmitDefaultValue = false)] public byte[]? IconRgba;
+        [DataMember(Name = "iconRgba", Order = 5, EmitDefaultValue = false)] public string? IconRgba;
         [DataMember(Name = "iconWidth", Order = 6, EmitDefaultValue = false)] public int IconWidth;
         [DataMember(Name = "iconHeight", Order = 7, EmitDefaultValue = false)] public int IconHeight;
+        [IgnoreDataMember] public int IconByteCount;
     }
 }

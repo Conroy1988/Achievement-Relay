@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AchievementRelay.Core.Models;
@@ -142,9 +143,50 @@ public static class DiscordWebhookPayloadFactory
 
     private static string Truncate(string? value, int maximumLength)
     {
-        var normalized = string.IsNullOrWhiteSpace(value) ? "Achievement Relay" : value.Trim();
-        return normalized.Length <= maximumLength
-            ? normalized
-            : normalized[..(maximumLength - 1)] + "…";
+        var source = string.IsNullOrWhiteSpace(value) ? "Achievement Relay" : value.Trim();
+        var normalized = NormalizeUnicode(source);
+        if (normalized.Length <= maximumLength)
+        {
+            return normalized;
+        }
+
+        var contentLength = maximumLength - 1;
+        if (contentLength > 0 &&
+            char.IsHighSurrogate(normalized[contentLength - 1]) &&
+            char.IsLowSurrogate(normalized[contentLength]))
+        {
+            contentLength--;
+        }
+
+        return normalized[..contentLength] + "…";
+    }
+
+    private static string NormalizeUnicode(string value)
+    {
+        var normalized = new StringBuilder(value.Length);
+        for (var index = 0; index < value.Length; index++)
+        {
+            var current = value[index];
+            if (char.IsHighSurrogate(current) &&
+                index + 1 < value.Length &&
+                char.IsLowSurrogate(value[index + 1]))
+            {
+                normalized.Append(current);
+                normalized.Append(value[++index]);
+            }
+            else if (char.IsSurrogate(current))
+            {
+                // Steam and other providers can expose malformed UTF-16 in
+                // localized metadata. Preserve the payload with a standard
+                // replacement character instead of failing JSON serialization.
+                normalized.Append('\uFFFD');
+            }
+            else
+            {
+                normalized.Append(current);
+            }
+        }
+
+        return normalized.ToString();
     }
 }

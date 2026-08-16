@@ -259,7 +259,9 @@ if (-not $appProjectText.Contains('THIRD-PARTY-NOTICES.md') -or
 
 $steamDeltaText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.Core\Services\SteamAchievementDeltaDetector.cs') -Raw
 $steamMonitorText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\SteamMonitorCoordinator.cs') -Raw
+$steamRarityText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\SteamRarityClient.cs') -Raw
 $steamBridgeText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.SteamBridge\Program.cs') -Raw
+$discordPayloadText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.Core\Services\DiscordWebhookPayloadFactory.cs') -Raw
 $buildMsixText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'scripts\Build-Msix.ps1') -Raw
 $steamMutationPattern = '(?m)\b(?:achievement|new\s+Achievement\s*\([^)]*\))\s*\.\s*(?:Trigger|Clear)\s*\(|\bSteamUserStats\s*\.\s*(?:StoreStats|ResetAll)\s*\('
 if (-not $steamDeltaText.Contains('Merely appearing unlocked is always history') -or
@@ -271,6 +273,8 @@ if (-not $steamDeltaText.Contains('Merely appearing unlocked is always history')
     -not $steamMonitorText.Contains('PendingAchievementApiNames') -or
     -not $steamMonitorText.Contains('GetDeliveryBackoff') -or
     -not $steamMonitorText.Contains('Steam observation processing failed safely') -or
+    -not $steamMonitorText.Contains('during {processingStage}') -or
+    -not $steamMonitorText.Contains('throw new InvalidDataException("Steam bridge returned unreadable JSON.")') -or
     -not $steamMonitorText.Contains('Keep draining the trusted helper') -or
     -not $steamMonitorText.Contains('var teardownToken = CancellationToken.None') -or
     -not $steamMonitorText.Contains('Steam returned an invalid observation timestamp') -or
@@ -311,8 +315,13 @@ if (-not $steamDeltaText.Contains('Merely appearing unlocked is always history')
     -not $steamBridgeText.Contains('TransitionedApiNames = newlyUnlocked') -or
     -not $steamBridgeText.Contains('previous.TryGetValue(item.Key, out var wasUnlocked)') -or
     -not $steamBridgeText.Contains('MaximumSnapshotIconBytes') -or
+    -not $steamBridgeText.Contains('Convert.ToBase64String(icon.Value.Data)') -or
+    -not $steamBridgeText.Contains('IconByteCount') -or
+    -not $steamBridgeText.Contains('AQIDBA==') -or
     -not $steamBridgeText.Contains('icon.Value.Width > 512') -or
     -not $steamBridgeText.Contains('SteamUserStats.Achievements') -or
+    -not $steamRarityText.Contains('Rarity is optional enrichment') -or
+    -not $discordPayloadText.Contains('NormalizeUnicode') -or
     $steamBridgeText -match $steamMutationPattern) {
     throw 'Steam monitoring must require stable complete snapshots, live transition proof, and durable pending delivery before relaying changes.'
 }

@@ -494,17 +494,17 @@ public sealed class SteamMonitorCoordinator(
                 }
                 catch (InvalidDataException)
                 {
-                    SetError("The Steam monitoring component exceeded its protocol limit. Nothing was posted; Achievement Relay will restart it.");
+                    SetError("The Steam monitoring component returned unreadable or oversized data. Nothing was posted; Achievement Relay will restart it.");
                     TryTerminateBridge(process);
                     return;
                 }
-                catch (Exception)
+                catch (Exception exception)
                 {
                     // Keep draining the trusted helper. It repeats directly
                     // proven transitions on complete heartbeats, so a transient
                     // local-state or delivery failure can recover in place
                     // without losing the observation to a helper restart.
-                    SetError("Steam observation processing failed safely. Nothing unverified was posted; Achievement Relay will retry.");
+                    SetError($"Steam observation processing failed safely ({exception.GetType().Name}). Nothing unverified was posted; Achievement Relay will retry.");
                 }
             }
         }
@@ -572,8 +572,7 @@ public sealed class SteamMonitorCoordinator(
         }
         catch (JsonException)
         {
-            SetError("The Steam monitoring component returned unreadable data. Achievement Relay will restart it.");
-            return;
+            throw new InvalidDataException("Steam bridge returned unreadable JSON.");
         }
 
         if (message is null || message.ProtocolVersion != ProtocolVersion)
@@ -632,6 +631,8 @@ public sealed class SteamMonitorCoordinator(
     private async Task ProcessSnapshotAsync(SteamBridgeMessage snapshot, CancellationToken cancellationToken)
     {
         await _snapshotGate.WaitAsync(cancellationToken);
+        var processingStage = "snapshot validation";
+        var transitionPersisted = false;
         try
         {
             SteamGameInfo? game;
@@ -705,6 +706,7 @@ public sealed class SteamMonitorCoordinator(
                 return;
             }
 
+            processingStage = "state loading";
             var state = await stateStore.LoadAsync(cancellationToken);
             var accounts = state.Accounts.ToDictionary(item => item.Key, item => item.Value, StringComparer.Ordinal);
             accounts.TryGetValue(snapshot.SteamId, out var account);
@@ -750,7 +752,9 @@ public sealed class SteamMonitorCoordinator(
             // The transition is durable before any network request. A helper or
             // app restart can therefore retry Discord without reclassifying a
             // historical unlocked state as a new event.
+            processingStage = "transition persistence";
             await PersistStateAsync();
+            transitionPersisted = pendingIds.Count > 0;
 
             lock (_statusGate)
             {
@@ -781,13 +785,16 @@ public sealed class SteamMonitorCoordinator(
             AppSettings? settings = null;
             if (pendingAchievements.Length > 0)
             {
+                processingStage = "optional rarity enrichment";
                 rarity = await rarityClient.GetAsync(snapshot.AppId, cancellationToken);
+                processingStage = "settings loading";
                 settings = await settingsStore.LoadAsync(cancellationToken);
             }
 
             var posted = 0;
             foreach (var observation in pendingAchievements)
             {
+                processingStage = "achievement preparation";
                 rarity.TryGetValue(observation.ApiName, out var rarityPercentage);
                 var rarityKnown = rarity.ContainsKey(observation.ApiName);
                 byte[]? icon = null;
@@ -825,6 +832,7 @@ public sealed class SteamMonitorCoordinator(
                     UnlockedAt = reportedTimeIsUsable ? observation.UnlockedAt : observedAt,
                     UnlockTimeEstimated = !reportedTimeIsUsable
                 };
+                processingStage = "Discord delivery";
                 var delivery = await deliveryService.DeliverAsync(achievement, settings!, cancellationToken);
                 if (delivery == AchievementDeliveryResult.RetryRequired)
                 {
@@ -838,6 +846,7 @@ public sealed class SteamMonitorCoordinator(
                 _consecutiveDeliveryFailures = 0;
                 _nextDeliveryAttemptUtc = DateTimeOffset.MinValue;
                 pendingIds.Remove(observation.ApiName);
+                processingStage = "delivery-state persistence";
                 await PersistStateAsync();
                 if (delivery == AchievementDeliveryResult.Posted)
                 {
@@ -864,6 +873,17 @@ public sealed class SteamMonitorCoordinator(
             }
 
             RaiseStatusChanged();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            var recovery = transitionPersisted
+                ? "The live transition is stored safely and will retry."
+                : "Nothing unverified was posted; Achievement Relay will retry.";
+            SetError($"Steam observation processing failed safely during {processingStage} ({exception.GetType().Name}). {recovery}");
         }
         finally
         {

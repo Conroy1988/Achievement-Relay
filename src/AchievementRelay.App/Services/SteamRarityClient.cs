@@ -78,8 +78,11 @@ public sealed class SteamRarityClient : IDisposable
 
             return result;
         }
-        catch (Exception exception) when (exception is HttpRequestException or IOException or JsonException or OperationCanceledException)
+        catch (Exception)
         {
+            // Rarity is optional enrichment. No provider, transport, parsing,
+            // disposal, or unexpected local failure may strand a proven and
+            // durably pending achievement delivery.
             return new Dictionary<string, double>(StringComparer.Ordinal);
         }
     }

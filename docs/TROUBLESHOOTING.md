@@ -23,6 +23,8 @@ The stats request has a 20-second deadline and the complete-baseline watchdog ha
 
 That is expected. The first complete snapshot for each Steam account and game is a history baseline. Achievement Relay stores every already-unlocked API name without posting it. Unlock a different achievement after Activity reports **Steam baseline established**.
 
+If Diagnostics changes to **Retrying** immediately after a real live unlock, copy the support summary and attach `achievement-relay.log`. Current builds restart malformed helper output, identify the safe processing stage without exposing account or webhook data, and keep an accepted live transition in `steam-sync-state.json` before rarity or Discord work. Installing a corrected build and relaunching the same game retries that pending achievement; do not delete the sync-state or processed-event files and do not earn another achievement merely to trigger recovery.
+
 The first complete snapshot after an app/helper restart is also treated as history. A pre-baseline unlock qualifies only when Steam emits its direct completed-achievement callback during that helper session; a recent timestamp alone never qualifies. Steam achievements earned while Achievement Relay was closed are therefore silent by design, preventing an offline backlog from being mistaken for live unlocks.
 
 Never delete `steam-sync-state.json` to force a test: doing so deliberately creates another silent baseline. Use **Send sample achievement** to test Discord.

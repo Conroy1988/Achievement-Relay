@@ -14,6 +14,8 @@ All notable changes to Achievement Relay are documented here. The project follow
 
 ### Fixed
 
+- Encoded Steam artwork as Base64 on the helper JSON wire contract, fixing the first live-unlock snapshot being rejected when Steam supplied an icon; the bridge self-test now exercises this exact representation
+- Restarted the isolated helper after unreadable protocol output, made optional Steam rarity failures non-blocking, repaired malformed provider Unicode before Discord serialization, and added privacy-safe processing-stage diagnostics while retaining durable pending-unlock recovery
 - Explicitly requested the signed-in local Steam user's achievement stats after helper initialization and after any unload, fixing the observer's permanent pre-baseline wait when Facepunch's no-op `RequestCurrentStats()` produced no callback
 - Refreshed the read-only local-user stats snapshot every ten seconds after baseline so achievements stored by the game or a separate Steamworks process become observable without relying on cross-process cache propagation
 - Added bounded 20-second stats loading and 45-second complete-baseline watchdogs, structured recovery diagnostics, and truthful Connecting/Loading/Baselining/Monitoring phases so a detected game can never appear ready before its first complete observation

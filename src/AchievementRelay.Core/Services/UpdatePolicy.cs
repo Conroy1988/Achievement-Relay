@@ -126,9 +126,9 @@ public static partial class UpdatePolicy
             minimum);
     }
 
-    public static Version ParseVersion(string value, string fieldName = "version")
+    public static Version ParseVersion(string? value, string fieldName = "version")
     {
-        if (!VersionPattern().IsMatch(value ?? string.Empty))
+        if (string.IsNullOrEmpty(value) || !VersionPattern().IsMatch(value))
         {
             throw new InvalidDataException($"The {fieldName} must use numeric X.Y.Z format.");
         }
@@ -153,9 +153,9 @@ public static partial class UpdatePolicy
         return $"{version.Major}.{version.Minor}.{Math.Max(version.Build, 0)}";
     }
 
-    public static Version ParsePackageVersion(string value)
+    public static Version ParsePackageVersion(string? value)
     {
-        if (!PackageVersionPattern().IsMatch(value ?? string.Empty))
+        if (string.IsNullOrEmpty(value) || !PackageVersionPattern().IsMatch(value))
         {
             throw new InvalidDataException("The package version must use numeric X.Y.Z.W format.");
         }

@@ -34,7 +34,7 @@ Discord's [official webhook guide](https://support.discord.com/hc/en-us/articles
 3. **Relay Online** by CRNY starts locally at 10% volume. Use the lower-left **Pause music**/**Play music** control at any time; the adjacent SoundCloud button opens the [direct track page](https://soundcloud.com/daniel-conroy-224318319/crny-relay-online) only when selected.
 4. On **Connect your relay**, choose one option:
    - **Connect Discord now; add OpenXBL optionally (recommended)**; or
-   - **Skip — I will do this later in Guided setup**.
+   - **Skip — I will do this later in Setup**.
 5. If connecting now, paste the Discord webhook. Paste an OpenXBL key only if you also want Xbox monitoring. Setup validates supplied values; the app performs live checks on first launch.
 6. On **Player options**, toggle **Create a desktop shortcut** as preferred.
 7. Select **Install**. A development-signed beta may request administrator approval once to trust its public package certificate.
@@ -55,21 +55,19 @@ If credentials were supplied in Setup, Achievement Relay automatically:
 
 If Discord works but optional Xbox verification fails, Steam can still start immediately and the saved Xbox key can be retried later. Stored secret fields show the real saved value in masked form; use **Reveal Key** or **Reveal Webhook** to inspect it, then select the retry button or type a replacement. Nothing is posted except the clearly disclosed Discord connection test and later genuine unlocks.
 
-## 4. Guided setup when skipped
+## 4. In-app setup when skipped
 
-1. In step 1, connect Xbox through OpenXBL if wanted. This step is optional.
-2. In step 2, leave automatic Steam monitoring enabled if wanted. No key is required.
-3. In step 3, paste the Discord webhook and choose **Save and test**.
-4. Check the selected Discord channel for the connection message.
-5. In step 4, choose the player display name, Windows startup, and tray-start preferences.
-6. Select **Finish setup**. At least Xbox or Steam must be selected.
+1. In step 1, choose Xbox, Steam, or both. Steam needs no key.
+2. In step 2, connect Xbox through OpenXBL if selected, or skip Xbox to continue with Steam only.
+3. In step 3, paste the Discord webhook, choose **Save and send a test**, and check the selected Discord channel.
+4. In step 4, choose the optional display name and Windows startup preferences, review the ready check, then select **Finish setup**.
 
 You can close the window after setup. Achievement Relay continues in the Windows notification area; right-click the tray icon to reopen or exit.
 
 ## 5. Test a real Steam achievement
 
 1. Leave Achievement Relay and Steam running.
-2. Start a Steam game. Dashboard should change from **Steam: Ready** to **Steam: Monitoring**.
+2. Start a Steam game. Home should change from **Steam: Ready** to **Steam: Monitoring**.
 3. The first complete snapshot for that Steam account and game becomes a silent baseline. No historical achievements are posted; only Steam's direct completed-achievement callback can prove a live unlock during the launch-to-baseline window.
 4. Unlock a different achievement after the baseline appears in Activity.
 5. Check Discord. A local unlock is normally noticed within a few seconds.
@@ -87,14 +85,14 @@ A Windows Notification Center toast is not required. The Xbox Game Bar overlay m
 
 If nothing arrives:
 
-1. open **Diagnostics**;
+1. open **Help & support**;
 2. select **Sync Xbox now**;
 3. read **Last sync error** and **Activity**; and
 4. continue with [Troubleshooting](docs/TROUBLESHOOTING.md).
 
 ## Upgrading from 0.1.x
 
-Version 0.1.x depended on Windows Notification Center and cannot detect a Game Bar-only overlay. Version 0.2 preserves the encrypted Discord webhook and preferences, but deliberately reopens Guided setup so the user can add an OpenXBL key. The first account check creates a lightweight baseline; it neither dumps historical achievements into Discord nor downloads every old title immediately. Exact historical identities are filled in silently under the 15-minute background schedule while live achievement changes remain prioritised.
+Version 0.1.x depended on Windows Notification Center and cannot detect a Game Bar-only overlay. Version 0.2 preserves the encrypted Discord webhook and preferences, but deliberately reopens Setup so the user can add an OpenXBL key. The first account check creates a lightweight baseline; it neither dumps historical achievements into Discord nor downloads every old title immediately. Exact historical identities are filled in silently under the 15-minute background schedule while live achievement changes remain prioritised.
 
 ## Upgrading from 0.2.x
 
@@ -104,7 +102,7 @@ Version 0.3 preserves the Xbox cursor, processed-event ledger, encrypted OpenXBL
 
 Achievement Relay checks the latest stable release on the official GitHub repository at startup and about every six hours. A normal newer release is optional. A release is required only when its reviewed, publisher-signed manifest raises `minimumSupportedVersion`; once that policy is successfully authenticated, Xbox and Steam monitoring pause until the update is installed. A failed, unsigned, tampered, or offline check never invents a requirement.
 
-Select **Update now** on Dashboard or About. The app downloads the exact GitHub release asset to `%LOCALAPPDATA%\AchievementRelay\Updates`, verifies its declared size, SHA-256, signed product/package versions, matching executable product/file versions, Windows Authenticode trust, and the publisher-certificate fingerprint pinned into the running build, then opens the branded updater. The updater uses the same CRNY music at 10% volume with Play/Pause and the direct SoundCloud link. It keeps encrypted connections, settings, provider baselines, pending deliveries, startup behavior, and the existing desktop-shortcut choice. Cancelling before installation leaves the running app untouched.
+Select **Update now** on Home or **Help & support**. The app downloads the exact GitHub release asset to `%LOCALAPPDATA%\AchievementRelay\Updates`, verifies its declared size, SHA-256, signed product/package versions, matching executable product/file versions, Windows Authenticode trust, and the publisher-certificate fingerprint pinned into the running build, then opens the branded updater. The updater uses the same CRNY music at 10% volume with Play/Pause and the direct SoundCloud link. It keeps encrypted connections, settings, provider baselines, pending deliveries, startup behavior, and the existing desktop-shortcut choice. Cancelling before installation leaves the running app untouched.
 
 ## What cannot be automated
 

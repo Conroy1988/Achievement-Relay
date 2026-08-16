@@ -19,10 +19,13 @@ The following interface icons are redistributed under their authors' stated lice
 |---|---|---|---|---|
 | `trophy-cup.svg` / `TrophyCup.png` | Delapouite | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | [Game-icons.net](https://game-icons.net/1x1/delapouite/trophy-cup.html) | Background removed; rasterized and resized for the interface. |
 | `radar-sweep.svg` / `RadarSweep.png` | Lorc | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | [Game-icons.net](https://game-icons.net/1x1/lorc/radar-sweep.html) | Background removed; rasterized and resized for the interface. |
+| `xbox.svg` / `Xbox.png` | Austin Andrews / Pictogrammers | [Apache 2.0](https://www.apache.org/licenses/LICENSE-2.0) | [Material Design Icons](https://github.com/Templarian/MaterialDesign/blob/master/svg/microsoft-xbox.svg) | Rendered as a white, transparent 128 px interface mark. |
+| `steam.svg` / `Steam.png` | Simple Icons contributors | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | [Simple Icons](https://simpleicons.org/?q=steam) | Rendered as a white, transparent 128 px interface mark. |
+| `discord.svg` / `Discord.png` | Simple Icons contributors | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | [Simple Icons](https://simpleicons.org/?q=discord) | Rendered as a white, transparent 128 px interface mark. |
 
-The editable SVG copies are kept in `assets/third-party/game-icons`. The compiled PNG copies are in `src/AchievementRelay.App/Assets`.
+The editable SVG copies are kept in `assets/third-party/game-icons` and `assets/third-party/platform-icons`. The compiled PNG copies are in `src/AchievementRelay.App/Assets`.
 
-These CC BY assets are not relicensed under the repository's MIT licence; they remain available under CC BY 3.0. All product and company names mentioned by the app belong to their respective owners and are used only to identify compatible services.
+These third-party assets are not relicensed under the repository's MIT licence; each remains available under its listed licence. Xbox is a trademark of Microsoft, Steam is a trademark of Valve Corporation, and Discord is a trademark of Discord Inc. Their marks are used only to identify compatible services and do not imply endorsement, sponsorship, or affiliation.
 
 ## Original music
 

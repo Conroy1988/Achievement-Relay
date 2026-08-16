@@ -137,7 +137,7 @@ Before a production release, test on x64 and Windows on Arm where hardware is av
 
 1. Fresh Steam-only install with Discord configured and OpenXBL blank.
 2. Upgrade from 0.2 with the tray app already running.
-3. Existing game with many historical achievements: Dashboard remains **Preparing** until baseline activity appears, then changes to **Monitoring** while Discord stays silent.
+3. Existing game with many historical achievements: Home remains **Preparing** until baseline activity appears, then changes to **Monitoring** while Discord stays silent.
 4. New achievement after baseline: exactly one Discord post with correct game, player, time, rarity when available, and icon when available.
 5. Restart app/game: no duplicate.
 6. Unlock while Discord is unreachable, restore network, and verify one retry post.

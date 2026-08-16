@@ -44,7 +44,7 @@ If the `.exe` installer is blocked by local policy:
    powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install.ps1
    ```
 
-Add `-CreateDesktopShortcut` if wanted. The manual path does not collect credentials; complete Guided setup when the app opens.
+Add `-CreateDesktopShortcut` if wanted. The manual path does not collect credentials; complete Setup when the app opens.
 
 The execution-policy flag applies only to that PowerShell process. The script selects the package, imports the included development certificate if necessary, installs the MSIX, optionally creates the shortcut, and launches the app.
 
@@ -53,17 +53,17 @@ The execution-policy flag applies only to that PowerShell process. The script se
 1. Import `AchievementRelay.Development.cer` into **Local Computer → Trusted People** if included.
 2. Double-click the MSIX matching the processor.
 3. Select **Install**.
-4. Launch Achievement Relay from Start and complete Guided setup.
+4. Launch Achievement Relay from Start and complete the four-step Setup flow.
 
 ## Upgrade
 
 Run the newer `.exe` installer. The package identity preserves `%LOCALAPPDATA%\AchievementRelay`.
 
-From version 0.3 onward, the app checks the official GitHub Releases feed automatically. Dashboard and About show a newer stable release and provide **Update now**. The app first verifies the manifest's detached RSA signature against the publisher certificate pinned into the installed build. Before Setup can open, it also requires the release tag and signed product/package versions to agree, bounds the download, verifies its SHA-256 and exact product/file version resources, asks Windows to validate its Authenticode signature, and matches the signer against the same publisher pin. A normal update is optional. Monitoring pauses only when an authenticated release manifest explicitly raises the minimum supported product version above the installed version.
+From version 0.3 onward, the app checks the official GitHub Releases feed automatically. Home and **Help & support** show a newer stable release and provide **Update now**. The app first verifies the manifest's detached RSA signature against the publisher certificate pinned into the installed build. Before Setup can open, it also requires the release tag and signed product/package versions to agree, bounds the download, verifies its SHA-256 and exact product/file version resources, asks Windows to validate its Authenticode signature, and matches the signer against the same publisher pin. A normal update is optional. Monitoring pauses only when an authenticated release manifest explicitly raises the minimum supported product version above the installed version.
 
 The verified executable opens this same installer in update mode. Update mode plays **Relay Online** through the same private 10% volume paths and exposes the same Pause/Play and direct SoundCloud controls, but skips credentials and player options. It preserves `%LOCALAPPDATA%\AchievementRelay`, the current startup preference, and whether the desktop shortcut already exists. If Setup is cancelled before deployment, the current app remains running. If package deployment fails after closing it, Setup attempts to relaunch the still-installed version.
 
-Upgrading from 0.1.x retains the encrypted Discord webhook and preferences, then reopens Guided setup so a current source can be selected. Upgrading from 0.2 retains Xbox/Discord settings and cursors. Steam is enabled locally and gives every Steam account/game pair a silent first baseline, so the upgrade cannot post old Steam history.
+Upgrading from 0.1.x retains the encrypted Discord webhook and preferences, then reopens Setup so a current source can be selected. Upgrading from 0.2 retains Xbox/Discord settings and cursors. Steam is enabled locally and gives every Steam account/game pair a silent first baseline, so the upgrade cannot post old Steam history.
 
 ## Uninstall
 

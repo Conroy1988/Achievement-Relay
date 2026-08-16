@@ -45,5 +45,8 @@
     <Resource Include="Assets\RelayCommandDeck.png" />
     <Resource Include="Assets\TrophyCup.png" />
     <Resource Include="Assets\RadarSweep.png" />
+    <Resource Include="Assets\Xbox.png" />
+    <Resource Include="Assets\Steam.png" />
+    <Resource Include="Assets\Discord.png" />
   </ItemGroup>
 </Project>

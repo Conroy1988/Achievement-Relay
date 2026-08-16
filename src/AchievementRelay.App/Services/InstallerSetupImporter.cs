@@ -53,7 +53,7 @@ public sealed class InstallerSetupImporter(
                     currentSettings,
                     true,
                     false,
-                    "The optional installer setup data was empty or too large. Complete Guided setup in the app.");
+                    "The optional installer setup data was empty or too large. Complete Setup in the app.");
             }
 
             await using var stream = new FileStream(
@@ -75,7 +75,7 @@ public sealed class InstallerSetupImporter(
                 currentSettings,
                 true,
                 false,
-                "The optional installer setup data was not recognized. Complete Guided setup in the app.");
+                "The optional installer setup data was not recognized. Complete Setup in the app.");
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
@@ -93,7 +93,7 @@ public sealed class InstallerSetupImporter(
                 currentSettings,
                 true,
                 false,
-                "The optional installer setup data was not recognized. Complete Guided setup in the app.");
+                "The optional installer setup data was not recognized. Complete Setup in the app.");
         }
 
         var pendingApiKey = secretProtector.TryUnprotectOpenXblApiKey(pendingSetup.ProtectedOpenXblApiKey);
@@ -110,7 +110,7 @@ public sealed class InstallerSetupImporter(
                 currentSettings,
                 true,
                 false,
-                keyError ?? "The optional OpenXBL setting was invalid. Complete Guided setup in the app.");
+                keyError ?? "The optional OpenXBL setting was invalid. Complete Setup in the app.");
         }
 
         if (!WebhookUrlValidator.TryNormalize(
@@ -124,7 +124,7 @@ public sealed class InstallerSetupImporter(
                 currentSettings,
                 true,
                 false,
-                webhookError ?? "The optional Discord setting was invalid. Complete Guided setup in the app.");
+                webhookError ?? "The optional Discord setting was invalid. Complete Setup in the app.");
         }
 
         var storedSettings = currentSettings with
@@ -227,7 +227,7 @@ public sealed class InstallerSetupImporter(
                         ? nextSettings.SteamEnabled
                             ? "Installer settings were stored securely. Xbox, Steam and Discord were verified, and monitoring is ready."
                             : "Installer settings were stored securely. Xbox and Discord were verified; Steam remains disabled by your saved preference."
-                        : "Installer settings were stored securely. Steam and Discord are ready; the optional Xbox connection was saved and can be retried in Guided setup.";
+                        : "Installer settings were stored securely. Steam and Discord are ready; the optional Xbox connection was saved and can be retried in Setup.";
                 return new InstallerSetupImportResult(
                     nextSettings,
                     true,
@@ -259,7 +259,7 @@ public sealed class InstallerSetupImporter(
                 nextSettings,
                 true,
                 false,
-                $"Installer settings were encrypted and saved, but verification needs attention: {string.Join(" ", details)} Complete Guided setup in the app; the stored values will appear masked and can be retried.");
+                $"Installer settings were encrypted and saved, but verification needs attention: {string.Join(" ", details)} Complete Setup in the app; the stored values will appear masked and can be retried.");
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -267,7 +267,7 @@ public sealed class InstallerSetupImporter(
                 storedSettings,
                 true,
                 false,
-                "Installer settings were encrypted and saved before verification was interrupted. Open Guided setup to retry the masked stored values.");
+                "Installer settings were encrypted and saved before verification was interrupted. Open Setup to retry the masked stored values.");
         }
     }
 

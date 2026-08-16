@@ -88,7 +88,7 @@ Discord webhooks do not provide an idempotency key. `wait=true`, deterministic l
 
 | Condition | State advancement | User-visible behavior |
 |---|---|---|
-| Invalid/rejected key | No | Guided setup remains actionable; stored secret stays encrypted |
+| Invalid/rejected key | No | Setup remains actionable; stored secret stays encrypted |
 | Network timeout/5xx | No | Safe error; automatic retry |
 | Local/provider allowance reserve reached | No | Do not send the request; resume after the calculated reset window |
 | HTTP 429 | No | Honor the full `Retry-After` or hourly fallback without repeated 15-minute probes |

@@ -53,17 +53,19 @@ public partial class MainWindow : Window
         InitializeTrayIcon();
         ApplyUpdateState(_services.UpdateService.Snapshot);
         RefreshStatus();
+        UpdateSetupProgress();
+        UpdateNavigationState();
     }
 
     public void ShowSetup()
     {
-        MainTabs.SelectedIndex = 1;
+        OpenSetupAtRecommendedStep();
         ShowFromTray();
     }
 
     public void ShowRequiredUpdate()
     {
-        MainTabs.SelectedIndex = 0;
+        NavigateTo(0);
         ShowFromTray();
         ApplyUpdateState(_services.UpdateService.Snapshot);
     }
@@ -107,16 +109,38 @@ public partial class MainWindow : Window
         else
         {
             SetStatus(XboxStatusText, "Not connected", StatusTone.Warning);
-            XboxStatusDetail.Text = "Complete step 1 in Guided setup";
+            XboxStatusDetail.Text = "Open Setup to connect Xbox";
             SetupXboxStatus.Text = "Status: not connected";
             SetupXboxStatus.Foreground = Brush("WarningBrush");
             SettingsXboxStatus.Text = "No OpenXBL API key or Xbox account is configured.";
         }
 
+        if (accountConfigured)
+        {
+            SetupXboxSourceCheckBox.IsChecked = true;
+            SetupXboxSourceCheckBox.IsEnabled = true;
+            SkipXboxButton.Visibility = Visibility.Collapsed;
+            SetupXboxSourceCheckBox.ToolTip = "Xbox is connected. Disconnect it from Settings if you no longer want to monitor it.";
+            SetupXboxChoiceStatus.Text = string.IsNullOrWhiteSpace(_settings.XboxGamertag)
+                ? "Connected"
+                : $"Connected as {_settings.XboxGamertag}";
+            SetupXboxChoiceStatus.Foreground = Brush("AccentBrush");
+        }
+        else
+        {
+            SetupXboxSourceCheckBox.IsEnabled = true;
+            SkipXboxButton.Visibility = Visibility.Visible;
+            SetupXboxSourceCheckBox.ToolTip = null;
+            SetupXboxChoiceStatus.Text = apiKeyConfigured
+                ? "Saved key needs verification"
+                : "Optional · free OpenXBL key";
+            SetupXboxChoiceStatus.Foreground = Brush(apiKeyConfigured ? "WarningBrush" : "MutedTextBrush");
+        }
+
         if (!_settings.SteamEnabled)
         {
             SetStatus(SteamStatusText, "Disabled", StatusTone.Neutral);
-            SteamStatusDetail.Text = "Enable Steam in Guided setup or Settings";
+            SteamStatusDetail.Text = "Enable Steam in Setup or Settings";
             SetupSteamStatus.Text = "Status: Steam monitoring is disabled";
             SetupSteamStatus.Foreground = Brush("MutedTextBrush");
             SettingsSteamStatus.Text = "Steam monitoring is disabled.";
@@ -198,7 +222,7 @@ public partial class MainWindow : Window
         else
         {
             SetStatus(DiscordStatusText, "Not connected", StatusTone.Warning);
-            DiscordStatusDetail.Text = "Complete step 3 in Guided setup";
+            DiscordStatusDetail.Text = "Open Setup to connect Discord";
             SetupWebhookStatus.Text = "Status: not connected";
             SetupWebhookStatus.Foreground = Brush("WarningBrush");
             SettingsWebhookStatus.Text = "No usable Discord webhook is configured.";
@@ -228,6 +252,15 @@ public partial class MainWindow : Window
             : "○ Setup required";
         SidebarMonitorStatus.Foreground = Brush(
             relayRunning && !activeError ? "AccentBrush" : "WarningBrush");
+
+        UpdateSetupSummary(accountConfigured, webhookConfigured);
+        ApplyHomeState(
+            accountConfigured,
+            webhookConfigured,
+            xboxRunning,
+            steamMonitorRunning,
+            activeError,
+            activeProviders);
 
         var accountDiagnostic = accountConfigured
             ? string.IsNullOrWhiteSpace(_settings.XboxGamertag) ? "connected" : $"connected as {_settings.XboxGamertag}"
@@ -269,6 +302,102 @@ public partial class MainWindow : Window
         ApplyUpdateState(_services.UpdateService.Snapshot);
     }
 
+    private void ApplyHomeState(
+        bool accountConfigured,
+        bool webhookConfigured,
+        bool xboxRunning,
+        bool steamRunning,
+        bool activeError,
+        IReadOnlyCollection<string> activeProviders)
+    {
+        var update = _services.UpdateService.Snapshot;
+        var hasProvider = accountConfigured || _settings.SteamEnabled;
+        var isReady = _settings.SetupCompleted && webhookConfigured && hasProvider;
+
+        if (update.IsRequired)
+        {
+            SetStatus(RelayStatusText, "Update required", StatusTone.Error);
+            HomeTitleText.Text = "Update before you continue";
+            HomeSummaryText.Text = "A verified required update is ready. Monitoring is paused until it is installed.";
+            HomePrimaryActionButton.Content = "Install verified update";
+            HomePrimaryActionButton.Tag = "update";
+            return;
+        }
+
+        if (update.HasUpdate)
+        {
+            SetStatus(RelayStatusText, "Update available", StatusTone.Warning);
+            HomeTitleText.Text = "A new version is ready";
+            HomeSummaryText.Text = "Install it from here when convenient. Your settings and achievement history will be preserved.";
+            HomePrimaryActionButton.Content = "Update now";
+            HomePrimaryActionButton.Tag = "update";
+            return;
+        }
+
+        if (!isReady)
+        {
+            SetStatus(RelayStatusText, "Setup needed", StatusTone.Warning);
+            HomeTitleText.Text = "Let’s get your relay ready";
+            HomeSummaryText.Text = !hasProvider
+                ? "Choose Xbox, Steam, or both. Then connect the Discord channel that should receive your achievements."
+                : !webhookConfigured
+                    ? "Your achievement source is ready. Connect a Discord channel to finish."
+                    : "Review the final setup step to start monitoring.";
+            HomePrimaryActionButton.Content = "Continue setup";
+            HomePrimaryActionButton.Tag = "setup";
+            return;
+        }
+
+        if (activeError || (!xboxRunning && !steamRunning))
+        {
+            SetStatus(RelayStatusText, activeError ? "Retrying" : "Needs attention", StatusTone.Warning);
+            HomeTitleText.Text = activeError ? "We’re retrying automatically" : "Monitoring is not active";
+            HomeSummaryText.Text = activeError
+                ? "Your settings are safe. Open Help & support for the latest provider status and quick checks."
+                : "Open Help & support to restart a connection or review the technical status.";
+            HomePrimaryActionButton.Content = "Open help";
+            HomePrimaryActionButton.Tag = "help";
+            return;
+        }
+
+        SetStatus(RelayStatusText, "Ready", StatusTone.Success);
+        HomeTitleText.Text = "You’re ready to play";
+        HomeSummaryText.Text = activeProviders.Count == 0
+            ? "Achievement Relay is ready and waiting quietly."
+            : $"{string.Join(" and ", activeProviders)} monitoring is active. New achievements will appear in Discord automatically.";
+        HomePrimaryActionButton.Content = "Send a test post";
+        HomePrimaryActionButton.Tag = "test";
+    }
+
+    private void UpdateSetupSummary(bool accountConfigured, bool webhookConfigured)
+    {
+        if (SetupReviewSourcesText is null || SetupReviewDiscordText is null)
+        {
+            return;
+        }
+
+        var sources = new List<string>();
+        if (accountConfigured || SetupXboxSourceCheckBox.IsChecked == true)
+        {
+            sources.Add(accountConfigured ? "Xbox connected" : "Xbox selected");
+        }
+        if (SetupSteamEnabledCheckBox.IsChecked == true)
+        {
+            sources.Add("Steam enabled");
+        }
+
+        SetupReviewSourcesText.Text = sources.Count == 0
+            ? "Choose Xbox, Steam, or both"
+            : string.Join(" + ", sources);
+        SetupReviewSourcesText.Foreground = sources.Count == 0
+            ? Brush("WarningBrush")
+            : Brush("AccentBrush");
+        SetupReviewDiscordText.Text = webhookConfigured
+            ? "Discord connected"
+            : "Connect Discord before finishing";
+        SetupReviewDiscordText.Foreground = Brush(webhookConfigured ? "AccentBrush" : "WarningBrush");
+    }
+
     public void PrepareForExit()
     {
         _isExiting = true;
@@ -284,7 +413,12 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnWindowLoaded(object sender, RoutedEventArgs e) => RefreshStatus();
+    private void OnWindowLoaded(object sender, RoutedEventArgs e)
+    {
+        RefreshStatus();
+        UpdateNavigationState();
+        UpdateSetupProgress();
+    }
 
     private void OnWindowClosing(object? sender, CancelEventArgs e)
     {
@@ -336,6 +470,13 @@ public partial class MainWindow : Window
         var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.3.0";
         AboutVersionText.Text = $"Version {version} beta";
 
+        var xboxConfigured = TryGetOpenXblApiKey(out _) && !string.IsNullOrWhiteSpace(_settings.XboxUserId);
+        if (xboxConfigured)
+        {
+            SetupXboxSourceCheckBox.IsChecked = true;
+            SetupXboxSourceCheckBox.IsEnabled = true;
+        }
+
         SetupDisplayNameTextBox.Text = _settings.DisplayName;
         SetupSteamEnabledCheckBox.IsChecked = _settings.SteamEnabled;
         SetupStartWithWindowsCheckBox.IsChecked = _settings.StartWithWindows;
@@ -366,21 +507,204 @@ public partial class MainWindow : Window
         Focus();
     }
 
-    private void ShowDashboard_Click(object sender, RoutedEventArgs e) => MainTabs.SelectedIndex = 0;
+    private void ShowDashboard_Click(object sender, RoutedEventArgs e) => NavigateTo(0);
 
-    private void ShowSetup_Click(object sender, RoutedEventArgs e) => MainTabs.SelectedIndex = 1;
+    private void ShowSetup_Click(object sender, RoutedEventArgs e) => OpenSetupAtRecommendedStep();
 
-    private void ShowActivity_Click(object sender, RoutedEventArgs e) => MainTabs.SelectedIndex = 2;
+    private void ShowActivity_Click(object sender, RoutedEventArgs e) => NavigateTo(2);
 
-    private void ShowSettings_Click(object sender, RoutedEventArgs e) => MainTabs.SelectedIndex = 3;
+    private void ShowSettings_Click(object sender, RoutedEventArgs e) => NavigateTo(3);
 
     private void ShowDiagnostics_Click(object sender, RoutedEventArgs e)
     {
-        MainTabs.SelectedIndex = 4;
+        NavigateTo(4);
         RefreshStatus();
     }
 
-    private void ShowAbout_Click(object sender, RoutedEventArgs e) => MainTabs.SelectedIndex = 5;
+    private void ShowAbout_Click(object sender, RoutedEventArgs e) => NavigateTo(4);
+
+    private void NavigateTo(int index)
+    {
+        MainTabs.SelectedIndex = Math.Clamp(index, 0, 4);
+        UpdateNavigationState();
+    }
+
+    private void UpdateNavigationState()
+    {
+        if (HomeNavButton is null)
+        {
+            return;
+        }
+
+        var buttons = new[]
+        {
+            HomeNavButton,
+            SetupNavButton,
+            ActivityNavButton,
+            SettingsNavButton,
+            HelpNavButton
+        };
+        for (var index = 0; index < buttons.Length; index++)
+        {
+            buttons[index].Style = (Style)FindResource(
+                MainTabs.SelectedIndex == index ? "NavButtonActive" : "NavButton");
+        }
+    }
+
+    private void OpenSetupAtRecommendedStep()
+    {
+        NavigateTo(1);
+        var xboxConfigured = TryGetOpenXblApiKey(out _) && !string.IsNullOrWhiteSpace(_settings.XboxUserId);
+        var webhookConfigured = TryGetWebhook(out _);
+        var providerConfigured = xboxConfigured || _settings.SteamEnabled;
+
+        if (_settings.SetupCompleted && providerConfigured && webhookConfigured)
+        {
+            SetSetupStep(0);
+        }
+        else if (!providerConfigured)
+        {
+            SetSetupStep(0);
+        }
+        else if (SetupXboxSourceCheckBox.IsChecked == true && !xboxConfigured)
+        {
+            SetSetupStep(1);
+        }
+        else if (!webhookConfigured)
+        {
+            SetSetupStep(2);
+        }
+        else
+        {
+            SetSetupStep(3);
+        }
+    }
+
+    private void SetSetupStep(int index)
+    {
+        SetupSteps.SelectedIndex = Math.Clamp(index, 0, 3);
+        UpdateSetupProgress();
+    }
+
+    private void UpdateSetupProgress()
+    {
+        if (SetupSteps is null || SetupProgressText is null || SetupProgressBar is null)
+        {
+            return;
+        }
+
+        var step = Math.Clamp(SetupSteps.SelectedIndex, 0, 3);
+        var labels = new[] { "Choose platforms", "Connect Xbox", "Connect Discord", "Finish" };
+        SetupProgressText.Text = $"Step {step + 1} of 4 · {labels[step]}";
+        SetupProgressBar.Value = step + 1;
+        UpdateSetupSummary(
+            TryGetOpenXblApiKey(out _) && !string.IsNullOrWhiteSpace(_settings.XboxUserId),
+            TryGetWebhook(out _));
+    }
+
+    private void SetupNextFromSources_Click(object sender, RoutedEventArgs e)
+    {
+        if (SetupXboxSourceCheckBox.IsChecked != true && SetupSteamEnabledCheckBox.IsChecked != true)
+        {
+            ShowMessage("Choose Xbox, Steam, or both before continuing.", MessageBoxImage.Warning);
+            return;
+        }
+
+        var xboxConfigured = TryGetOpenXblApiKey(out _) && !string.IsNullOrWhiteSpace(_settings.XboxUserId);
+        SetSetupStep(SetupXboxSourceCheckBox.IsChecked == true && !xboxConfigured ? 1 : 2);
+    }
+
+    private void SetupXboxSource_Click(object sender, RoutedEventArgs e)
+    {
+        var xboxConfigured = TryGetOpenXblApiKey(out _) && !string.IsNullOrWhiteSpace(_settings.XboxUserId);
+        if (xboxConfigured && SetupXboxSourceCheckBox.IsChecked != true)
+        {
+            SetupXboxSourceCheckBox.IsChecked = true;
+            ShowMessage("Xbox is already connected. Use Settings → Xbox → Disconnect Xbox if you want to remove it.", MessageBoxImage.Information);
+        }
+    }
+
+    private void SetupBackToSources_Click(object sender, RoutedEventArgs e) => SetSetupStep(0);
+
+    private void SkipXboxSetup_Click(object sender, RoutedEventArgs e)
+    {
+        var xboxConfigured = TryGetOpenXblApiKey(out _) && !string.IsNullOrWhiteSpace(_settings.XboxUserId);
+        if (!xboxConfigured)
+        {
+            SetupXboxSourceCheckBox.IsChecked = false;
+        }
+
+        SetSetupStep(2);
+    }
+
+    private void SetupNextFromXbox_Click(object sender, RoutedEventArgs e)
+    {
+        if (!TryGetOpenXblApiKey(out _) || string.IsNullOrWhiteSpace(_settings.XboxUserId))
+        {
+            ShowMessage("Connect and verify the Xbox account first, or choose Skip Xbox to continue with Steam only.", MessageBoxImage.Warning);
+            return;
+        }
+
+        SetSetupStep(2);
+    }
+
+    private void SetupBackFromDiscord_Click(object sender, RoutedEventArgs e)
+    {
+        var xboxConfigured = TryGetOpenXblApiKey(out _) && !string.IsNullOrWhiteSpace(_settings.XboxUserId);
+        SetSetupStep(SetupXboxSourceCheckBox.IsChecked == true && !xboxConfigured ? 1 : 0);
+    }
+
+    private void SetupNextFromDiscord_Click(object sender, RoutedEventArgs e)
+    {
+        if (!TryGetWebhook(out _))
+        {
+            ShowMessage("Save and test a Discord webhook before continuing.", MessageBoxImage.Warning);
+            return;
+        }
+
+        SetSetupStep(3);
+    }
+
+    private void SetupBackFromFinish_Click(object sender, RoutedEventArgs e) => SetSetupStep(2);
+
+    private void GoToXboxSetup_Click(object sender, RoutedEventArgs e)
+    {
+        NavigateTo(1);
+        SetupXboxSourceCheckBox.IsChecked = true;
+        SetSetupStep(1);
+    }
+
+    private void GoToSteamSetup_Click(object sender, RoutedEventArgs e)
+    {
+        NavigateTo(1);
+        SetSetupStep(0);
+    }
+
+    private void GoToDiscordSetup_Click(object sender, RoutedEventArgs e)
+    {
+        NavigateTo(1);
+        SetSetupStep(2);
+    }
+
+    private void HomePrimaryAction_Click(object sender, RoutedEventArgs e)
+    {
+        switch (HomePrimaryActionButton.Tag as string)
+        {
+            case "update":
+                UpdateNow_Click(sender, e);
+                break;
+            case "help":
+                NavigateTo(4);
+                RefreshStatus();
+                break;
+            case "test":
+                SendSampleAchievement_Click(sender, e);
+                break;
+            default:
+                OpenSetupAtRecommendedStep();
+                break;
+        }
+    }
 
     private void OpenOpenXbl_Click(object sender, RoutedEventArgs e) => OpenExternal(OpenXblProfileUrl);
 
@@ -710,16 +1034,16 @@ public partial class MainWindow : Window
                     ? _services.SteamMonitorCoordinator.LastError
                     : _services.RelayCoordinator.LastSyncError;
                 ShowMessage(
-                    providerError ?? "Achievement monitoring could not start. Check Diagnostics, then reinstall if a required component is reported missing.",
+                    providerError ?? "Achievement monitoring could not start. Open Help & support, then reinstall if a required component is reported missing.",
                     MessageBoxImage.Error);
                 return;
             }
 
             PopulateControls();
             RefreshStatus();
-            MainTabs.SelectedIndex = 0;
+            NavigateTo(0);
             var sources = xboxStarted && steamStarted ? "Xbox and Steam" : xboxStarted ? "Xbox" : "Steam";
-            _services.ActivityLog.Success($"Guided setup completed. {sources} monitoring is active.");
+            _services.ActivityLog.Success($"Setup completed. {sources} monitoring is active.");
 
             var startupNote = startWithWindows && !startupApplied
                 ? Environment.NewLine + Environment.NewLine + "Windows did not enable startup automatically. You can enable Achievement Relay in Settings > Apps > Startup."
@@ -738,8 +1062,8 @@ public partial class MainWindow : Window
     {
         if (!TryGetWebhook(out var webhookUri) || webhookUri is null)
         {
-            ShowMessage("Connect a Discord webhook in Guided setup first.", MessageBoxImage.Warning);
-            MainTabs.SelectedIndex = 1;
+            ShowMessage("Connect a Discord webhook in Setup first.", MessageBoxImage.Warning);
+            GoToDiscordSetup_Click(sender, e);
             return;
         }
 
@@ -916,11 +1240,12 @@ public partial class MainWindow : Window
             await _services.SettingsStore.SaveAsync(_settings);
             await _services.SyncStateStore.ClearAsync();
             _services.ActivityLog.Info("Saved OpenXBL connection removed.");
+            SetupXboxSourceCheckBox.IsChecked = false;
             PopulateControls();
             RefreshStatus();
             if (!keepSetupCompleted)
             {
-                MainTabs.SelectedIndex = 1;
+                OpenSetupAtRecommendedStep();
             }
         }
         finally
@@ -952,7 +1277,8 @@ public partial class MainWindow : Window
             _services.ActivityLog.Info("Saved Discord webhook removed.");
             PopulateControls();
             RefreshStatus();
-            MainTabs.SelectedIndex = 1;
+            NavigateTo(1);
+            SetSetupStep(2);
         }
         finally
         {
@@ -993,7 +1319,7 @@ public partial class MainWindow : Window
             {
                 ShowMessage(
                     _services.SteamMonitorCoordinator.LastError ??
-                    "Steam monitoring could not start. Reinstall Achievement Relay if Diagnostics reports that the component is missing.",
+                    "Steam monitoring could not start. Reinstall Achievement Relay if Help & support reports that the component is missing.",
                     MessageBoxImage.Warning);
                 return;
             }
@@ -1023,15 +1349,15 @@ public partial class MainWindow : Window
 
         if (!TryGetOpenXblApiKey(out _) || string.IsNullOrWhiteSpace(_settings.XboxUserId))
         {
-            ShowMessage("Connect the Xbox account in Guided setup before syncing.", MessageBoxImage.Warning);
-            MainTabs.SelectedIndex = 1;
+            ShowMessage("Connect the Xbox account in Setup before syncing.", MessageBoxImage.Warning);
+            GoToXboxSetup_Click(sender, e);
             return;
         }
 
         if (!TryGetWebhook(out _))
         {
             ShowMessage("Connect the Discord webhook before syncing so new achievements have a destination.", MessageBoxImage.Warning);
-            MainTabs.SelectedIndex = 1;
+            GoToDiscordSetup_Click(sender, e);
             return;
         }
 
@@ -1119,7 +1445,7 @@ public partial class MainWindow : Window
     {
         Dispatcher.InvokeAsync(() =>
         {
-            ApplyUpdateState(snapshot);
+            RefreshStatus();
             _ = ApplyUpdatePolicyAsync(snapshot);
         });
     }
@@ -1306,6 +1632,8 @@ public partial class MainWindow : Window
     {
         UpdateBannerActionButton.IsEnabled = enabled;
         AboutUpdateActionButton.IsEnabled = enabled;
+        HomePrimaryActionButton.IsEnabled =
+            !string.Equals(HomePrimaryActionButton.Tag as string, "update", StringComparison.Ordinal) || enabled;
     }
 
     private static string FormatUpdateStatus(AppUpdateSnapshot snapshot) => snapshot.Stage switch

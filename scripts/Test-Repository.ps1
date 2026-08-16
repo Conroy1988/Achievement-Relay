@@ -60,7 +60,13 @@ $requiredFiles = @(
     'src\AchievementRelay.App\Assets\AchievementRelay.ico',
     'src\AchievementRelay.App\Assets\RelayCommandDeck.png',
     'src\AchievementRelay.App\Assets\TrophyCup.png',
-    'src\AchievementRelay.App\Assets\RadarSweep.png'
+    'src\AchievementRelay.App\Assets\RadarSweep.png',
+    'src\AchievementRelay.App\Assets\Xbox.png',
+    'src\AchievementRelay.App\Assets\Steam.png',
+    'src\AchievementRelay.App\Assets\Discord.png',
+    'assets\third-party\platform-icons\xbox.svg',
+    'assets\third-party\platform-icons\steam.svg',
+    'assets\third-party\platform-icons\discord.svg'
 )
 
 foreach ($relativePath in $requiredFiles) {
@@ -206,6 +212,22 @@ if (-not $mainWindowText.Contains('SteamMonitorCoordinator.StatusChanged') -or
     -not $mainWindowXaml.Contains('SettingsSteamEnabledCheckBox') -or
     -not $mainWindowXaml.Contains('x:Name="SteamStatusText"')) {
     throw 'Steam setup, settings, refresh and live dashboard status controls are incomplete.'
+}
+if (-not $mainWindowXaml.Contains('x:Name="HomePrimaryActionButton"') -or
+    -not $mainWindowXaml.Contains('x:Name="SetupSteps"') -or
+    -not $mainWindowXaml.Contains('Step 1 of 4') -or
+    -not $mainWindowXaml.Contains('Click="SetupNextFromSources_Click"') -or
+    -not $mainWindowXaml.Contains('Click="SetupNextFromDiscord_Click"') -or
+    -not $mainWindowXaml.Contains('Click="HomePrimaryAction_Click"') -or
+    -not $mainWindowXaml.Contains('Assets/Xbox.png') -or
+    -not $mainWindowXaml.Contains('Assets/Steam.png') -or
+    -not $mainWindowXaml.Contains('Assets/Discord.png') -or
+    -not $mainWindowXaml.Contains('Help &amp; support') -or
+    -not $mainWindowXaml.Contains('Support on Ko-fi') -or
+    -not $mainWindowText.Contains('ApplyHomeState(') -or
+    -not $mainWindowText.Contains('OpenSetupAtRecommendedStep()') -or
+    -not $mainWindowText.Contains('UpdateNavigationState()')) {
+    throw 'The simplified home, four-step setup, platform identity, support, and navigation experience is incomplete.'
 }
 
 $openXblParserText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.Core\Services\OpenXblResponseParser.cs') -Raw

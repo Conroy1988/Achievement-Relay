@@ -42,7 +42,7 @@ No Xbox password, Microsoft password, Steam API key, Discord bot, public Achieve
 1. Download `AchievementRelay_Setup.exe` from the [latest GitHub Release](https://github.com/Conroy1988/Achievement-Relay/releases/latest).
 2. In the installer, choose either:
    - **Connect Discord now; add OpenXBL optionally** — paste the required webhook and, if using Xbox, your OpenXBL key; or
-   - **Skip — I will do this later** — the app opens at Guided setup.
+   - **Skip — I will do this later** — the app opens at Setup.
 3. Choose whether to create a desktop shortcut and install.
 4. On first launch, the app securely stores supplied secrets, verifies Discord and optional Xbox, and starts keyless Steam detection.
 5. Leave Achievement Relay in the notification area while playing. Steam unlocks are observed locally; Xbox unlocks normally post within about one minute plus provider delay.
@@ -117,7 +117,7 @@ Original artwork and licensed interface assets are documented in [Third-party ar
 
 ## Support the project
 
-Achievement Relay is free and open source. If it makes sharing your unlocks easier, [support future development on Ko-fi](https://ko-fi.com/D4P124RWI9). The link is also available in the app's About screen; contributions are appreciated, never required.
+Achievement Relay is free and open source. If it makes sharing your unlocks easier, [support future development on Ko-fi](https://ko-fi.com/D4P124RWI9). The link is also available in the app's sidebar and **Help & support** screen; contributions are appreciated, never required.
 
 ## References
 

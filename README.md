@@ -11,7 +11,7 @@ Relay new Xbox and local Steam achievements to Discord from one secure Windows t
 [![Community & Support](https://img.shields.io/badge/Discord-Community%20%26%20Support-5865F2?logo=discord&logoColor=white)](https://discord.gg/3ZdXhYjgDm)
 [![Support on Ko-fi](https://img.shields.io/badge/Ko--fi-Support-D72B32?logo=ko-fi&logoColor=white)](https://ko-fi.com/D4P124RWI9)
 
-[**Download for Windows**](https://github.com/Conroy1988/Achievement-Relay/releases/latest/download/AchievementRelay_Setup.exe) · [Getting started](GETTING_STARTED.md) · [Release notes](docs/RELEASE-NOTES-0.4.2.md) · [Accessibility](docs/ACCESSIBILITY.md) · [Community & Support](https://discord.gg/3ZdXhYjgDm)
+[**Download for Windows**](https://github.com/Conroy1988/Achievement-Relay/releases/latest/download/AchievementRelay_Setup.exe) · [Getting started](GETTING_STARTED.md) · [Release notes](docs/RELEASE-NOTES-0.4.3.md) · [Accessibility](docs/ACCESSIBILITY.md) · [Community & Support](https://discord.gg/3ZdXhYjgDm)
 
 ![Achievement Relay v0.4.0 command-red interface](docs/images/achievement-relay-interface.png)
 
@@ -30,7 +30,7 @@ Achievement Relay watches the Xbox account you connect and the Steam game runnin
 
 > **v0.4.1 readability update:** the app now keeps every content surface dark under Windows light mode, explicitly protects card/list foregrounds, improves hover, disabled and keyboard-focus states, and enforces its measured contrast palette in CI. See the [v0.4.1 release notes](docs/RELEASE-NOTES-0.4.1.md) and [accessibility audit](docs/ACCESSIBILITY.md).
 
-> **v0.4.2 relay-safety update:** verified updaters now open silently, while Xbox device handoffs and long monitoring gaps reconcile inactive-period progress without replaying it to Discord. See the [v0.4.2 release notes](docs/RELEASE-NOTES-0.4.2.md).
+> **v0.4.3 startup hotfix:** every visible launch—including the verified updater relaunch—now selects and renders Home deterministically instead of exposing an empty dark content surface. See the [v0.4.3 release notes](docs/RELEASE-NOTES-0.4.3.md).
 
 - A complete high-contrast **command-red** interface with clearer status, setup, activity, settings, and help screens.
 - A new Achievement Relay shield-and-trophy identity across the app, installer, Windows package, and GitHub project.
@@ -39,7 +39,7 @@ Achievement Relay watches the Xbox account you connect and the Steam game runnin
 - The CRNY **Relay Online** soundtrack at a fixed 10% volume with Play/Pause and a direct [SoundCloud link](https://soundcloud.com/daniel-conroy-224318319/crny-relay-online); fresh installs may play it, while updaters start muted until **Play music** is selected.
 - Local, keyless Steam monitoring alongside the existing Xbox relay, with strict anti-backlog rules for both sources.
 
-See the [v0.4.2 relay-safety notes](docs/RELEASE-NOTES-0.4.2.md), [v0.4.1 accessibility notes](docs/RELEASE-NOTES-0.4.1.md), [v0.4.0 launch notes](docs/RELEASE-NOTES-0.4.0.md), and [changelog](CHANGELOG.md).
+See the [v0.4.3 startup-hotfix notes](docs/RELEASE-NOTES-0.4.3.md), [v0.4.2 relay-safety notes](docs/RELEASE-NOTES-0.4.2.md), [v0.4.1 accessibility notes](docs/RELEASE-NOTES-0.4.1.md), [v0.4.0 launch notes](docs/RELEASE-NOTES-0.4.0.md), and [changelog](CHANGELOG.md).
 
 > [!IMPORTANT]
 > **Moving from a pre-official 0.3.x updater test:** install v0.4.0 once from this repository's official release page. The 0.3.x test builds used an intentionally temporary signing identity whose private key was destroyed, so they cannot authenticate the new permanent release channel. Your encrypted connections, settings, baselines, pending deliveries, and preferences remain in place. Automatic verified updates take over from v0.4.0 onward.
@@ -112,7 +112,7 @@ dotnet restore .\AchievementRelay.sln
 dotnet build .\AchievementRelay.sln --configuration Release
 dotnet run --project .\tests\AchievementRelay.Core.Tests --configuration Release
 .\scripts\Test-Repository.ps1
-.\scripts\Build-Release.ps1 -Version 0.4.2.0
+.\scripts\Build-Release.ps1 -Version 0.4.3.0
 ```
 
 Maintainer instructions are in [Release Process](docs/RELEASING.md). Detailed reliability and provider research is available in [OpenXBL reliability](docs/OPENXBL-RELIABILITY.md) and [Steam integration](docs/STEAM-INTEGRATION.md).

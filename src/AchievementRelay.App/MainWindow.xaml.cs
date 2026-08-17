@@ -71,7 +71,13 @@ public partial class MainWindow : Window
         ApplyUpdateState(_services.UpdateService.Snapshot);
         RefreshStatus();
         UpdateSetupProgress();
-        UpdateNavigationState();
+        NavigateTo(0);
+    }
+
+    public void ShowHome()
+    {
+        NavigateTo(0);
+        Show();
     }
 
     public void ShowSetup()
@@ -445,7 +451,14 @@ public partial class MainWindow : Window
     private void OnWindowLoaded(object sender, RoutedEventArgs e)
     {
         RefreshStatus();
-        UpdateNavigationState();
+        if (MainTabs.SelectedIndex < 0)
+        {
+            NavigateTo(0);
+        }
+        else
+        {
+            UpdateNavigationState();
+        }
         UpdateSetupProgress();
     }
 
@@ -515,7 +528,7 @@ public partial class MainWindow : Window
 
     private void PopulateControls()
     {
-        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.4.2";
+        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.4.3";
         AboutVersionText.Text = $"Version {version}";
 
         var xboxConfigured = TryGetOpenXblApiKey(out _) && !string.IsNullOrWhiteSpace(_settings.XboxUserId);

@@ -6,6 +6,14 @@ All notable changes to Achievement Relay are documented here. The project follow
 
 No changes yet.
 
+## [0.4.3] - 2026-08-17
+
+### Fixed
+
+- Made Home the deterministic initial route in XAML, window construction and every normal visible launch, fixing the empty dark content surface that could appear after an updater relaunch
+- Added a loaded-window recovery fallback when WPF reports no selected content tab, while preserving intentional Guided Setup and required-update navigation
+- Added a repository regression guard that requires the complete startup-to-Home contract
+
 ## [0.4.2] - 2026-08-17
 
 ### Fixed
@@ -180,7 +188,8 @@ No changes yet.
 - x64/Arm64 MSIX packaging, installer scripts, development signing, CI, and tagged release workflow
 - User, privacy, security, troubleshooting, architecture, contributor, and release documentation
 
-[Unreleased]: https://github.com/Conroy1988/Achievement-Relay/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/Conroy1988/Achievement-Relay/compare/v0.4.3...HEAD
+[0.4.3]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.4.3
 [0.4.2]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.4.2
 [0.4.1]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.4.1
 [0.4.0]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.4.0

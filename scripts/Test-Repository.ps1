@@ -68,7 +68,7 @@ function Get-ThemeColor {
 
 $manifestPath = Join-Path $repositoryRoot 'src\AchievementRelay.Package\AppxManifest.xml'
 $manifestText = Get-Content -LiteralPath $manifestPath -Raw
-$manifestText = $manifestText.Replace('__VERSION__', '0.4.2.0').Replace('__ARCHITECTURE__', 'x64')
+$manifestText = $manifestText.Replace('__VERSION__', '0.4.3.0').Replace('__ARCHITECTURE__', 'x64')
 [xml] $manifest = $manifestText
 
 $namespaceManager = [System.Xml.XmlNamespaceManager]::new($manifest.NameTable)
@@ -117,6 +117,7 @@ $requiredFiles = @(
     'docs\RELEASE-NOTES-0.4.0.md',
     'docs\RELEASE-NOTES-0.4.1.md',
     'docs\RELEASE-NOTES-0.4.2.md',
+    'docs\RELEASE-NOTES-0.4.3.md',
     'docs\ACCESSIBILITY.md',
     'docs\images\achievement-relay-banner.png',
     'docs\images\achievement-relay-interface.png',
@@ -286,6 +287,10 @@ if (-not $importerText.Contains('var hasApiKey = !string.IsNullOrWhiteSpace(pend
 $mainWindowText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\MainWindow.xaml.cs') -Raw
 $mainWindowXaml = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\MainWindow.xaml') -Raw
 $appThemeXaml = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\App.xaml') -Raw
+$appStartupText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\App.xaml.cs') -Raw
+$mainWindowConstructor = [regex]::Match(
+    $mainWindowText,
+    '(?ms)^    public MainWindow\(AppServices services, AppSettings settings\).*?^    \}')
 if (-not $mainWindowText.Contains('PopulateSecretControls()') -or
     -not $mainWindowText.Contains('ToggleSecretVisibility(') -or
     -not $mainWindowXaml.Contains('SetupXboxApiKeyRevealTextBox') -or
@@ -322,6 +327,16 @@ if (-not $mainWindowXaml.Contains('x:Name="HomePrimaryActionButton"') -or
     -not $mainWindowText.Contains('OpenSetupAtRecommendedStep()') -or
     -not $mainWindowText.Contains('UpdateNavigationState()')) {
     throw 'The simplified home, four-step setup, platform identity, support, and navigation experience is incomplete.'
+}
+if (-not [regex]::IsMatch(
+        $mainWindowXaml,
+        'x:Name="MainTabs"[\s\S]*?SelectedIndex="0"[\s\S]*?<TabControl\.Resources>') -or
+    -not $mainWindowConstructor.Success -or
+    -not $mainWindowConstructor.Value.Contains('NavigateTo(0);') -or
+    -not $mainWindowText.Contains('public void ShowHome()') -or
+    -not $mainWindowText.Contains('if (MainTabs.SelectedIndex < 0)') -or
+    ([regex]::Matches($appStartupText, '_mainWindow\.ShowHome\(\);')).Count -lt 2) {
+    throw 'Every visible app launch, including the updater relaunch, must select and render the Home page instead of an empty command surface.'
 }
 if (-not $appThemeXaml.Contains('<Color x:Key="BackgroundColor">#07090A</Color>') -or
     -not $appThemeXaml.Contains('<Color x:Key="TextColor">#F4F1EB</Color>') -or
@@ -619,7 +634,7 @@ if (-not $releaseWorkflowText.Contains("'.exe'") -or
     -not $releaseWorkflowText.Contains('Cert:\LocalMachine\TrustedPeople') -or
     -not $releaseWorkflowText.Contains('http://timestamp.digicert.com') -or
     -not $releaseWorkflowText.Contains('AchievementRelay.Publisher.cer') -or
-    -not $releaseWorkflowText.Contains('default: v0.4.2') -or
+    -not $releaseWorkflowText.Contains('default: v0.4.3') -or
     -not $releaseWorkflowText.Contains('publish_release:') -or
     -not $releaseWorkflowText.Contains('Retain signed release candidate') -or
     -not $releaseWorkflowText.Contains('RELEASE-NOTES-$version.md')) {
@@ -693,11 +708,11 @@ $bridgeProjectText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\Ac
 if ($officialUpdatePolicy.schemaVersion -ne 1 -or
     $officialUpdatePolicy.minimumSupportedVersion -cne '0.4.0' -or
     @($officialUpdatePolicy.additionalPublisherCertificateSha256).Count -ne 0 -or
-    -not $appProjectText.Contains('<Version>0.4.2</Version>') -or
-    -not $appProjectText.Contains('<FileVersion>0.4.2.0</FileVersion>') -or
-    -not $bridgeProjectText.Contains('<Version>0.4.2</Version>') -or
-    -not $bridgeProjectText.Contains('<FileVersion>0.4.2.0</FileVersion>')) {
-    throw 'The v0.4.2 application and Steam bridge must retain the official v0.4.0 update baseline.'
+    -not $appProjectText.Contains('<Version>0.4.3</Version>') -or
+    -not $appProjectText.Contains('<FileVersion>0.4.3.0</FileVersion>') -or
+    -not $bridgeProjectText.Contains('<Version>0.4.3</Version>') -or
+    -not $bridgeProjectText.Contains('<FileVersion>0.4.3.0</FileVersion>')) {
+    throw 'The v0.4.3 application and Steam bridge must retain the official v0.4.0 update baseline.'
 }
 
 $liveUpdatePolicy = Get-Content -LiteralPath (Join-Path $repositoryRoot 'release\live-update-test-policy.json') -Raw |
@@ -723,7 +738,6 @@ if ($liveUpdatePolicy.schemaVersion -ne 1 -or
 
 $updatePolicyText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.Core\Services\UpdatePolicy.cs') -Raw
 $appUpdateText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\AppUpdateService.cs') -Raw
-$appStartupText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\App.xaml.cs') -Raw
 $installerTrustText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\InstallerTrustVerifier.cs') -Raw
 $manifestTrustText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.Core\Services\UpdateManifestSignatureVerifier.cs') -Raw
 $buildReleaseText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'scripts\Build-Release.ps1') -Raw
@@ -765,9 +779,9 @@ if (-not $updatePolicyText.Contains('minimum supported version') -or
 }
 
 $ciWorkflowText = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github\workflows\ci.yml') -Raw
-if (-not $ciWorkflowText.Contains('0.4.1.${{ github.run_number }}') -or
-    -not $ciWorkflowText.Contains('APPLICATION_VERSION: "0.4.2"') -or
-    -not $ciWorkflowText.Contains('AchievementRelay-v0.4.2-r${{ github.run_number }}-windows-test') -or
+if (-not $ciWorkflowText.Contains('0.4.2.${{ github.run_number }}') -or
+    -not $ciWorkflowText.Contains('APPLICATION_VERSION: "0.4.3"') -or
+    -not $ciWorkflowText.Contains('AchievementRelay-v0.4.3-r${{ github.run_number }}-windows-test') -or
     -not $ciWorkflowText.Contains('-ApplicationVersion $env:APPLICATION_VERSION') -or
     -not $ciWorkflowText.Contains('artifacts/AchievementRelay_Update.json') -or
     -not $ciWorkflowText.Contains('artifacts/AchievementRelay_Update.sig') -or

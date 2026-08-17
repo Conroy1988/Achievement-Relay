@@ -13,8 +13,8 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 30
     env:
-      TEST_MSIX_VERSION: "0.4.1.${{ github.run_number }}"
-      APPLICATION_VERSION: "0.4.2"
+      TEST_MSIX_VERSION: "0.4.2.${{ github.run_number }}"
+      APPLICATION_VERSION: "0.4.3"
 
     steps:
       - name: Check out source
@@ -54,7 +54,7 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
-          name: AchievementRelay-v0.4.2-r${{ github.run_number }}-windows-test
+          name: AchievementRelay-v0.4.3-r${{ github.run_number }}-windows-test
           path: |
             artifacts/AchievementRelay_Setup.exe
             artifacts/AchievementRelay_${{ env.TEST_MSIX_VERSION }}_x64.msix

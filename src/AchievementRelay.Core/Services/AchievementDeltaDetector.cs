@@ -100,10 +100,10 @@ public static class AchievementDeltaDetector
             // unusable timestamps are eligible only when the coordinator has
             // durable proof that the count change was first observed after a
             // successful poll in an uninterrupted live session.
-            var latestAcceptedTime = observedAt + futureClockTolerance;
+            var latestAcceptedIdentityTime = observedAt + futureClockTolerance;
             var deliverable = OrderForDelivery(newlyObserved.Where(achievement =>
                 achievement.UnlockedAt is { } unlockedAt
-                    ? unlockedAt > deliveryEpochUtc && unlockedAt <= latestAcceptedTime
+                    ? unlockedAt > deliveryEpochUtc && unlockedAt <= latestAcceptedIdentityTime
                     : allowUntimestampedIdentityDelta));
             var historical = newlyObserved.Length - deliverable.Count;
 

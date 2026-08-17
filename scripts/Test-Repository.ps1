@@ -68,7 +68,7 @@ function Get-ThemeColor {
 
 $manifestPath = Join-Path $repositoryRoot 'src\AchievementRelay.Package\AppxManifest.xml'
 $manifestText = Get-Content -LiteralPath $manifestPath -Raw
-$manifestText = $manifestText.Replace('__VERSION__', '0.4.1.0').Replace('__ARCHITECTURE__', 'x64')
+$manifestText = $manifestText.Replace('__VERSION__', '0.4.2.0').Replace('__ARCHITECTURE__', 'x64')
 [xml] $manifest = $manifestText
 
 $namespaceManager = [System.Xml.XmlNamespaceManager]::new($manifest.NameTable)
@@ -116,6 +116,7 @@ $requiredFiles = @(
     'docs\LIVE-UPDATE-TEST.md',
     'docs\RELEASE-NOTES-0.4.0.md',
     'docs\RELEASE-NOTES-0.4.1.md',
+    'docs\RELEASE-NOTES-0.4.2.md',
     'docs\ACCESSIBILITY.md',
     'docs\images\achievement-relay-banner.png',
     'docs\images\achievement-relay-interface.png',
@@ -126,6 +127,7 @@ $requiredFiles = @(
     'src\AchievementRelay.Core\Services\SteamRarityResponseParser.cs',
     'src\AchievementRelay.Core\Services\RgbaPngEncoder.cs',
     'src\AchievementRelay.Core\Services\UpdatePolicy.cs',
+    'src\AchievementRelay.Core\Services\XboxDeliveryWindowPolicy.cs',
     'src\AchievementRelay.Core\Models\UpdateManifest.cs',
     'third_party\Facepunch.Steamworks.LICENSE.txt',
     'third_party\packages\Facepunch.Steamworks.2.5.2.nupkg',
@@ -196,6 +198,9 @@ if (-not $installerText.Contains('CRNY - Relay Online.mp3"; Flags: dontcopy noen
     -not $installerText.Contains("play ' + MusicAlias + ' repeat") -or
     -not $installerText.Contains("pause ' + MusicAlias") -or
     -not $installerText.Contains("resume ' + MusicAlias") -or
+    -not $installerText.Contains('StartInstallerMusic(not UpdateMode)') -or
+    -not $installerText.Contains('MarkMusicReadyMuted') -or
+    -not $installerText.Contains('no audio backend will start until Play music is selected') -or
     -not $installerText.Contains('procedure DeinitializeSetup') -or
     -not $installerText.Contains('https://soundcloud.com/daniel-conroy-224318319/crny-relay-online')) {
     throw 'The installer soundtrack must remain temporary, local, limited to 10%, controllable, looped, and linked to CRNY on SoundCloud through independent primary and fallback playback paths.'
@@ -455,17 +460,26 @@ if (-not $openXblClientText.Contains('MaximumTitleDetailRequestsPerOperation = 1
 }
 
 $deltaDetectorText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.Core\Services\AchievementDeltaDetector.cs') -Raw
+$deliveryWindowPolicyText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.Core\Services\XboxDeliveryWindowPolicy.cs') -Raw
+$syncWorkText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.Core\Models\XboxTitleSyncWork.cs') -Raw
 $syncStateText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\XboxSyncStateStore.cs') -Raw
 if (-not $openXblParserText.Contains('DateTimeOffset? unlockedAt = null') -or
     -not $openXblParserText.Contains('UnlockTimeEstimated = unlockedAt is null') -or
     -not $deltaDetectorText.Contains('previousAchievementIds') -or
-    -not $deltaDetectorText.Contains('monitoringBaselineUtc') -or
-    -not $deltaDetectorText.Contains('provenPostBaseline') -or
+    -not $deltaDetectorText.Contains('deliveryEpochUtc') -or
+    -not $deltaDetectorText.Contains('allowUntimestampedIdentityDelta') -or
+    -not $deltaDetectorText.Contains('provenLive') -or
     $deltaDetectorText.Contains('previousReportedGamerscore') -or
     $deltaDetectorText.Contains('AttributeByCountAndGamerscore') -or
     $deltaDetectorText.Contains('FindUniqueGamerscoreCombination') -or
-    -not $syncStateText.Contains('CurrentSchemaVersion = 5') -or
+    -not $deliveryWindowPolicyText.Contains('MinimumContinuity = TimeSpan.FromMinutes(10)') -or
+    -not $deliveryWindowPolicyText.Contains('elapsed < TimeSpan.Zero || elapsed > continuityLimit') -or
+    -not $syncWorkText.Contains('LiveDeliveryEpochUtc') -or
+    -not $syncWorkText.Contains('AllowsUntimestampedDelivery') -or
+    -not $syncStateText.Contains('CurrentSchemaVersion = 6') -or
     -not $syncStateText.Contains('sourceSchemaVersion') -or
+    -not $syncStateText.Contains('sourceSchemaVersion >= 6') -or
+    -not $syncStateText.Contains('hasValidLiveEvidence') -or
     -not $syncStateText.Contains('UnlockedAchievementIds') -or
     -not $syncStateText.Contains('PendingTitles') -or
     -not $syncStateText.Contains('LastBackgroundWorkUtc') -or
@@ -476,10 +490,14 @@ if (-not $openXblParserText.Contains('DateTimeOffset? unlockedAt = null') -or
     -not $relayCoordinatorText.Contains('ShouldPauseAllOpenXblWork') -or
     -not $relayCoordinatorText.Contains('if (selectedWork is null && backgroundWorkDue)') -or
     -not $relayCoordinatorText.Contains('AchievementDeltaDetector.Detect') -or
+    -not $relayCoordinatorText.Contains('XboxDeliveryWindowPolicy.Resolve') -or
+    -not $relayCoordinatorText.Contains('selectedWork.LiveDeliveryEpochUtc ?? deliveryWindow.EpochUtc') -or
+    -not $relayCoordinatorText.Contains('selectedWork.AllowsUntimestampedDelivery') -or
+    -not $relayCoordinatorText.Contains('prevent cross-device reposts') -or
     -not $relayCoordinatorText.Contains('var hydrationTitle =') -or
     -not $relayCoordinatorText.Contains('Nothing historical was sent to Discord') -or
     $relayCoordinatorText.Contains('no new timestamped achievement is available yet')) {
-    throw 'Achievement polling must silently baseline unverified history and post only proven post-baseline or identity-new unlocks.'
+    throw 'Achievement polling must silently reconcile inactive-device history and post only unlocks proven inside a continuous live-delivery window.'
 }
 
 $discordClientText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\DiscordWebhookClient.cs') -Raw
@@ -601,6 +619,7 @@ if (-not $releaseWorkflowText.Contains("'.exe'") -or
     -not $releaseWorkflowText.Contains('Cert:\LocalMachine\TrustedPeople') -or
     -not $releaseWorkflowText.Contains('http://timestamp.digicert.com') -or
     -not $releaseWorkflowText.Contains('AchievementRelay.Publisher.cer') -or
+    -not $releaseWorkflowText.Contains('default: v0.4.2') -or
     -not $releaseWorkflowText.Contains('publish_release:') -or
     -not $releaseWorkflowText.Contains('Retain signed release candidate') -or
     -not $releaseWorkflowText.Contains('RELEASE-NOTES-$version.md')) {
@@ -674,11 +693,11 @@ $bridgeProjectText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\Ac
 if ($officialUpdatePolicy.schemaVersion -ne 1 -or
     $officialUpdatePolicy.minimumSupportedVersion -cne '0.4.0' -or
     @($officialUpdatePolicy.additionalPublisherCertificateSha256).Count -ne 0 -or
-    -not $appProjectText.Contains('<Version>0.4.1</Version>') -or
-    -not $appProjectText.Contains('<FileVersion>0.4.1.0</FileVersion>') -or
-    -not $bridgeProjectText.Contains('<Version>0.4.1</Version>') -or
-    -not $bridgeProjectText.Contains('<FileVersion>0.4.1.0</FileVersion>')) {
-    throw 'The v0.4.1 application and Steam bridge must retain the official v0.4.0 update baseline.'
+    -not $appProjectText.Contains('<Version>0.4.2</Version>') -or
+    -not $appProjectText.Contains('<FileVersion>0.4.2.0</FileVersion>') -or
+    -not $bridgeProjectText.Contains('<Version>0.4.2</Version>') -or
+    -not $bridgeProjectText.Contains('<FileVersion>0.4.2.0</FileVersion>')) {
+    throw 'The v0.4.2 application and Steam bridge must retain the official v0.4.0 update baseline.'
 }
 
 $liveUpdatePolicy = Get-Content -LiteralPath (Join-Path $repositoryRoot 'release\live-update-test-policy.json') -Raw |
@@ -746,9 +765,9 @@ if (-not $updatePolicyText.Contains('minimum supported version') -or
 }
 
 $ciWorkflowText = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github\workflows\ci.yml') -Raw
-if (-not $ciWorkflowText.Contains('0.4.0.${{ github.run_number }}') -or
-    -not $ciWorkflowText.Contains('APPLICATION_VERSION: "0.4.1"') -or
-    -not $ciWorkflowText.Contains('AchievementRelay-v0.4.1-r${{ github.run_number }}-windows-test') -or
+if (-not $ciWorkflowText.Contains('0.4.1.${{ github.run_number }}') -or
+    -not $ciWorkflowText.Contains('APPLICATION_VERSION: "0.4.2"') -or
+    -not $ciWorkflowText.Contains('AchievementRelay-v0.4.2-r${{ github.run_number }}-windows-test') -or
     -not $ciWorkflowText.Contains('-ApplicationVersion $env:APPLICATION_VERSION') -or
     -not $ciWorkflowText.Contains('artifacts/AchievementRelay_Update.json') -or
     -not $ciWorkflowText.Contains('artifacts/AchievementRelay_Update.sig') -or

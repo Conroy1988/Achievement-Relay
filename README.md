@@ -11,7 +11,7 @@ Relay new Xbox and local Steam achievements to Discord from one secure Windows t
 [![Community & Support](https://img.shields.io/badge/Discord-Community%20%26%20Support-5865F2?logo=discord&logoColor=white)](https://discord.gg/3ZdXhYjgDm)
 [![Support on Ko-fi](https://img.shields.io/badge/Ko--fi-Support-D72B32?logo=ko-fi&logoColor=white)](https://ko-fi.com/D4P124RWI9)
 
-[**Download for Windows**](https://github.com/Conroy1988/Achievement-Relay/releases/latest/download/AchievementRelay_Setup.exe) · [Getting started](GETTING_STARTED.md) · [Release notes](docs/RELEASE-NOTES-0.4.1.md) · [Accessibility](docs/ACCESSIBILITY.md) · [Community & Support](https://discord.gg/3ZdXhYjgDm)
+[**Download for Windows**](https://github.com/Conroy1988/Achievement-Relay/releases/latest/download/AchievementRelay_Setup.exe) · [Getting started](GETTING_STARTED.md) · [Release notes](docs/RELEASE-NOTES-0.4.2.md) · [Accessibility](docs/ACCESSIBILITY.md) · [Community & Support](https://discord.gg/3ZdXhYjgDm)
 
 ![Achievement Relay v0.4.0 command-red interface](docs/images/achievement-relay-interface.png)
 
@@ -19,7 +19,7 @@ Relay new Xbox and local Steam achievements to Discord from one secure Windows t
 
 Achievement Relay watches the Xbox account you connect and the Steam game running on your PC. When it can prove an achievement is new, it sends a rich post to the Discord channel you choose.
 
-- **Xbox:** checks your account through your own [OpenXBL](https://xbl.io) API key and can recover achievements earned while the app was closed.
+- **Xbox:** checks your account through your own [OpenXBL](https://xbl.io) API key and relays unlocks proven during the current live monitoring session.
 - **Steam:** reads the signed-in local Steam client's achievement state through an isolated, read-only bridge. No Steam Web API key, Steam64 ID, or Steam password is required.
 - **Discord:** sends achievement name, game, platform, rarity, description, unlock time, player name, and artwork when available.
 - **Safe by default:** first observations become silent baselines, so installing or upgrading cannot dump years of old achievements into Discord.
@@ -30,14 +30,16 @@ Achievement Relay watches the Xbox account you connect and the Steam game runnin
 
 > **v0.4.1 readability update:** the app now keeps every content surface dark under Windows light mode, explicitly protects card/list foregrounds, improves hover, disabled and keyboard-focus states, and enforces its measured contrast palette in CI. See the [v0.4.1 release notes](docs/RELEASE-NOTES-0.4.1.md) and [accessibility audit](docs/ACCESSIBILITY.md).
 
+> **v0.4.2 relay-safety update:** verified updaters now open silently, while Xbox device handoffs and long monitoring gaps reconcile inactive-period progress without replaying it to Discord. See the [v0.4.2 release notes](docs/RELEASE-NOTES-0.4.2.md).
+
 - A complete high-contrast **command-red** interface with clearer status, setup, activity, settings, and help screens.
 - A new Achievement Relay shield-and-trophy identity across the app, installer, Windows package, and GitHub project.
 - A featured **Community & Support** experience linking directly to the [TKB community Discord](https://discord.gg/3ZdXhYjgDm), while retaining Ko-fi support.
 - A verified self-updater that checks on launch and about every six hours, prepares optional updates quietly, and immediately handles authenticated required updates.
-- The same CRNY **Relay Online** soundtrack in installs and updates, locally played at 10% volume with Play/Pause and a direct [SoundCloud link](https://soundcloud.com/daniel-conroy-224318319/crny-relay-online).
+- The CRNY **Relay Online** soundtrack at a fixed 10% volume with Play/Pause and a direct [SoundCloud link](https://soundcloud.com/daniel-conroy-224318319/crny-relay-online); fresh installs may play it, while updaters start muted until **Play music** is selected.
 - Local, keyless Steam monitoring alongside the existing Xbox relay, with strict anti-backlog rules for both sources.
 
-See the [v0.4.1 accessibility release notes](docs/RELEASE-NOTES-0.4.1.md), [v0.4.0 launch notes](docs/RELEASE-NOTES-0.4.0.md), and [changelog](CHANGELOG.md).
+See the [v0.4.2 relay-safety notes](docs/RELEASE-NOTES-0.4.2.md), [v0.4.1 accessibility notes](docs/RELEASE-NOTES-0.4.1.md), [v0.4.0 launch notes](docs/RELEASE-NOTES-0.4.0.md), and [changelog](CHANGELOG.md).
 
 > [!IMPORTANT]
 > **Moving from a pre-official 0.3.x updater test:** install v0.4.0 once from this repository's official release page. The 0.3.x test builds used an intentionally temporary signing identity whose private key was destroyed, so they cannot authenticate the new permanent release channel. Your encrypted connections, settings, baselines, pending deliveries, and preferences remain in place. Automatic verified updates take over from v0.4.0 onward.
@@ -73,7 +75,9 @@ No Xbox password, Microsoft password, Steam account credential, Steam API key, D
 ### Detection boundaries
 
 - The first complete Xbox or Steam observation is a silent history baseline.
-- Xbox uses stable achievement identities after its baseline and can recover later unlocks observed after downtime.
+- Xbox begins a fresh live-delivery epoch whenever the app starts or resumes after a long interruption. Account progress from before that epoch is folded into the local identity baseline without posting, preventing a PC used later from replaying achievements already relayed by another device.
+- A timestamped Xbox unlock after the epoch remains eligible immediately. An untimestamped Xbox 360 unlock is eligible only after a successful poll in the same uninterrupted session; proven pending delivery evidence survives an updater/app restart.
+- Deduplication state is local and Achievement Relay has no hosted account service. Two PCs actively monitoring the same Xbox account at the same moment can still race, so keep Xbox relay monitoring active on only one PC at a time. Sequential device handoffs are protected by the fresh epoch above.
 - Steam posts only a locked-to-unlocked transition directly observed while the app is running, or Steam's completed-achievement callback from that helper session. Offline Steam history is deliberately folded into the next silent baseline.
 - Steam games must publish achievements through Steamworks. Steam monitoring on Arm64 requires Windows 11 x64 emulation; Xbox remains available on Windows 10 Arm64.
 - Xbox delivery is account polling rather than instant push: normal delay is approximately 0–60 seconds plus Xbox/OpenXBL propagation time.
@@ -108,7 +112,7 @@ dotnet restore .\AchievementRelay.sln
 dotnet build .\AchievementRelay.sln --configuration Release
 dotnet run --project .\tests\AchievementRelay.Core.Tests --configuration Release
 .\scripts\Test-Repository.ps1
-.\scripts\Build-Release.ps1 -Version 0.4.1.0
+.\scripts\Build-Release.ps1 -Version 0.4.2.0
 ```
 
 Maintainer instructions are in [Release Process](docs/RELEASING.md). Detailed reliability and provider research is available in [OpenXBL reliability](docs/OPENXBL-RELIABILITY.md) and [Steam integration](docs/STEAM-INTEGRATION.md).

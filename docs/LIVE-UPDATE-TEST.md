@@ -16,7 +16,7 @@ The previously published `v0.3.1` test is immutable. Its installed `0.3.0` updat
 1. Open the `v0.3.2` release and download `AchievementRelay_Baseline_Setup.exe`.
 2. Close the older app, run the bridge installer, and approve the one-time test-certificate trust prompt if Windows displays it.
 3. Let the bridge app open and do not press **Update now**. Confirm that it identifies `v0.3.2` as required, pauses monitoring, downloads and verifies it, then opens Setup automatically.
-4. Confirm the updater starts the CRNY soundtrack at 10% volume and provides Pause/Play plus the direct SoundCloud link.
+4. Confirm the updater opens silently with **Play music** available. Select it once, verify the CRNY soundtrack starts at 10% volume, then verify Pause/Play and the direct SoundCloud link.
 5. Cancel Setup once. Confirm the bridge remains open and paused, with no automatic relaunch loop.
 6. Select **Install update**, complete the updater, and confirm Achievement Relay reports v0.3.2.
 7. Confirm encrypted connections, preferences, activity state, startup behavior, and the desktop shortcut survive the update.

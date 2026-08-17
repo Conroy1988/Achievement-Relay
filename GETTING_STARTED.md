@@ -84,6 +84,12 @@ If Achievement Relay was closed when an achievement unlocked, that identity is s
 
 A Windows Notification Center toast is not required. The Xbox Game Bar overlay may be the only local pop-up and the relay can still work because the app checks the account feed.
 
+### Switching between PCs
+
+Every app start—and the first poll after a long sleep or network interruption—begins a fresh Xbox live-delivery epoch. Achievements already present before that point are recorded into that PC's local baseline without another Discord post. This prevents the normal device-handoff case: play on one device, then start a second PC later.
+
+Achievement Relay deliberately has no hosted account or cloud database, so separate PCs cannot take an atomic shared lock. Keep Xbox monitoring active on only one PC at a time; two simultaneously active PCs can still observe the same live account change before either knows about the other. A genuine pending delivery already proven live on one PC remains retryable across an app or updater restart.
+
 If nothing arrives:
 
 1. open **Help & support**;
@@ -109,7 +115,7 @@ This one-time manual signing transition preserves the encrypted Discord webhook,
 
 Achievement Relay checks the latest stable release on the official GitHub repository at startup and about every six hours. A normal newer release is optional. A release is required only when its reviewed, publisher-signed manifest raises `minimumSupportedVersion`; once that policy is successfully authenticated, Xbox and Steam monitoring pause until the update is installed. A failed, unsigned, tampered, or offline check never invents a requirement.
 
-Select **Update now** on Home or **Help & support**. The app downloads the exact GitHub release asset to `%LOCALAPPDATA%\AchievementRelay\Updates`, verifies its declared size, SHA-256, signed product/package versions, matching executable product/file versions, Windows Authenticode trust, and the publisher-certificate fingerprint pinned into the running build, then opens the branded updater. Because first installation trusted that same persistent certificate, normal later updates do not repeat the certificate-import prompt. The updater uses the same CRNY music at 10% volume with Play/Pause and the direct SoundCloud link. It keeps encrypted connections, settings, provider baselines, pending deliveries, startup behavior, and the existing desktop-shortcut choice. Cancelling before installation leaves the running app untouched.
+Select **Update now** on Home or **Help & support**, or let the automatic launch/update policy prepare it. The app downloads the exact GitHub release asset to `%LOCALAPPDATA%\AchievementRelay\Updates`, verifies its declared size, SHA-256, signed product/package versions, matching executable product/file versions, Windows Authenticode trust, and the publisher-certificate fingerprint pinned into the running build, then opens the branded updater. Because first installation trusted that same persistent certificate, normal later updates do not repeat the certificate-import prompt. The updater starts muted; **Play music** starts the same CRNY track at the fixed 10% volume, and Play/Pause plus the direct SoundCloud link remain available. It keeps encrypted connections, settings, provider baselines, pending deliveries, startup behavior, and the existing desktop-shortcut choice. Cancelling before installation leaves the running app untouched.
 
 ## What cannot be automated
 

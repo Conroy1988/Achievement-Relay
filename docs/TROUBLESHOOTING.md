@@ -96,12 +96,13 @@ No Windows Notification Center entry is required. Xbox can take time to add an o
 - Wait a few minutes and sync again; Xbox/OpenXBL can lag.
 - Confirm **Only post rare achievements** is disabled unless intended.
 - Remember that achievements older than the first connection baseline are intentionally not posted.
+- If the app had just started or resumed after a long interruption, progress from before that new live-delivery epoch was intentionally baselined without posting. This prevents another PC from replaying achievements already relayed elsewhere.
 
 ## Xbox 360 unlock has no timestamp
 
-Current builds do not require an OpenXBL timestamp to detect an achievement. Xbox 360/backward-compatible responses can report an achieved identity with a missing or `0001-01-01` time. Achievement Relay compares stable achievement IDs, posts the new identity with the detection time, and labels that time as estimated in Discord.
+Xbox 360/backward-compatible responses can report an achieved identity with a missing or `0001-01-01` time. Achievement Relay compares stable achievement IDs and can post a missing-time identity only when its count change was directly observed after a successful poll in the same uninterrupted live session. Discord then labels the detection time as estimated. A missing-time identity first found at app startup or after a long gap is baselined silently because it cannot be distinguished safely from another device's earlier unlock.
 
-When upgrading from a count-only build, or when OpenXBL reveals an old title that was absent from the original baseline page, the first complete detail response creates the identity baseline. Counts and Gamerscore never authorize a post. A usable timestamp strictly after the monitoring baseline may prove a genuinely new event; old, missing-time, sentinel-time, and otherwise unproven entries are stored silently. Later unlocks for that title are exact and timestamp-independent. A repeating backlog or “no new timestamped achievement” warning indicates an obsolete build; exit it from the notification area and install the latest official release.
+When upgrading from a count-only build, or when OpenXBL reveals an old title that was absent from the original baseline page, the first complete detail response creates the identity baseline. Counts and Gamerscore never authorize a post. A usable timestamp strictly after the current live-delivery epoch may prove a genuinely new event; old, missing-time, sentinel-time, and otherwise unproven entries are stored silently. A repeating backlog or “no new timestamped achievement” warning indicates an obsolete build; exit it from the notification area and install the latest official release.
 
 ## Installer-provided credentials need attention
 
@@ -121,7 +122,9 @@ Setup first attempts to close any Achievement Relay instance running in the curr
 
 ## Duplicate posts
 
-Successful event IDs are retained locally for 90 days, capped at 1,000. Do not delete `processed-events.json` during ordinary troubleshooting. If duplicates persist, include approximate unlock/post times and the redacted support summary in an issue.
+Successful event IDs are retained locally for 90 days, capped at 1,000. Do not delete `processed-events.json` during ordinary troubleshooting.
+
+From v0.4.2, every Xbox app start and long monitoring gap begins a fresh delivery epoch. Achievements unlocked before that point are silently reconciled, so starting a second PC later does not relay the first PC's achievements again. The ledger is not cloud-synced and Achievement Relay runs no hosted account service; keep Xbox monitoring active on only one PC at a time because two simultaneously active PCs can still race on the same live account change. If duplicates persist outside that simultaneous case, include approximate unlock/post times, which PCs were active, and the redacted support summary in an issue.
 
 ## Safe support report
 

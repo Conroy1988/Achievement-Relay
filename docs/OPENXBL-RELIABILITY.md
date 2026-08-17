@@ -45,7 +45,7 @@ The Windows acceptance cycle exposed each layer independently:
 
 These are distinct failure classes. A successful profile check is not proof of a readable title index, a readable title index is not proof of complete per-title details, and a complete detail list is not proof that every unlock has a timestamp.
 
-The live historical-flood regression established a stricter rule: uncertainty must cost a missed notification, never a backlog. The affected build was stopped immediately; its credentials and durable event ledger remain valid. Schema 4 introduced fail-closed identity repair; schema 5 retains that protection and adds a durable, paced detail queue so the repair cannot exhaust the provider allowance.
+The live historical-flood regression established a stricter rule: uncertainty must cost a missed notification, never a backlog. The affected build was stopped immediately; its credentials and durable event ledger remain valid. Schema 4 introduced fail-closed identity repair; schema 5 added a durable, paced detail queue; schema 6 adds restart-safe live-delivery proof and fresh epochs for device handoffs.
 
 ## Detection invariants
 
@@ -53,15 +53,16 @@ Achievement Relay uses these rules:
 
 1. **Identity, not time, defines an event.** The deterministic ID is a SHA-256 hash of a version marker, account XUID, service configuration, title ID, and achievement ID.
 2. **The durable per-title snapshot stores all currently unlocked identities.** A new unlock is the set difference between the current complete detail set and the previous set.
-3. **A missing or sentinel time never discards an achieved entry.** The app uses the observation time for the Discord embed and labels it as estimated.
+3. **A missing or sentinel time never discards an achieved entry.** It is retained in the stable-ID baseline. It can be delivered with an estimated observation time only when its summary change was directly observed after a successful poll in the same uninterrupted live session.
 4. **Summary/detail disagreement never advances state.** The parsed unlocked-identity count must exactly match title history; whether detail is behind or ahead, the poll retries until both views converge.
 5. **A failed Discord delivery never advances the title snapshot.** Already processed deterministic IDs remain in the ledger, so a retry does not repost earlier successes from the same poll.
 6. **Provider pages cannot erase history.** Titles absent from a later title-history response remain in local state; if they reappear, they are compared with their retained snapshot rather than treated as a new game.
-7. **Old installs and newly revealed titles fail closed.** Counts and Gamerscore never authorize a Discord post when a title has no verified identity set. Only a usable provider timestamp strictly after the app's monitoring baseline can prove such an event is new. Old, missing-time, sentinel-time, and otherwise unproven entries are stored silently as the title's complete identity baseline; later set differences are exact.
-8. **First connection is still a no-spam baseline.** Existing achievements are never posted merely because the app was installed.
-9. **Identity baselines are hydrated gradually.** A summary count, including zero, is never treated as a verified ID set. Historical queue work and unchanged baseline hydration share one background slot every 15 minutes and never run from a manual sync. Fresh and upgraded installs therefore converge without a provider burst.
-10. **Provider regressions cannot erase durable history.** Saved counts, Gamerscore, and identities do not shrink when a partial or changed provider representation reports less data. If a route suddenly represents more identities than the summary increase can explain, the app baselines the representation change instead of flooding historical achievements.
-11. **Request capacity is transactional too.** Each detail operation is capped at 12 requests, the process is capped at 120 requests per rolling hour, and provider remaining/reset headers can stop it earlier. Background history preserves a larger reserve than live monitoring, and no UI action bypasses the gate.
+7. **Old installs and newly revealed titles fail closed.** Counts and Gamerscore never authorize a Discord post when a title has no verified identity set. Only a usable provider timestamp strictly after the current live-delivery epoch can prove such an event is new. Old, missing-time, sentinel-time, and otherwise unproven entries are stored silently as the title's complete identity baseline; later set differences are exact.
+8. **Every app start and long interruption is a handoff boundary.** A fresh epoch silently reconciles progress from the inactive period, preventing a PC started later from replaying another device's posts. A backwards clock jump takes the same safe path.
+9. **First connection is still a no-spam baseline.** Existing achievements are never posted merely because the app was installed.
+10. **Identity baselines are hydrated gradually.** A summary count, including zero, is never treated as a verified ID set. Historical queue work and unchanged baseline hydration share one background slot every 15 minutes and never run from a manual sync. Fresh and upgraded installs therefore converge without a provider burst.
+11. **Provider regressions cannot erase durable history.** Saved counts, Gamerscore, and identities do not shrink when a partial or changed provider representation reports less data. If a route suddenly represents more identities than the summary increase can explain, the app baselines the representation change instead of flooding historical achievements.
+12. **Request capacity is transactional too.** Each detail operation is capped at 12 requests, the process is capped at 120 requests per rolling hour, and provider remaining/reset headers can stop it earlier. Background history preserves a larger reserve than live monitoring, and no UI action bypasses the gate.
 
 ## State and delivery transaction
 
@@ -78,7 +79,7 @@ For each one-minute poll:
 9. persist each processed event ID immediately; and
 10. commit that title's identity snapshot and remove its queue entry only after complete detail and required deliveries succeed.
 
-The queue is part of schema 5, so a restart cannot turn delayed work into an updated cursor or force the title index to reveal it again. Low-priority failure does not mark live monitoring as failed; the item remains queued. Priority failure remains visible because a potential new unlock is awaiting exact detail or Discord delivery.
+The queue is part of schema 5, and schema 6 adds its optional original live-delivery epoch plus untimestamped live-evidence flag. A restart cannot turn delayed work into an updated cursor or force the title index to reveal it again; a genuinely live failed delivery keeps its proof, while work migrated without proof fails closed. Low-priority failure does not mark live monitoring as failed; the item remains queued. Priority failure remains visible because a potential new unlock is awaiting exact detail or Discord delivery.
 
 The request gate counts attempts before transport because OpenXBL counts successful, failed, and cached HTTP requests. It permits at most 120 requests in any local rolling hour, even when allowance headers are missing. When `X-RateLimit-Remaining`/limit/reset or their standard equivalents are present, background work requires a 50-request free-plan reserve plus the full operation capacity, while essential work retains a final reserve. HTTP 429 uses the published hourly fallback only when no usable reset is supplied.
 
@@ -94,8 +95,9 @@ Discord webhooks do not provide an idempotency key. `wait=true`, deterministic l
 | HTTP 429 | No | Honor the full `Retry-After` or hourly fallback without repeated 15-minute probes |
 | Route 400/404 during negotiation | No | Try the next documented/compatible route |
 | Readable detail count differs from title index | No | Retry without moving the sync position |
-| Missing/sentinel unlock time with known ID baseline | Yes after delivery | Post with detected time labelled estimated |
-| Unverified title with a valid post-baseline timestamp | Yes after delivery | Post only the proven post-baseline event; baseline the full identity set |
+| Missing/sentinel unlock time with known ID baseline and direct live evidence | Yes after delivery | Post with detected time labelled estimated |
+| Missing/sentinel unlock time first seen at startup/after a gap | Yes, silent baseline | Reconcile the identity without posting |
+| Unverified title with a valid post-epoch timestamp | Yes after delivery | Post only the proven live event; baseline the full identity set |
 | Unverified title with old, missing, sentinel, or otherwise unproven times | Yes, silent baseline | Do not infer from counts/Gamerscore; post nothing historical; future changes become exact |
 | Discord 401/403/404 | No | Actionable webhook error |
 | Discord 429/5xx/timeout | No | Bounded retry, then next poll |
@@ -116,13 +118,13 @@ Automated checks must cover:
 - modern achieved/locked/revoked entries;
 - Xbox 360 boolean unlocks with real, sentinel, and missing times;
 - deterministic account-specific identities;
-- known-ID set differences independent of time;
-- silent newly discovered historical-title baselines, post-baseline timestamp proof, and a prohibition on count/Gamerscore inference;
+- known-ID set differences gated by timestamped or direct same-session live evidence;
+- startup/gap reconciliation, silent newly discovered historical-title baselines, post-epoch timestamp proof, and a prohibition on count/Gamerscore inference;
 - incomplete summary/detail responses;
 - rolling-hour, provider-remaining, essential/background reserve, and reset-window request decisions;
 - live-before-history queue priority and the 15-minute background eligibility boundary;
 - mention suppression and estimated-time disclosure;
-- state schema 5, durable pending work, omitted-title retention, route ordering/cache, rate-limit handling, installer versioning, and running-app shutdown.
+- state schema 6, durable live-delivery evidence, omitted-title retention, route ordering/cache, rate-limit handling, installer versioning, and running-app shutdown.
 
 The Windows release gate is not complete until all of these pass on the generated installer:
 
@@ -131,11 +133,13 @@ The Windows release gate is not complete until all of these pass on the generate
 3. Save and connect resolves the intended account and complete title history;
 4. Finish setup succeeds without reopening the setup-required dialog;
 5. Sync now reaches an up-to-date/monitoring state without a repeating warning;
-6. two consecutive syncs send no achievement dated before the monitoring baseline, including a title first revealed on a later provider page;
+6. two consecutive syncs send no achievement dated before the current delivery epoch, including a title first revealed on a later provider page;
 7. a large newly revealed history becomes durable queued work, uses at most one background slot per 15 minutes, and cannot consume the final provider reserve;
 8. repeated manual sync cannot exceed the rolling-hour safety ceiling;
 9. a newly earned modern achievement posts exactly once ahead of queued history;
 10. a newly earned Xbox 360/backward-compatible achievement with no usable provider time posts exactly once with the detected-time footer; and
-11. restart/retry does not repost either event or lose the pending queue.
+11. restart/retry does not repost either event or lose the pending queue;
+12. an achievement posted on device A is silently reconciled when device B starts later; and
+13. the first poll after a monitoring gap longer than ten minutes is another silent handoff boundary.
 
 External Xbox/OpenXBL/Discord availability cannot be made infallible by a desktop client. The release criterion is that every supported upstream response or failure is handled deterministically, securely, without a stuck cursor, and without an avoidable duplicate or historical flood.

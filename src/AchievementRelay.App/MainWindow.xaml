@@ -639,7 +639,8 @@
                 </Border>
                 <StackPanel Grid.Column="1">
                   <TextBlock Text="Xbox" FontSize="18" FontWeight="SemiBold" />
-                  <TextBlock x:Name="SettingsXboxStatus" Text="Not configured" Foreground="{StaticResource MutedTextBrush}" Margin="0,4,0,12" />
+                  <TextBlock x:Name="SettingsXboxStatus" Text="Not configured" Foreground="{StaticResource MutedTextBrush}" Margin="0,4,0,6" />
+                  <TextBlock Text="More than one PC? Keep Xbox monitoring active on one at a time. Starting another PC later safely baselines earlier unlocks." Foreground="{StaticResource MutedTextBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,12" />
                   <TextBlock Text="OpenXBL API key" Style="{StaticResource FieldLabel}" />
                   <Grid>
                     <PasswordBox x:Name="SettingsXboxApiKeyPasswordBox" PasswordChar="●" AutomationProperties.Name="Saved OpenXBL API key" />
@@ -835,7 +836,7 @@
                 <Image Source="Assets/AchievementRelay.png" Width="56" Height="56" VerticalAlignment="Top" />
                 <StackPanel Grid.Column="1">
                   <TextBlock Text="Achievement Relay" FontSize="20" FontWeight="SemiBold" />
-                  <TextBlock x:Name="AboutVersionText" Text="Version 0.4.1" Foreground="{StaticResource AccentTextBrush}" FontWeight="SemiBold" Margin="0,2,0,9" />
+                  <TextBlock x:Name="AboutVersionText" Text="Version 0.4.2" Foreground="{StaticResource AccentTextBrush}" FontWeight="SemiBold" Margin="0,2,0,9" />
                   <TextBlock Text="Xbox and Steam achievements relayed to the Discord channel you choose. Secrets are encrypted locally; Steam monitoring is local and read-only." Foreground="{StaticResource MutedTextBrush}" FontSize="12" Margin="0,0,0,12" />
                   <WrapPanel>
                     <Button Content="Privacy" Click="OpenPrivacyPolicy_Click" Margin="0,0,8,8" />

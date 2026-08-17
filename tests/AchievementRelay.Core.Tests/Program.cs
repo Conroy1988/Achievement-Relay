@@ -1007,7 +1007,9 @@ static void PreservesLiveXboxDeliveryEvidenceAcrossRestart()
 
     var restored = JsonSerializer.Deserialize<XboxTitleSyncWork>(JsonSerializer.Serialize(work)) ??
                    throw new InvalidOperationException("Live Xbox work could not be restored after restart.");
-    Assert(restored.LiveDeliveryEpochUtc == liveEpoch, "The proven live delivery epoch was lost during persistence.");
+    var restoredLiveEpoch = restored.LiveDeliveryEpochUtc ??
+                            throw new InvalidOperationException("The proven live delivery epoch was lost during persistence.");
+    Assert(restoredLiveEpoch == liveEpoch, "The proven live delivery epoch changed during persistence.");
     Assert(restored.AllowsUntimestampedDelivery, "Untimestamped live-delivery evidence was lost during persistence.");
 
     var result = AchievementDeltaDetector.Detect(
@@ -1019,7 +1021,7 @@ static void PreservesLiveXboxDeliveryEvidenceAcrossRestart()
             AchievementWithIdentity("known", liveEpoch.AddDays(-1)),
             AchievementWithIdentity("retry-after-update", null)
         },
-        deliveryEpochUtc: restored.LiveDeliveryEpochUtc.Value,
+        deliveryEpochUtc: restoredLiveEpoch,
         observedAt: observedAt.AddMinutes(1),
         futureClockTolerance: TimeSpan.FromMinutes(5),
         allowUntimestampedIdentityDelta: restored.AllowsUntimestampedDelivery);

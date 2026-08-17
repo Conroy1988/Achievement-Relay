@@ -50,7 +50,7 @@ public partial class App : System.Windows.Application
         var requestedMinimized = e.Args.Contains("--minimized", StringComparer.OrdinalIgnoreCase);
         if (!requestedMinimized)
         {
-            _mainWindow.Show();
+            _mainWindow.ShowHome();
         }
 
         var updateState = await _services.UpdateService.CheckAsync(force: false);
@@ -102,7 +102,6 @@ public partial class App : System.Windows.Application
 
         if (!startMinimized)
         {
-            _mainWindow.Show();
             if (!setupReady)
             {
                 if (updateRequired)
@@ -113,6 +112,10 @@ public partial class App : System.Windows.Application
                 {
                     _mainWindow.ShowSetup();
                 }
+            }
+            else
+            {
+                _mainWindow.ShowHome();
             }
         }
 

@@ -515,7 +515,7 @@ public partial class MainWindow : Window
 
     private void PopulateControls()
     {
-        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.4.1";
+        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.4.2";
         AboutVersionText.Text = $"Version {version}";
 
         var xboxConfigured = TryGetOpenXblApiKey(out _) && !string.IsNullOrWhiteSpace(_settings.XboxUserId);

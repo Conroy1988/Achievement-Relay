@@ -2,16 +2,16 @@
 
 ## Versioning
 
-Use four-part numeric MSIX versions such as `0.4.1.0`. Create a matching Git tag such as `v0.4.1`. The release workflow converts a three-part tag to its four-part MSIX version.
+Use four-part numeric MSIX versions such as `0.4.2.0`. Create a matching Git tag such as `v0.4.2`. The release workflow converts a three-part tag to its four-part MSIX version.
 
-v0.4.1 pull-request artifacts use the reserved package lane `0.4.0.<run>` while reporting product version `0.4.1`. They install over public v0.4.0 for Windows verification, while the final `0.4.1.0` package remains numerically newer than every test build. For each later release, reserve the immediately preceding patch lane; never give a test package a version that would make the final package look like a downgrade.
+v0.4.2 pull-request artifacts use the reserved package lane `0.4.1.<run>` while reporting product version `0.4.2`. They install over public v0.4.1 for Windows verification, while the final `0.4.2.0` package remains numerically newer than every test build. For each later release, reserve the immediately preceding patch lane; never give a test package a version that would make the final package look like a downgrade.
 
 ## Local package
 
 On Windows with .NET 10, the Windows SDK, and Inno Setup 6:
 
 ```powershell
-.\scripts\Build-Release.ps1 -Version 0.4.1.0
+.\scripts\Build-Release.ps1 -Version 0.4.2.0
 ```
 
 Without signing parameters, the script creates a temporary two-year development certificate, signs both architecture packages and `AchievementRelay_Setup.exe`, exports only the public certificate, and deletes the private key file from its temporary folder. The versioned ZIP remains as a manual fallback. This path is for local/CI testing only: each generated certificate has a different fingerprint, so one test build must not silently trust a later test installer.
@@ -20,7 +20,7 @@ For the reviewed persistent project certificate whose subject matches `CN=Achiev
 
 ```powershell
 .\scripts\Build-Release.ps1 `
-  -Version 0.4.1.0 `
+  -Version 0.4.2.0 `
   -PfxPath C:\secure\AchievementRelay.pfx `
   -PfxPassword $env:ACHIEVEMENT_RELAY_PFX_PASSWORD `
   -TimestampUrl http://timestamp.digicert.com `
@@ -31,7 +31,7 @@ That switch does not accept an arbitrary self-signed key. The build hashes the P
 
 ## Automatic-update release contract
 
-Every build creates `AchievementRelay_Update.json` and `AchievementRelay_Update.sig` beside the installer. The manifest contains the three-part product version, four-part Windows package version, reviewed minimum supported version, UTC build timestamp, exact installer name, byte size, and SHA-256. The `.sig` envelope contains the release certificate and an RSA/SHA-256 signature over the exact manifest bytes. The app pins that certificate and also requires the signed values to agree with GitHub's latest stable release tag, asset metadata, and the setup executable's product/file versions. The separate package version lets final `0.4.1.0` correctly supersede a `0.4.0.<run>` test package even though the test build reports product version `0.4.1`.
+Every build creates `AchievementRelay_Update.json` and `AchievementRelay_Update.sig` beside the installer. The manifest contains the three-part product version, four-part Windows package version, reviewed minimum supported version, UTC build timestamp, exact installer name, byte size, and SHA-256. The `.sig` envelope contains the release certificate and an RSA/SHA-256 signature over the exact manifest bytes. The app pins that certificate and also requires the signed values to agree with GitHub's latest stable release tag, asset metadata, and the setup executable's product/file versions. The separate package version lets final `0.4.2.0` correctly supersede a `0.4.1.<run>` test package even though the test build reports product version `0.4.2`.
 
 `release/update-policy.json` is authoritative for `minimumSupportedVersion`. Leave it at the oldest still-supported updater-capable version for an optional release. Raise it only through a reviewed commit when older builds must stop monitoring and update. The minimum cannot exceed the release being built. Never edit or replace the manifest or installer inside an existing release; publish a higher patch version.
 
@@ -57,12 +57,12 @@ The current project certificate is self-signed, RSA-3072, code-signing-only, non
 1. Update application/file versions, review `release/update-policy.json`, update `CHANGELOG.md`, and add the matching `docs/RELEASE-NOTES-X.Y.Z.md`.
 2. Run the core contract checks and repository checks.
 3. Build and install both target packages on representative Windows devices where available.
-4. Verify installer connect-now/skip and Steam-only paths, encrypted handoff deletion, desktop-shortcut choice, first baselines, Discord test, and real Xbox account sync. Run two consecutive Xbox syncs and confirm that no pre-baseline or newly revealed historical achievement reaches Discord. Confirm historical Xbox titles consume no more than one background detail slot per 15 minutes, while a genuinely new modern unlock and one untimestamped Xbox 360 unlock each post exactly once across tray close/reopen. For Steam, baseline a history-heavy game, observe one real live unlock, verify a restart/offline unlock stays silent, simulate a failed webhook and verify its pending live transition retries once, and exercise the x64 helper/package check on every supported architecture available. Finish with startup, running-app update discovery/download, updater cancellation, `/UPDATE=1` state/shortcut preservation, required-policy monitoring suspension, and uninstall checks.
+4. Verify installer connect-now/skip and Steam-only paths, encrypted handoff deletion, desktop-shortcut choice, first baselines, Discord test, and real Xbox account sync. Run two consecutive Xbox syncs and confirm that no pre-baseline or newly revealed historical achievement reaches Discord. Post an Xbox unlock from device A, start device B later, and confirm B silently reconciles it; also confirm one genuinely live modern unlock and one untimestamped Xbox 360 unlock post exactly once, and that a forced failed live delivery remains retryable across an app restart. Confirm a sleep/gap longer than ten minutes begins a silent epoch. For Steam, baseline a history-heavy game, observe one real live unlock, verify a restart/offline unlock stays silent, simulate a failed webhook and verify its pending live transition retries once, and exercise the x64 helper/package check on every supported architecture available. Finish with startup, running-app update discovery/download, muted updater launch with opt-in 10% Play/Pause, updater cancellation, `/UPDATE=1` state/shortcut preservation, required-policy monitoring suspension, and uninstall checks.
 5. Confirm the package certificate subject, SHA-256 fingerprint, code-signing EKU, and validity match `release/publisher-certificate.json`.
 6. Before landing, run the **Release** workflow manually on the exact release branch with `Publish the immutable GitHub Release` left off. This exercises the protected PFX, RFC 3161 timestamping, persistent identity check, all Windows signatures, and the seven-asset set without creating a release; inspect the short-lived signed-candidate artifact.
 7. After the exact commit is approved and landed, run **Release** on `main` with the same version and enable `Publish the immutable GitHub Release`, or push the verified `v<major>.<minor>.<patch>` tag. When `docs/RELEASE-NOTES-X.Y.Z.md` exists, the workflow uses it as the public release description; otherwise it generates notes. The manual publish creates the tag at the selected commit when it publishes the release.
 8. Confirm `AchievementRelay_Setup.exe`, `AchievementRelay_Update.json`, `AchievementRelay_Update.sig`, `AchievementRelay.Publisher.cer`, both MSIX packages, and the manual ZIP are attached to the release. Official releases must not contain a newly generated development `.cer`.
 9. Download the published manifest and installer. Recompute the setup SHA-256/size, confirm the tag/product-version/package-version/support-floor contract, and verify signatures with `Get-AuthenticodeSignature` or `SignTool verify /pa`.
-10. From the preceding installed release, launch the app and confirm it automatically discovers, downloads, verifies and opens the musical updater. Also test a required update discovered by a running app (monitoring pauses and Setup opens), an optional running-app update (it prepares without interrupting play and opens next launch), cancellation, and one injected failure (no automatic relaunch loop; explicit Retry still works). Verify the new app reports current and deletes its completed installer download.
+10. From the preceding installed release, launch the app and confirm it automatically discovers, downloads, verifies and opens the updater silently. Select **Play music** and verify fixed 10% playback plus Pause, then test a required update discovered by a running app (monitoring pauses and Setup opens), an optional running-app update (it prepares without interrupting play and opens next launch), cancellation, and one injected failure (no automatic relaunch loop; explicit Retry still works). Verify the new app reports current and deletes its completed installer download.
 
 Store onboarding may replace the local package identity and publisher. Treat those values as permanent after the first stable public distribution.

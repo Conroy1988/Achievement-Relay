@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "0.4.1"
+  #define AppVersion "0.4.2"
 #endif
 
 #ifndef MsixVersion
@@ -216,6 +216,12 @@ begin
   MusicButton.Enabled := True;
 end;
 
+procedure MarkMusicReadyMuted();
+begin
+  MusicButton.Caption := 'Play music';
+  MusicButton.Enabled := True;
+end;
+
 function ResumeInstallerMusic(): Boolean;
 var
   CommandResult: DWORD;
@@ -276,18 +282,28 @@ begin
   end;
 end;
 
-procedure StartInstallerMusic();
+procedure StartInstallerMusic(StartPlaying: Boolean);
 begin
   SetMusicUnavailable();
   MusicBackend := MusicBackendNone;
   MusicPlaying := False;
   MusicPlayer := Unassigned;
   try
-    ExtractTemporaryFile(MusicFileName);
-    MusicPath := ExpandConstant('{tmp}\') + MusicFileName;
+    if (MusicPath = '') or (not FileExists(MusicPath)) then
+    begin
+      ExtractTemporaryFile(MusicFileName);
+      MusicPath := ExpandConstant('{tmp}\') + MusicFileName;
+    end;
     if not FileExists(MusicPath) then
     begin
       Log('Installer soundtrack extraction did not produce the expected file.');
+      Exit;
+    end;
+
+    if not StartPlaying then
+    begin
+      Log('Updater soundtrack is muted by default; no audio backend will start until Play music is selected.');
+      MarkMusicReadyMuted();
       Exit;
     end;
 
@@ -309,7 +325,10 @@ var
   ControlSucceeded: Boolean;
 begin
   if MusicBackend = MusicBackendNone then
+  begin
+    StartInstallerMusic(True);
     Exit;
+  end;
 
   if MusicPlaying then
     ControlSucceeded := PauseInstallerMusic()
@@ -436,7 +455,9 @@ begin
   SoundCloudButton.Anchors := [akLeft, akBottom];
   SoundCloudButton.OnClick := @OpenSoundCloud;
 
-  StartInstallerMusic();
+  { Fresh installs retain the optional soundtrack experience. Update mode is
+    deliberately silent until the user selects Play music. }
+  StartInstallerMusic(not UpdateMode);
 end;
 
 function ShouldSkipPage(PageID: Integer): Boolean;

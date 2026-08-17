@@ -6,6 +6,20 @@ All notable changes to Achievement Relay are documented here. The project follow
 
 No changes yet.
 
+## [0.4.2] - 2026-08-17
+
+### Fixed
+
+- Made verified updater launches silent by default while retaining opt-in **Play music**/**Pause music**, the fixed 10% volume limit, both playback backends, and the direct CRNY SoundCloud link
+- Began a fresh Xbox live-delivery epoch on every app start and after long monitoring interruptions, silently reconciling achievements earned before that point so a PC started later cannot replay another device's posts
+- Required direct same-session evidence before an untimestamped Xbox 360 identity can post, while continuing to accept usable timestamps strictly inside the current live session
+- Persisted proven live-delivery evidence with queued Xbox work so provider or Discord failures remain safely retryable across an app or updater restart
+- Failed closed when migrating older queued Xbox work and when the Windows clock moves backwards instead of inferring that historical progress is new
+
+### Documentation
+
+- Documented sequential device handoffs, the one-active-Xbox-relay recommendation, local-only deduplication boundaries, muted updater behavior, and the expanded Windows release test matrix
+
 ## [0.4.1] - 2026-08-16
 
 ### Fixed
@@ -166,7 +180,8 @@ No changes yet.
 - x64/Arm64 MSIX packaging, installer scripts, development signing, CI, and tagged release workflow
 - User, privacy, security, troubleshooting, architecture, contributor, and release documentation
 
-[Unreleased]: https://github.com/Conroy1988/Achievement-Relay/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/Conroy1988/Achievement-Relay/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.4.2
 [0.4.1]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.4.1
 [0.4.0]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.4.0
 [0.3.2]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.3.2

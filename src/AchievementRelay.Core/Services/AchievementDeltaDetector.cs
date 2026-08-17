@@ -4,8 +4,9 @@ namespace AchievementRelay.Core.Services;
 
 /// <summary>
 /// Detects achievement changes from durable identities. Provider timestamps
-/// are used only to prove that an achievement first seen before an identity
-/// baseline was unlocked after the app began monitoring.
+/// are used only to prove that an achievement was unlocked after the current
+/// live-delivery epoch. Each app start or long monitoring interruption begins
+/// a new epoch, so another device's offline progress is reconciled silently.
 /// </summary>
 public static class AchievementDeltaDetector
 {
@@ -14,9 +15,10 @@ public static class AchievementDeltaDetector
         IReadOnlyCollection<string>? previousAchievementIds,
         int currentReportedCount,
         IReadOnlyList<AchievementEvent> currentAchievements,
-        DateTimeOffset monitoringBaselineUtc,
+        DateTimeOffset deliveryEpochUtc,
         DateTimeOffset observedAt,
-        TimeSpan futureClockTolerance)
+        TimeSpan futureClockTolerance,
+        bool allowUntimestampedIdentityDelta)
     {
         ArgumentNullException.ThrowIfNull(currentAchievements);
         if (previousReportedCount < 0)
@@ -93,13 +95,16 @@ public static class AchievementDeltaDetector
 
             // Even with a durable identity set, a provider correction can
             // expose an old identity for the first time. A real historical
-            // timestamp at or before the monitoring baseline is conclusive:
+            // timestamp at or before the live-delivery epoch is conclusive:
             // retain the identity, but never send it to Discord. Missing or
-            // unusable timestamps remain eligible here because the known ID
-            // baseline proves that the identity itself is new.
+            // unusable timestamps are eligible only when the coordinator has
+            // durable proof that the count change was first observed after a
+            // successful poll in an uninterrupted live session.
+            var latestAcceptedTime = observedAt + futureClockTolerance;
             var deliverable = OrderForDelivery(newlyObserved.Where(achievement =>
-                achievement.UnlockedAt is null ||
-                achievement.UnlockedAt > monitoringBaselineUtc));
+                achievement.UnlockedAt is { } unlockedAt
+                    ? unlockedAt > deliveryEpochUtc && unlockedAt <= latestAcceptedTime
+                    : allowUntimestampedIdentityDelta));
             var historical = newlyObserved.Length - deliverable.Count;
 
             return new AchievementDeltaResult(
@@ -114,18 +119,18 @@ public static class AchievementDeltaDetector
         // written before identity tracking existed, has counts but no verified
         // ID set. Never infer new events from a count or Gamerscore delta: that
         // can turn a newly revealed old game into a complete Discord backlog.
-        // Only a usable provider timestamp strictly after the monitoring
-        // baseline can prove an event is new. Everything else becomes the
+        // Only a usable provider timestamp strictly after the live-delivery
+        // epoch can prove an event is new. Everything else becomes the
         // silent identity baseline; later set differences are exact.
         var increase = Math.Max(0, currentReportedCount - previousReportedCount);
         var latestAcceptedTime = observedAt + futureClockTolerance;
-        var provenPostBaseline = current
+        var provenLive = current
             .Where(achievement => achievement.UnlockedAt is { } unlockedAt &&
-                                  unlockedAt > monitoringBaselineUtc &&
+                                  unlockedAt > deliveryEpochUtc &&
                                   unlockedAt <= latestAcceptedTime)
             .ToArray();
 
-        if (provenPostBaseline.Length > increase)
+        if (provenLive.Length > increase)
         {
             return new AchievementDeltaResult(
                 IsComplete: true,
@@ -135,11 +140,11 @@ public static class AchievementDeltaDetector
                 UnidentifiedIncrease: increase);
         }
 
-        var unidentified = Math.Max(0, increase - provenPostBaseline.Length);
+        var unidentified = Math.Max(0, increase - provenLive.Length);
 
         return new AchievementDeltaResult(
             IsComplete: true,
-            NewAchievements: OrderForDelivery(provenPostBaseline),
+            NewAchievements: OrderForDelivery(provenLive),
             CurrentAchievementIds: currentIds,
             IdentityBaselineEstablished: true,
             UnidentifiedIncrease: unidentified);

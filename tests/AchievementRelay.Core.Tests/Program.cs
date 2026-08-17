@@ -26,10 +26,14 @@ var tests = new (string Name, Action Run)[]
     ("OpenXBL Xbox 360 achievements are supported", ParsesXbox360Achievements),
     ("Xbox 360 sentinel and missing unlock times remain parseable", ParsesUntimestampedXbox360Achievements),
     ("Durable identities detect untimestamped achievements", DetectsUntimestampedAchievementByIdentity),
+    ("Untimestamped identity changes need live-session evidence", SuppressesUntimestampedRestartDelta),
+    ("Cross-device unlocks reconcile silently after startup", ReconcilesCrossDeviceUnlockAfterStartup),
+    ("Timestamped unlocks inside the live session are posted", PostsTimestampedUnlockInsideDeliveryEpoch),
+    ("Live Xbox delivery evidence survives an updater restart", PreservesLiveXboxDeliveryEvidenceAcrossRestart),
     ("Unchanged count-only state hydrates identities without posting", HydratesIdentityBaselineWithoutPosting),
     ("Provider identity churn cannot flood historical achievements", SafelyBaselinesProviderIdentityChurn),
     ("Count-only state never posts an unproven untimestamped unlock", DoesNotPostUntimestampedMigrationUnlock),
-    ("Count-only state posts only proven post-baseline timestamps", PostsTimestampedUnlockAfterMonitoringBaseline),
+    ("Count-only state posts only proven live-session timestamps", PostsTimestampedUnlockAfterDeliveryEpoch),
     ("Count-only state rejects future-skewed timestamps", DoesNotPostFutureSkewedBaselineTimestamp),
     ("Gamerscore never infers a migration unlock", DoesNotInferMigrationUnlockFromGamerscore),
     ("Newly discovered historical titles baseline without posting", SafelyBaselinesNewlyDiscoveredHistoricalTitle),
@@ -40,6 +44,7 @@ var tests = new (string Name, Action Run)[]
     ("OpenXBL rolling-hour guard preserves a safety reserve", ProtectsOpenXblRollingHourAllowance),
     ("OpenXBL provider headers reserve capacity for live monitoring", ProtectsOpenXblProviderRemainingAllowance),
     ("OpenXBL rate-limit reset pauses and recovers automatically", HonorsOpenXblRateLimitReset),
+    ("Xbox delivery epochs reset after startup and interruptions", ResetsXboxDeliveryEpochAfterInterruption),
     ("Xbox sync work prioritizes live changes and throttles history", PrioritizesLiveXboxSyncWork),
     ("Pending Xbox sync work survives durable JSON state", PersistsPendingXboxSyncWork),
     ("Steam first snapshot silently baselines old unlocks", SteamFirstSnapshotIsSilentBaseline),
@@ -424,6 +429,43 @@ static void HonorsOpenXblRateLimitReset()
 
     var recovered = budget.TryAcquire(OpenXblRequestPriority.Essential, limitedAt.AddMinutes(40));
     Assert(recovered.Allowed, "The provider request budget did not recover at reset time.");
+}
+
+static void ResetsXboxDeliveryEpochAfterInterruption()
+{
+    var startedAt = new DateTimeOffset(2026, 8, 17, 8, 0, 0, TimeSpan.Zero);
+    var startup = XboxDeliveryWindowPolicy.Resolve(
+        currentEpochUtc: null,
+        lastSessionSuccessfulPollUtc: null,
+        observedAt: startedAt,
+        pollIntervalSeconds: 60);
+    Assert(startup.EpochUtc == startedAt, "Startup did not create a fresh Xbox delivery epoch.");
+    Assert(!startup.HasPriorSuccessfulPoll, "Startup incorrectly inherited a successful poll from another app session.");
+
+    var normalPoll = XboxDeliveryWindowPolicy.Resolve(
+        startup.EpochUtc,
+        lastSessionSuccessfulPollUtc: startedAt,
+        observedAt: startedAt.AddMinutes(1),
+        pollIntervalSeconds: 60);
+    Assert(normalPoll.EpochUtc == startedAt, "A normal poll unnecessarily reset the Xbox delivery epoch.");
+    Assert(normalPoll.HasPriorSuccessfulPoll, "A normal second poll was not accepted as continuous monitoring.");
+    Assert(!normalPoll.ReconciledAfterGap, "A normal poll was treated as an interruption.");
+
+    var afterSleep = XboxDeliveryWindowPolicy.Resolve(
+        normalPoll.EpochUtc,
+        lastSessionSuccessfulPollUtc: startedAt.AddMinutes(1),
+        observedAt: startedAt.AddMinutes(12),
+        pollIntervalSeconds: 60);
+    Assert(afterSleep.EpochUtc == startedAt.AddMinutes(12), "A long monitoring gap did not begin a safe new delivery epoch.");
+    Assert(!afterSleep.HasPriorSuccessfulPoll, "The first poll after a long gap was incorrectly treated as continuous.");
+    Assert(afterSleep.ReconciledAfterGap, "A long monitoring gap was not marked for silent reconciliation.");
+
+    var afterClockRollback = XboxDeliveryWindowPolicy.Resolve(
+        normalPoll.EpochUtc,
+        lastSessionSuccessfulPollUtc: startedAt.AddMinutes(2),
+        observedAt: startedAt.AddMinutes(1),
+        pollIntervalSeconds: 60);
+    Assert(afterClockRollback.ReconciledAfterGap, "A backwards clock jump did not fail closed into a new delivery epoch.");
 }
 
 static void PersistsPendingXboxSyncWork()
@@ -869,13 +911,122 @@ static void DetectsUntimestampedAchievementByIdentity()
         previousAchievementIds: new[] { previous.Id },
         currentReportedCount: 2,
         currentAchievements: new[] { previous, added },
-        monitoringBaselineUtc: observedAt.AddDays(-30),
+        deliveryEpochUtc: observedAt.AddDays(-30),
         observedAt: observedAt,
-        futureClockTolerance: TimeSpan.FromMinutes(5));
+        futureClockTolerance: TimeSpan.FromMinutes(5),
+        allowUntimestampedIdentityDelta: true);
 
     Assert(result.IsComplete, "A complete identity response was rejected.");
     Assert(result.NewAchievements.Select(item => item.Id).SequenceEqual(new[] { "new" }), "The new stable identity was not detected.");
     Assert(result.UnidentifiedIncrease == 0, "A stable identity delta was marked ambiguous.");
+}
+
+static void SuppressesUntimestampedRestartDelta()
+{
+    var observedAt = new DateTimeOffset(2026, 8, 17, 8, 0, 0, TimeSpan.Zero);
+    var result = AchievementDeltaDetector.Detect(
+        previousReportedCount: 1,
+        previousAchievementIds: new[] { "known" },
+        currentReportedCount: 2,
+        currentAchievements: new[]
+        {
+            AchievementWithIdentity("known", observedAt.AddDays(-2)),
+            AchievementWithIdentity("other-device", null)
+        },
+        deliveryEpochUtc: observedAt.AddMinutes(-1),
+        observedAt: observedAt,
+        futureClockTolerance: TimeSpan.FromMinutes(5),
+        allowUntimestampedIdentityDelta: false);
+
+    Assert(result.IsComplete, "A complete restart identity response was rejected.");
+    Assert(result.NewAchievements.Count == 0, "An untimestamped unlock from an inactive period would repost on another device.");
+    Assert(result.UnidentifiedIncrease == 1, "The suppressed restart identity was not reported as silently reconciled.");
+    Assert(result.CurrentAchievementIds.Contains("other-device"), "The suppressed identity was not retained in the local baseline.");
+}
+
+static void ReconcilesCrossDeviceUnlockAfterStartup()
+{
+    var observedAt = new DateTimeOffset(2026, 8, 17, 8, 0, 0, TimeSpan.Zero);
+    var sessionStartedAt = observedAt.AddMinutes(-1);
+    var result = AchievementDeltaDetector.Detect(
+        previousReportedCount: 1,
+        previousAchievementIds: new[] { "known" },
+        currentReportedCount: 2,
+        currentAchievements: new[]
+        {
+            AchievementWithIdentity("known", observedAt.AddDays(-2)),
+            AchievementWithIdentity("posted-on-other-device", observedAt.AddHours(-8))
+        },
+        deliveryEpochUtc: sessionStartedAt,
+        observedAt: observedAt,
+        futureClockTolerance: TimeSpan.FromMinutes(5),
+        allowUntimestampedIdentityDelta: false);
+
+    Assert(result.IsComplete, "A complete cross-device reconciliation was rejected.");
+    Assert(result.NewAchievements.Count == 0, "An achievement unlocked before this device started would be posted again.");
+    Assert(result.UnidentifiedIncrease == 1, "The cross-device achievement was not counted as a silent reconciliation.");
+    Assert(result.CurrentAchievementIds.Contains("posted-on-other-device"), "The reconciled identity was not retained for future deduplication.");
+}
+
+static void PostsTimestampedUnlockInsideDeliveryEpoch()
+{
+    var observedAt = new DateTimeOffset(2026, 8, 17, 8, 10, 0, TimeSpan.Zero);
+    var sessionStartedAt = observedAt.AddMinutes(-10);
+    var result = AchievementDeltaDetector.Detect(
+        previousReportedCount: 1,
+        previousAchievementIds: new[] { "known" },
+        currentReportedCount: 2,
+        currentAchievements: new[]
+        {
+            AchievementWithIdentity("known", observedAt.AddDays(-2)),
+            AchievementWithIdentity("live", observedAt.AddSeconds(-30))
+        },
+        deliveryEpochUtc: sessionStartedAt,
+        observedAt: observedAt,
+        futureClockTolerance: TimeSpan.FromMinutes(5),
+        allowUntimestampedIdentityDelta: false);
+
+    Assert(result.NewAchievements.Select(item => item.Id).SequenceEqual(new[] { "live" }), "A timestamped unlock from this live session was not posted.");
+    Assert(result.UnidentifiedIncrease == 0, "A proven live unlock was marked as ambiguous.");
+}
+
+static void PreservesLiveXboxDeliveryEvidenceAcrossRestart()
+{
+    var liveEpoch = new DateTimeOffset(2026, 8, 17, 8, 0, 0, TimeSpan.Zero);
+    var observedAt = liveEpoch.AddMinutes(2);
+    var work = new XboxTitleSyncWork
+    {
+        TitleId = "xbox-360-live",
+        CurrentAchievements = 2,
+        FirstObservedUtc = observedAt,
+        LastObservedUtc = observedAt,
+        LiveDeliveryEpochUtc = liveEpoch,
+        AllowsUntimestampedDelivery = true,
+        IsPriority = true
+    };
+
+    var restored = JsonSerializer.Deserialize<XboxTitleSyncWork>(JsonSerializer.Serialize(work)) ??
+                   throw new InvalidOperationException("Live Xbox work could not be restored after restart.");
+    Assert(restored.LiveDeliveryEpochUtc == liveEpoch, "The proven live delivery epoch was lost during persistence.");
+    Assert(restored.AllowsUntimestampedDelivery, "Untimestamped live-delivery evidence was lost during persistence.");
+
+    var result = AchievementDeltaDetector.Detect(
+        previousReportedCount: 1,
+        previousAchievementIds: new[] { "known" },
+        currentReportedCount: 2,
+        currentAchievements: new[]
+        {
+            AchievementWithIdentity("known", liveEpoch.AddDays(-1)),
+            AchievementWithIdentity("retry-after-update", null)
+        },
+        deliveryEpochUtc: restored.LiveDeliveryEpochUtc.Value,
+        observedAt: observedAt.AddMinutes(1),
+        futureClockTolerance: TimeSpan.FromMinutes(5),
+        allowUntimestampedIdentityDelta: restored.AllowsUntimestampedDelivery);
+
+    Assert(
+        result.NewAchievements.Select(item => item.Id).SequenceEqual(new[] { "retry-after-update" }),
+        "A proven live Xbox delivery would be lost when the updater restarted the app.");
 }
 
 static void HydratesIdentityBaselineWithoutPosting()
@@ -890,9 +1041,10 @@ static void HydratesIdentityBaselineWithoutPosting()
             AchievementWithIdentity("historic-one", null),
             AchievementWithIdentity("historic-two", null)
         },
-        monitoringBaselineUtc: observedAt.AddHours(-1),
+        deliveryEpochUtc: observedAt.AddHours(-1),
         observedAt: observedAt,
-        futureClockTolerance: TimeSpan.FromMinutes(5));
+        futureClockTolerance: TimeSpan.FromMinutes(5),
+        allowUntimestampedIdentityDelta: false);
 
     Assert(result.IsComplete, "A complete unchanged title could not establish its identity baseline.");
     Assert(result.NewAchievements.Count == 0, "Identity hydration would post historical achievements.");
@@ -911,9 +1063,10 @@ static void SafelyBaselinesProviderIdentityChurn()
             AchievementWithIdentity("new-route-one", null),
             AchievementWithIdentity("new-route-two", null)
         },
-        monitoringBaselineUtc: observedAt.AddHours(-1),
+        deliveryEpochUtc: observedAt.AddHours(-1),
         observedAt: observedAt,
-        futureClockTolerance: TimeSpan.FromMinutes(5));
+        futureClockTolerance: TimeSpan.FromMinutes(5),
+        allowUntimestampedIdentityDelta: false);
 
     Assert(result.IsComplete, "Provider identity churn was left in a permanent retry loop.");
     Assert(result.NewAchievements.Count == 0, "Provider identity churn would flood historical achievements.");
@@ -931,19 +1084,20 @@ static void DoesNotPostUntimestampedMigrationUnlock()
         previousAchievementIds: null,
         currentReportedCount: 2,
         currentAchievements: new[] { previous, added },
-        monitoringBaselineUtc: observedAt.AddHours(-1),
+        deliveryEpochUtc: observedAt.AddHours(-1),
         observedAt: observedAt,
-        futureClockTolerance: TimeSpan.FromMinutes(5));
+        futureClockTolerance: TimeSpan.FromMinutes(5),
+        allowUntimestampedIdentityDelta: false);
 
     Assert(result.NewAchievements.Count == 0, "An untimestamped count-only migration would post without a verified identity baseline.");
     Assert(result.CurrentAchievementIds.Count == 2, "The complete migration identity baseline was not returned.");
     Assert(result.UnidentifiedIncrease == 1, "The silently baselined migration increase was not reported.");
 }
 
-static void PostsTimestampedUnlockAfterMonitoringBaseline()
+static void PostsTimestampedUnlockAfterDeliveryEpoch()
 {
     var observedAt = new DateTimeOffset(2026, 8, 15, 20, 0, 0, TimeSpan.Zero);
-    var monitoringBaseline = observedAt.AddHours(-1);
+    var deliveryEpoch = observedAt.AddHours(-1);
     var historical = AchievementWithIdentity(
         "historic",
         new DateTimeOffset(2009, 8, 24, 12, 47, 0, TimeSpan.Zero));
@@ -954,9 +1108,10 @@ static void PostsTimestampedUnlockAfterMonitoringBaseline()
         previousAchievementIds: null,
         currentReportedCount: 2,
         currentAchievements: new[] { historical, newUnlock },
-        monitoringBaselineUtc: monitoringBaseline,
+        deliveryEpochUtc: deliveryEpoch,
         observedAt: observedAt,
-        futureClockTolerance: TimeSpan.FromMinutes(5));
+        futureClockTolerance: TimeSpan.FromMinutes(5),
+        allowUntimestampedIdentityDelta: false);
 
     Assert(result.IsComplete, "A complete post-baseline migration response was rejected.");
     Assert(result.NewAchievements.Select(item => item.Id).SequenceEqual(new[] { "new" }), "A proven post-baseline timestamp was not delivered.");
@@ -974,9 +1129,10 @@ static void DoesNotPostFutureSkewedBaselineTimestamp()
         {
             AchievementWithIdentity("future-skew", observedAt.AddHours(2))
         },
-        monitoringBaselineUtc: observedAt.AddHours(-1),
+        deliveryEpochUtc: observedAt.AddHours(-1),
         observedAt: observedAt,
-        futureClockTolerance: TimeSpan.FromMinutes(5));
+        futureClockTolerance: TimeSpan.FromMinutes(5),
+        allowUntimestampedIdentityDelta: false);
 
     Assert(result.IsComplete, "A complete future-skewed response was rejected instead of safely baselined.");
     Assert(result.NewAchievements.Count == 0, "A future-skewed timestamp would be accepted as a new unlock.");
@@ -996,9 +1152,10 @@ static void DoesNotInferMigrationUnlockFromGamerscore()
         previousAchievementIds: null,
         currentReportedCount: 3,
         currentAchievements: new[] { fivePoint, tenPoint, twentyPoint },
-        monitoringBaselineUtc: observedAt.AddHours(-1),
+        deliveryEpochUtc: observedAt.AddHours(-1),
         observedAt: observedAt,
-        futureClockTolerance: TimeSpan.FromMinutes(5));
+        futureClockTolerance: TimeSpan.FromMinutes(5),
+        allowUntimestampedIdentityDelta: false);
 
     Assert(result.NewAchievements.Count == 0, "Gamerscore inference would post an unproven historical achievement.");
     Assert(result.UnidentifiedIncrease == 1, "The unproven migration increase was not silently baselined.");
@@ -1018,9 +1175,10 @@ static void SafelyBaselinesNewlyDiscoveredHistoricalTitle()
             AchievementWithIdentity("gta-2013-a", new DateTimeOffset(2013, 9, 17, 17, 4, 0, TimeSpan.Zero)),
             AchievementWithIdentity("gta-2013-b", new DateTimeOffset(2013, 9, 18, 19, 53, 0, TimeSpan.Zero))
         },
-        monitoringBaselineUtc: observedAt.AddHours(-1),
+        deliveryEpochUtc: observedAt.AddHours(-1),
         observedAt: observedAt,
-        futureClockTolerance: TimeSpan.FromMinutes(5));
+        futureClockTolerance: TimeSpan.FromMinutes(5),
+        allowUntimestampedIdentityDelta: false);
 
     Assert(result.IsComplete, "A complete newly discovered historical title was rejected.");
     Assert(result.NewAchievements.Count == 0, "A newly discovered old title would flood its achievement backlog.");
@@ -1040,9 +1198,10 @@ static void SafelyBaselinesHistoricalProviderCorrection()
             AchievementWithIdentity("known", observedAt.AddDays(-1)),
             AchievementWithIdentity("newly-revealed-old", new DateTimeOffset(2013, 9, 18, 20, 49, 0, TimeSpan.Zero))
         },
-        monitoringBaselineUtc: observedAt.AddHours(-1),
+        deliveryEpochUtc: observedAt.AddHours(-1),
         observedAt: observedAt,
-        futureClockTolerance: TimeSpan.FromMinutes(5));
+        futureClockTolerance: TimeSpan.FromMinutes(5),
+        allowUntimestampedIdentityDelta: false);
 
     Assert(result.IsComplete, "A complete provider correction was rejected.");
     Assert(result.NewAchievements.Count == 0, "A historical provider correction would post as a new unlock.");
@@ -1063,9 +1222,10 @@ static void DoesNotRepostKnownIdentitiesAfterRestart()
         previousAchievementIds: current.Select(item => item.Id).ToArray(),
         currentReportedCount: 2,
         currentAchievements: current,
-        monitoringBaselineUtc: observedAt.AddHours(-1),
+        deliveryEpochUtc: observedAt.AddHours(-1),
         observedAt: observedAt,
-        futureClockTolerance: TimeSpan.FromMinutes(5));
+        futureClockTolerance: TimeSpan.FromMinutes(5),
+        allowUntimestampedIdentityDelta: false);
 
     Assert(result.IsComplete, "A complete restart snapshot was rejected.");
     Assert(result.NewAchievements.Count == 0, "Known identities would repost after restart.");
@@ -1080,9 +1240,10 @@ static void RejectsIncompleteAchievementDetail()
         previousAchievementIds: new[] { "old" },
         currentReportedCount: 2,
         currentAchievements: new[] { AchievementWithIdentity("old", observedAt.AddDays(-1)) },
-        monitoringBaselineUtc: observedAt.AddDays(-30),
+        deliveryEpochUtc: observedAt.AddDays(-30),
         observedAt: observedAt,
-        futureClockTolerance: TimeSpan.FromMinutes(5));
+        futureClockTolerance: TimeSpan.FromMinutes(5),
+        allowUntimestampedIdentityDelta: false);
 
     Assert(!result.IsComplete, "A detail response below the provider's reported count was accepted.");
 }
@@ -1099,9 +1260,10 @@ static void RejectsOvercompleteAchievementDetail()
             AchievementWithIdentity("old", observedAt.AddDays(-1)),
             AchievementWithIdentity("detail-ahead", null)
         },
-        monitoringBaselineUtc: observedAt.AddDays(-30),
+        deliveryEpochUtc: observedAt.AddDays(-30),
         observedAt: observedAt,
-        futureClockTolerance: TimeSpan.FromMinutes(5));
+        futureClockTolerance: TimeSpan.FromMinutes(5),
+        allowUntimestampedIdentityDelta: false);
 
     Assert(!result.IsComplete, "A detail response ahead of the provider's reported count was accepted.");
 }

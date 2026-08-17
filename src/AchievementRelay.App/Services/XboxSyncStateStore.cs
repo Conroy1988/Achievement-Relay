@@ -7,7 +7,7 @@ namespace AchievementRelay.App.Services;
 
 public sealed record XboxSyncState
 {
-    public const int CurrentSchemaVersion = 5;
+    public const int CurrentSchemaVersion = 6;
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
 
@@ -84,7 +84,7 @@ public sealed class XboxSyncStateStore(AppPaths paths)
                         .Where(entry => !string.IsNullOrWhiteSpace(entry.Key))
                         .ToDictionary(
                             entry => entry.Key,
-                            entry => NormalizePendingWork(entry.Key, entry.Value),
+                            entry => NormalizePendingWork(entry.Key, entry.Value, sourceSchemaVersion),
                             StringComparer.Ordinal),
                     StringComparer.Ordinal)
             };
@@ -237,9 +237,22 @@ public sealed class XboxSyncStateStore(AppPaths paths)
 
     private static XboxTitleSyncWork NormalizePendingWork(
         string titleId,
-        XboxTitleSyncWork? work)
+        XboxTitleSyncWork? work,
+        int sourceSchemaVersion)
     {
         work ??= new XboxTitleSyncWork();
+        var firstObservedUtc = work.FirstObservedUtc.ToUniversalTime();
+        var lastObservedUtc = work.LastObservedUtc.ToUniversalTime();
+        var liveDeliveryEpochUtc = sourceSchemaVersion >= 6
+            ? work.LiveDeliveryEpochUtc?.ToUniversalTime()
+            : null;
+        var hasValidLiveEvidence = liveDeliveryEpochUtc is { } liveEpoch &&
+                                   liveEpoch != default &&
+                                   firstObservedUtc != default &&
+                                   lastObservedUtc != default &&
+                                   liveEpoch <= firstObservedUtc &&
+                                   firstObservedUtc <= lastObservedUtc;
+
         return work with
         {
             TitleId = titleId,
@@ -247,8 +260,14 @@ public sealed class XboxSyncStateStore(AppPaths paths)
             CurrentAchievements = Math.Max(0, work.CurrentAchievements),
             CurrentGamerscore = Math.Max(0, work.CurrentGamerscore),
             LastPlayedAt = work.LastPlayedAt?.ToUniversalTime(),
-            FirstObservedUtc = work.FirstObservedUtc.ToUniversalTime(),
-            LastObservedUtc = work.LastObservedUtc.ToUniversalTime()
+            FirstObservedUtc = firstObservedUtc,
+            LastObservedUtc = lastObservedUtc,
+            // Older schemas did not record whether queued work had direct
+            // live-session evidence. Fail closed during migration instead of
+            // risking a cross-device historical repost.
+            LiveDeliveryEpochUtc = hasValidLiveEvidence ? liveDeliveryEpochUtc : null,
+            AllowsUntimestampedDelivery = hasValidLiveEvidence &&
+                                          work.AllowsUntimestampedDelivery
         };
     }
 }

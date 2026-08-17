@@ -30,6 +30,8 @@ public sealed class RelayCoordinator(
     private bool _started;
     private DateTimeOffset? _lastSuccessfulSync;
     private string? _lastSyncError;
+    private DateTimeOffset? _deliveryEpochUtc;
+    private DateTimeOffset? _lastSessionSuccessfulPollUtc;
 
     public event EventHandler? StatusChanged;
 
@@ -85,10 +87,13 @@ public sealed class RelayCoordinator(
         }
 
         var state = await syncStateStore.LoadAsync(cancellationToken);
+        var sessionStartedUtc = DateTimeOffset.UtcNow;
         lock (_statusGate)
         {
             _lastSuccessfulSync = state.LastSuccessfulPollUtc;
             _lastSyncError = null;
+            _deliveryEpochUtc = sessionStartedUtc;
+            _lastSessionSuccessfulPollUtc = null;
         }
 
         lock (_lifecycleGate)
@@ -155,6 +160,12 @@ public sealed class RelayCoordinator(
 
         if (wasStarted)
         {
+            lock (_statusGate)
+            {
+                _deliveryEpochUtc = null;
+                _lastSessionSuccessfulPollUtc = null;
+            }
+
             activityLog.Info("Xbox account monitoring stopped.");
             RaiseStatusChanged();
         }
@@ -266,6 +277,13 @@ public sealed class RelayCoordinator(
                 return new XboxSyncOutcome(true, baselineMessage, BaselineEstablished: true);
             }
 
+            var deliveryWindow = ResolveDeliveryWindow(now, settings.PollIntervalSeconds);
+            if (deliveryWindow.ReconciledAfterGap)
+            {
+                activityLog.Info(
+                    "Xbox monitoring resumed after an interruption. Achievements unlocked while this device was inactive will be baselined silently to prevent cross-device reposts.");
+            }
+
             var visibleTitles = progressFetch.Titles
                 .GroupBy(title => title.TitleId, StringComparer.Ordinal)
                 .Select(group => group
@@ -292,7 +310,13 @@ public sealed class RelayCoordinator(
             {
                 if (HasProgressChanged(title, currentSnapshots))
                 {
-                    QueueTitleWork(title, state, currentSnapshots, pendingTitles, now);
+                    QueueTitleWork(
+                        title,
+                        state,
+                        currentSnapshots,
+                        pendingTitles,
+                        deliveryWindow,
+                        now);
                 }
                 else if (!currentSnapshots.ContainsKey(title.TitleId))
                 {
@@ -369,14 +393,16 @@ public sealed class RelayCoordinator(
 
                 var hadPreviousSnapshot = currentSnapshots.TryGetValue(selectedWork.TitleId, out var previous);
                 var previousCount = hadPreviousSnapshot ? previous!.CurrentAchievements : 0;
+                var effectiveDeliveryEpoch = selectedWork.LiveDeliveryEpochUtc ?? deliveryWindow.EpochUtc;
                 var delta = AchievementDeltaDetector.Detect(
                     previousCount,
                     hadPreviousSnapshot ? previous!.UnlockedAchievementIds : null,
                     selectedWork.CurrentAchievements,
                     detailFetch.Achievements,
-                    state.BaselineUtc.Value,
+                    effectiveDeliveryEpoch,
                     now,
-                    FutureClockTolerance);
+                    FutureClockTolerance,
+                    allowUntimestampedIdentityDelta: selectedWork.AllowsUntimestampedDelivery);
                 if (!delta.IsComplete)
                 {
                     await SaveProgressAsync(isBackgroundWork ? now : state.LastSuccessfulPollUtc);
@@ -463,9 +489,10 @@ public sealed class RelayCoordinator(
                             null,
                             hydrationTitle.CurrentAchievements,
                             hydrationFetch.Achievements,
-                            state.BaselineUtc.Value,
+                            deliveryWindow.EpochUtc,
                             now,
-                            FutureClockTolerance);
+                            FutureClockTolerance,
+                            allowUntimestampedIdentityDelta: false);
                         if (hydrationDelta.IsComplete)
                         {
                             currentSnapshots[hydrationTitle.TitleId] = currentSnapshots[hydrationTitle.TitleId] with
@@ -524,6 +551,7 @@ public sealed class RelayCoordinator(
         {
             _lastSuccessfulSync = timestamp;
             _lastSyncError = null;
+            _lastSessionSuccessfulPollUtc = timestamp;
         }
 
         RaiseStatusChanged();
@@ -531,11 +559,33 @@ public sealed class RelayCoordinator(
 
     private void RaiseStatusChanged() => StatusChanged?.Invoke(this, EventArgs.Empty);
 
+    private XboxDeliveryWindowDecision ResolveDeliveryWindow(
+        DateTimeOffset observedAt,
+        int pollIntervalSeconds)
+    {
+        lock (_statusGate)
+        {
+            var decision = XboxDeliveryWindowPolicy.Resolve(
+                _deliveryEpochUtc,
+                _lastSessionSuccessfulPollUtc,
+                observedAt,
+                pollIntervalSeconds);
+            _deliveryEpochUtc = decision.EpochUtc;
+            if (decision.ReconciledAfterGap)
+            {
+                _lastSessionSuccessfulPollUtc = null;
+            }
+
+            return decision;
+        }
+    }
+
     private static void QueueTitleWork(
         XboxTitleProgress title,
         XboxSyncState state,
         IReadOnlyDictionary<string, XboxTitleSnapshot> currentSnapshots,
         IDictionary<string, XboxTitleSyncWork> pendingTitles,
+        XboxDeliveryWindowDecision deliveryWindow,
         DateTimeOffset observedAt)
     {
         pendingTitles.TryGetValue(title.TitleId, out var existing);
@@ -553,6 +603,9 @@ public sealed class RelayCoordinator(
                             existingFirst != default
             ? existingFirst
             : observedAt;
+        var newlyObservedAfterSuccessfulPoll = existing is null && deliveryWindow.HasPriorSuccessfulPoll;
+        var hasUntimestampedLiveEvidence = newlyObservedAfterSuccessfulPoll &&
+                                           previous?.HasAchievementIdentityBaseline == true;
 
         pendingTitles[title.TitleId] = new XboxTitleSyncWork
         {
@@ -567,6 +620,12 @@ public sealed class RelayCoordinator(
             LastPlayedAt = Max(existing?.LastPlayedAt, title.LastPlayedAt),
             FirstObservedUtc = firstObserved,
             LastObservedUtc = observedAt,
+            LiveDeliveryEpochUtc = existing?.LiveDeliveryEpochUtc ??
+                                   (newlyObservedAfterSuccessfulPoll
+                                       ? deliveryWindow.EpochUtc
+                                       : null),
+            AllowsUntimestampedDelivery = existing?.AllowsUntimestampedDelivery == true ||
+                                          hasUntimestampedLiveEvidence,
             IsPriority = existing?.IsPriority == true ||
                          previous?.HasAchievementIdentityBaseline == true ||
                          changedKnownSummary ||

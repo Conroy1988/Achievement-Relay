@@ -16,6 +16,15 @@ public partial class App : System.Windows.Application
     private AppServices? _services;
     private MainWindow? _mainWindow;
 
+    static App()
+    {
+        // WPF generates this process's entry point, so the WinForms desktop
+        // bootstrapper is not invoked automatically. Set PMv2 before the App
+        // instance (and therefore any HWND) can be created.
+        _ = System.Windows.Forms.Application.SetHighDpiMode(
+            System.Windows.Forms.HighDpiMode.PerMonitorV2);
+    }
+
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);

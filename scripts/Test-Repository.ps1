@@ -685,7 +685,12 @@ if (-not $overlayWindowText.Contains('OverlayWidth = 520') -or
     -not $overlayWindowText.Contains('AchievementOverlayAutomationPeer') -or
     -not $overlayWindowText.Contains('GetChildrenCore() => null') -or
     -not $appProjectText.Contains('<ApplicationManifest>app.manifest</ApplicationManifest>') -or
-    -not $appManifestText.Contains('PerMonitorV2,PerMonitor') -or
+    -not $appProjectText.Contains('<ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>') -or
+    -not $appStartupText.Contains('static App()') -or
+    -not $appStartupText.Contains('System.Windows.Forms.Application.SetHighDpiMode(') -or
+    -not $appStartupText.Contains('System.Windows.Forms.HighDpiMode.PerMonitorV2') -or
+    $appManifestText.Contains('<dpiAware') -or
+    $appManifestText.Contains('<dpiAwareness') -or
     -not $overlayServiceText.Contains('MaximumQueuedNotifications = 8') -or
     -not $overlayServiceText.Contains('_queuedCount >= MaximumQueuedNotifications') -or
     -not $overlayServiceText.Contains('public void Clear()') -or

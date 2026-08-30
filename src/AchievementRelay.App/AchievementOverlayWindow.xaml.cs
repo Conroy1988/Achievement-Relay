@@ -11,6 +11,8 @@ using System.Windows.Media.Imaging;
 using AchievementRelay.App.Services;
 using AchievementRelay.Core.Models;
 using Color = System.Windows.Media.Color;
+using Size = System.Windows.Size;
+using SystemColors = System.Windows.SystemColors;
 
 namespace AchievementRelay.App;
 
@@ -449,7 +451,7 @@ public partial class AchievementOverlayWindow : Window
     }
 
     private static async Task AnimateAsync(
-        Animatable target,
+        DependencyObject target,
         DependencyProperty property,
         double destination,
         TimeSpan duration,
@@ -465,12 +467,30 @@ public partial class AchievementOverlayWindow : Window
             EasingFunction = new CubicEase { EasingMode = easingMode }
         };
         animation.Completed += (_, _) => completion.TrySetResult();
-        target.BeginAnimation(property, animation, HandoffBehavior.SnapshotAndReplace);
+        ApplyAnimation(target, property, animation);
         var finished = await Task.WhenAny(completion.Task, motionSuppressed);
         if (ReferenceEquals(finished, motionSuppressed))
         {
-            target.BeginAnimation(property, null);
+            ApplyAnimation(target, property, null);
             target.SetValue(property, destination);
+        }
+    }
+
+    private static void ApplyAnimation(
+        DependencyObject target,
+        DependencyProperty property,
+        AnimationTimeline? animation)
+    {
+        switch (target)
+        {
+            case Animatable animatable:
+                animatable.BeginAnimation(property, animation, HandoffBehavior.SnapshotAndReplace);
+                break;
+            case UIElement element:
+                element.BeginAnimation(property, animation, HandoffBehavior.SnapshotAndReplace);
+                break;
+            default:
+                throw new NotSupportedException($"{target.GetType().Name} does not support WPF animations.");
         }
     }
 

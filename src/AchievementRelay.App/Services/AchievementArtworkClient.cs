@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http;
 using AchievementRelay.Core.Models;
 
 namespace AchievementRelay.App.Services;

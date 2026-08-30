@@ -2,6 +2,8 @@ name: Release
 
 on:
   push:
+    branches:
+      - feat/signal-strip-overlay
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
   workflow_dispatch:
@@ -25,7 +27,7 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 35
     env:
-      RELEASE_TAG: ${{ inputs.version || github.ref_name }}
+      RELEASE_TAG: ${{ inputs.version || (github.ref_type == 'branch' && 'v0.6.0') || github.ref_name }}
       SIGNING_TIMESTAMP_URL: http://timestamp.digicert.com
 
     steps:
@@ -194,7 +196,7 @@ jobs:
           }
 
       - name: Retain signed release candidate
-        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.publish_release }}
+        if: ${{ (github.event_name == 'workflow_dispatch' && !inputs.publish_release) || github.ref == 'refs/heads/feat/signal-strip-overlay' }}
         uses: actions/upload-artifact@v4
         with:
           name: AchievementRelay-${{ env.RELEASE_TAG }}-signed-candidate
@@ -210,7 +212,7 @@ jobs:
           compression-level: 0
 
       - name: Publish GitHub release
-        if: ${{ github.event_name == 'push' || inputs.publish_release }}
+        if: ${{ (github.event_name == 'push' && github.ref_type == 'tag') || inputs.publish_release }}
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}

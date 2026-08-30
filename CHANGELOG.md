@@ -6,6 +6,28 @@ All notable changes to Achievement Relay are documented here. The project follow
 
 No changes yet.
 
+## [0.5.0] - 2026-08-30
+
+### Added
+
+- Added full-width Discord Collector Cards with game/achievement artwork when available and a premium Achievement Relay fallback when it is not
+- Added Bronze, Silver, Gold and Platinum Relay rarity emblems driven by validated global unlock percentages, plus a neutral Unranked treatment when a provider supplies no trustworthy percentage
+- Added evidence-based Xbox platform labels for Xbox PC, Xbox Console and Xbox 360 while retaining the honest generic Xbox label for mixed or ambiguous titles
+- Added the exact unlock percentage to the card and retained game, achievement, reward, player and platform information as accessible Discord embed text
+
+### Changed
+
+- Replaced the small achievement thumbnail presentation with one cohesive, locally rendered rarity card and tier-colored Discord treatment
+- Routed sample-achievement delivery through the production card path so users can preview the real fallback design without earning another achievement
+- Preserved Steam's local icon path and Xbox artwork enrichment while treating artwork as optional presentation rather than a delivery dependency
+
+### Reliability, accessibility and security
+
+- Bounded provider text, percentage values, image downloads, decoded dimensions and rendered output before building a Discord attachment
+- Kept card meaning independent of color through distinct emblem silhouettes, internal marks, written tier names, attachment descriptions and ordinary text fields outside the image
+- Fell back to a complete branded card when artwork is unavailable and to the accessible text embed if card rendering itself cannot complete
+- Preserved Xbox/Steam baselines, live-delivery evidence, pending retry behavior, deduplication and the certificate-pinned automatic-update chain
+
 ## [0.4.3] - 2026-08-17
 
 ### Fixed
@@ -188,7 +210,8 @@ No changes yet.
 - x64/Arm64 MSIX packaging, installer scripts, development signing, CI, and tagged release workflow
 - User, privacy, security, troubleshooting, architecture, contributor, and release documentation
 
-[Unreleased]: https://github.com/Conroy1988/Achievement-Relay/compare/v0.4.3...HEAD
+[Unreleased]: https://github.com/Conroy1988/Achievement-Relay/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.5.0
 [0.4.3]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.4.3
 [0.4.2]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.4.2
 [0.4.1]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.4.1

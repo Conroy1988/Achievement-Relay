@@ -14,6 +14,7 @@ public sealed class AchievementDeliveryService(
     SecureWebhookProtector secretProtector,
     EventLedger eventLedger,
     DiscordWebhookClient webhookClient,
+    DiscordAchievementPostComposer postComposer,
     ActivityLog activityLog) : IDisposable
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -49,8 +50,8 @@ public sealed class AchievementDeliveryService(
             }
 
             activityLog.Info($"{achievement.SourceProvider} achievement detected: {achievement.Name}.");
-            var payload = DiscordWebhookPayloadFactory.Create(achievement, settings);
-            var result = await SendWithRetryAsync(webhookUri, payload, achievement, cancellationToken);
+            var post = await postComposer.ComposeAsync(achievement, settings, cancellationToken);
+            var result = await SendWithRetryAsync(webhookUri, post, cancellationToken);
             if (!result.Success)
             {
                 activityLog.Error($"Could not relay {achievement.Name}: {result.Message}");
@@ -71,8 +72,7 @@ public sealed class AchievementDeliveryService(
 
     private async Task<RelayResult> SendWithRetryAsync(
         Uri webhookUri,
-        string payload,
-        AchievementEvent achievement,
+        DiscordAchievementPost post,
         CancellationToken cancellationToken)
     {
         var delays = new[] { TimeSpan.Zero, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(12) };
@@ -87,10 +87,10 @@ public sealed class AchievementDeliveryService(
 
             result = await webhookClient.SendAsync(
                 webhookUri,
-                payload,
-                achievement.ImageBytes,
-                achievement.ImageFileName,
-                achievement.ImageContentType,
+                post.JsonPayload,
+                post.AttachmentBytes,
+                post.AttachmentFileName,
+                post.AttachmentContentType,
                 cancellationToken);
             if (result.Success || result.StatusCode is >= 400 and < 500 and not 429)
             {

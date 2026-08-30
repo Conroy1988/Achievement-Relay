@@ -16,6 +16,19 @@ public sealed record XboxTitleSyncWork
 
     public DateTimeOffset? LastPlayedAt { get; init; }
 
+    /// <summary>
+    /// Bounded title-history device hints retained across retries. These are
+    /// deliberately treated as classification evidence rather than proof of
+    /// the device that produced an individual unlock.
+    /// </summary>
+    public string[] Devices { get; init; } = [];
+
+    /// <summary>
+    /// Optional bounded title artwork used only when the achievement detail
+    /// does not expose its own Background media asset.
+    /// </summary>
+    public string? DisplayImageUrl { get; init; }
+
     public DateTimeOffset FirstObservedUtc { get; init; }
 
     public DateTimeOffset LastObservedUtc { get; init; }

@@ -235,24 +235,7 @@ public static class OpenXblResponseParser
             }
 
             var devices = new List<string>();
-            var hasDevices = TryGetProperty(item, "devices", out var deviceValues) ||
-                             TryGetProperty(item, "platforms", out deviceValues);
-            if (hasDevices &&
-                deviceValues.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var device in deviceValues.EnumerateArray())
-                {
-                    if (device.ValueKind == JsonValueKind.String &&
-                        !string.IsNullOrWhiteSpace(device.GetString()))
-                    {
-                        devices.Add(device.GetString()!.Trim());
-                    }
-                    else if (device.ValueKind == JsonValueKind.Number)
-                    {
-                        devices.Add(device.GetRawText());
-                    }
-                }
-            }
+            AddStringValues(item, devices, "devices", "platforms");
 
             parsed.Add(new XboxTitleProgress
             {
@@ -264,13 +247,29 @@ public static class OpenXblResponseParser
                     "earnedAchievements"),
                 CurrentGamerscore = GetNonNegativeInteger(achievement, "currentGamerscore"),
                 LastPlayedAt = lastPlayedAt,
-                Devices = devices.Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
+                Devices = XboxPlatformClassifier.NormalizeDevices(devices),
+                DisplayImageUrl = NormalizeUrlHint(FirstNonEmpty(
+                    GetString(item, "displayImage", "displayImageUrl"),
+                    titleHistory.ValueKind == JsonValueKind.Object
+                        ? GetString(titleHistory, "displayImage", "displayImageUrl")
+                        : string.Empty))
             });
         }
 
         return parsed
             .GroupBy(item => item.TitleId, StringComparer.Ordinal)
-            .Select(group => group.OrderByDescending(item => item.LastPlayedAt).First())
+            .Select(group =>
+            {
+                var selected = group.OrderByDescending(item => item.LastPlayedAt).First();
+                return selected with
+                {
+                    Devices = XboxPlatformClassifier.NormalizeDevices(
+                        group.SelectMany(item => item.Devices)),
+                    DisplayImageUrl = group
+                        .Select(item => item.DisplayImageUrl)
+                        .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))
+                };
+            })
             .OrderByDescending(item => item.LastPlayedAt)
             .ThenBy(item => item.Name ?? string.Empty, StringComparer.OrdinalIgnoreCase)
             .ToArray();
@@ -279,7 +278,8 @@ public static class OpenXblResponseParser
     public static IReadOnlyList<AchievementEvent> ParseAchievements(
         string json,
         string accountId,
-        string? fallbackTitleId = null)
+        string? fallbackTitleId = null,
+        string? platformHint = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(json);
         ArgumentException.ThrowIfNullOrWhiteSpace(accountId);
@@ -294,7 +294,7 @@ public static class OpenXblResponseParser
         var parsed = new List<AchievementEvent>();
         foreach (var item in achievements.Value.EnumerateArray())
         {
-            var achievement = ParseAchievement(item, accountId, fallbackTitleId);
+            var achievement = ParseAchievement(item, accountId, fallbackTitleId, platformHint);
             if (achievement is not null)
             {
                 parsed.Add(achievement);
@@ -318,7 +318,8 @@ public static class OpenXblResponseParser
     private static AchievementEvent? ParseAchievement(
         JsonElement item,
         string accountId,
-        string? fallbackTitleId)
+        string? fallbackTitleId,
+        string? platformHint)
     {
         if (item.ValueKind != JsonValueKind.Object ||
             !IsAchieved(item) ||
@@ -389,6 +390,8 @@ public static class OpenXblResponseParser
             titleId = fallbackTitleId ?? string.Empty;
         }
 
+        var rarity = GetRarity(item);
+
         return new AchievementEvent
         {
             Id = CreateIdentity(accountId, serviceConfigId, titleId, achievementId),
@@ -396,9 +399,13 @@ public static class OpenXblResponseParser
             Description = NullIfWhiteSpace(GetString(item, "unlockedDescription", "description")),
             GameName = NullIfWhiteSpace(gameName),
             Gamerscore = GetGamerscore(item),
-            IsRare = GetRarity(item),
-            ImageUrl = NullIfWhiteSpace(GetImageUrl(item)),
+            IsRare = rarity.IsRare,
+            RarityKnown = rarity.Known,
+            RarityPercentage = rarity.Percentage,
+            HeroImageUrl = NormalizeUrlHint(GetHeroImageUrl(item)),
+            ImageUrl = NormalizeUrlHint(GetImageUrl(item)),
             SourceProvider = "OpenXBL",
+            Platform = GetPlatform(item, associations, platformHint),
             UnlockedAt = unlockedAt,
             UnlockTimeEstimated = unlockedAt is null
         };
@@ -590,31 +597,67 @@ public static class OpenXblResponseParser
         return 0;
     }
 
-    private static bool GetRarity(JsonElement item)
+    private static RarityMetadata GetRarity(JsonElement item)
     {
+        bool? providerRare = null;
         if (TryGetProperty(item, "isRare", out var isRare) &&
             isRare.ValueKind is JsonValueKind.True or JsonValueKind.False)
         {
-            return isRare.GetBoolean();
+            providerRare = isRare.GetBoolean();
         }
 
-        if (!TryGetProperty(item, "rarity", out var rarity))
+        double? percentage = null;
+        string? category = null;
+        if (TryGetProperty(item, "rarity", out var rarity))
         {
-            return TryGetPercentage(item, "rarityPercentage", out var directPercentage) && directPercentage < 10;
-        }
-
-        if (rarity.ValueKind == JsonValueKind.Object)
-        {
-            var category = GetString(rarity, "currentCategory", "category");
-            if (category.Equals("Rare", StringComparison.OrdinalIgnoreCase))
+            if (rarity.ValueKind == JsonValueKind.Object)
             {
-                return true;
-            }
+                category = NullIfWhiteSpace(GetString(rarity, "currentCategory", "category"));
+                if (TryGetValidPercentage(rarity, "currentPercentage", out var nestedPercentage))
+                {
+                    percentage = nestedPercentage;
+                }
 
-            return TryGetPercentage(rarity, "currentPercentage", out var percentage) && percentage < 10;
+                if (percentage is null &&
+                    TryGetValidPercentage(rarity, "percentage", out var alternatePercentage))
+                {
+                    percentage = alternatePercentage;
+                }
+            }
+            else if (rarity.ValueKind is JsonValueKind.Number or JsonValueKind.String)
+            {
+                if (percentage is null && TryParseValidPercentage(rarity, out var scalarPercentage))
+                {
+                    percentage = scalarPercentage;
+                }
+                else if (rarity.ValueKind == JsonValueKind.String)
+                {
+                    category = NullIfWhiteSpace(rarity.GetString() ?? string.Empty);
+                }
+            }
         }
 
-        return rarity.ValueKind == JsonValueKind.Number && rarity.TryGetDouble(out var numeric) && numeric < 10;
+        if (percentage is null &&
+            TryGetValidPercentage(item, "rarityPercentage", out var directPercentage))
+        {
+            percentage = directPercentage;
+        }
+
+        bool? categoryRare = null;
+        if (category?.Equals("Rare", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            categoryRare = true;
+        }
+        else if (category?.Equals("Common", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            categoryRare = false;
+        }
+
+        var known = providerRare is not null || categoryRare is not null || percentage is not null;
+        var rare = percentage is { } value
+            ? RelayRarityClassifier.Classify(value) is RelayRarityTier.Gold or RelayRarityTier.Platinum
+            : providerRare ?? categoryRare ?? false;
+        return new RarityMetadata(known, rare, percentage);
     }
 
     private static string GetImageUrl(JsonElement item)
@@ -630,10 +673,16 @@ public static class OpenXblResponseParser
                     continue;
                 }
 
-                fallback = string.IsNullOrWhiteSpace(fallback) ? url : fallback;
-                if (GetString(asset, "type").Equals("Icon", StringComparison.OrdinalIgnoreCase))
+                var type = GetString(asset, "type");
+                if (type.Equals("Icon", StringComparison.OrdinalIgnoreCase))
                 {
                     return url;
+                }
+
+                if (!type.Equals("Background", StringComparison.OrdinalIgnoreCase) &&
+                    !type.Equals("Hero", StringComparison.OrdinalIgnoreCase))
+                {
+                    fallback = string.IsNullOrWhiteSpace(fallback) ? url : fallback;
                 }
             }
 
@@ -644,6 +693,112 @@ public static class OpenXblResponseParser
         }
 
         return GetString(item, "imageUrl", "image");
+    }
+
+    private static string GetHeroImageUrl(JsonElement item)
+    {
+        if (!TryGetProperty(item, "mediaAssets", out var assets) ||
+            assets.ValueKind != JsonValueKind.Array)
+        {
+            return GetString(item, "backgroundImageUrl", "heroImageUrl");
+        }
+
+        foreach (var asset in assets.EnumerateArray())
+        {
+            var type = GetString(asset, "type");
+            if (type.Equals("Background", StringComparison.OrdinalIgnoreCase) ||
+                type.Equals("Hero", StringComparison.OrdinalIgnoreCase))
+            {
+                var url = GetString(asset, "url");
+                if (!string.IsNullOrWhiteSpace(url))
+                {
+                    return url;
+                }
+            }
+        }
+
+        return GetString(item, "backgroundImageUrl", "heroImageUrl");
+    }
+
+    private static string? GetPlatform(
+        JsonElement item,
+        JsonElement titleAssociations,
+        string? platformHint)
+    {
+        // unlockedOnline is specific to the legacy Xbox achievement shape and
+        // remains authoritative when a backwards-compatible title is played
+        // on newer console hardware.
+        if (TryGetProperty(item, "unlockedOnline", out _))
+        {
+            return "Xbox 360";
+        }
+
+        var direct = GetString(item, "platform", "earnedPlatform", "deviceType", "device");
+        if (!string.IsNullOrWhiteSpace(direct))
+        {
+            return XboxPlatformClassifier.Classify(direct) ?? "Xbox";
+        }
+
+        var hinted = XboxPlatformClassifier.Classify(platformHint);
+        if (hinted is not null)
+        {
+            return hinted;
+        }
+
+        var available = new List<string>();
+        AddStringValues(item, available, "platforms", "devices");
+        if (titleAssociations.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var association in titleAssociations.EnumerateArray())
+            {
+                AddStringValues(association, available, "platforms", "devices");
+            }
+        }
+
+        return available.Count == 0
+            ? null
+            : XboxPlatformClassifier.Classify(null, available) ?? "Xbox";
+    }
+
+    private static void AddStringValues(
+        JsonElement element,
+        ICollection<string> destination,
+        params string[] propertyNames)
+    {
+        foreach (var propertyName in propertyNames)
+        {
+            if (!TryGetProperty(element, propertyName, out var values))
+            {
+                continue;
+            }
+
+            if (values.ValueKind != JsonValueKind.Array)
+            {
+                if (values.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined))
+                {
+                    destination.Add("Unknown");
+                }
+
+                continue;
+            }
+
+            foreach (var value in values.EnumerateArray())
+            {
+                if (value.ValueKind == JsonValueKind.String &&
+                    !string.IsNullOrWhiteSpace(value.GetString()))
+                {
+                    destination.Add(value.GetString()!);
+                }
+                else if (value.ValueKind == JsonValueKind.Number)
+                {
+                    destination.Add(value.GetRawText());
+                }
+                else if (value.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined))
+                {
+                    destination.Add("Unknown");
+                }
+            }
+        }
     }
 
     private static string CreateIdentity(
@@ -682,7 +837,7 @@ public static class OpenXblResponseParser
         };
     }
 
-    private static bool TryGetPercentage(JsonElement element, string propertyName, out double value)
+    private static bool TryGetValidPercentage(JsonElement element, string propertyName, out double value)
     {
         value = 0;
         if (!TryGetProperty(element, propertyName, out var property))
@@ -690,12 +845,20 @@ public static class OpenXblResponseParser
             return false;
         }
 
-        return property.ValueKind switch
+        return TryParseValidPercentage(property, out value);
+    }
+
+    private static bool TryParseValidPercentage(JsonElement property, out double value)
+    {
+        value = 0;
+        var parsed = property.ValueKind switch
         {
             JsonValueKind.Number => property.TryGetDouble(out value),
             JsonValueKind.String => double.TryParse(property.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out value),
             _ => false
         };
+
+        return parsed && double.IsFinite(value) && value is >= 0 and <= 100;
     }
 
     private static string GetString(JsonElement element, params string[] propertyNames)
@@ -741,4 +904,21 @@ public static class OpenXblResponseParser
 
     private static string? NullIfWhiteSpace(string value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static string? NormalizeUrlHint(string? value)
+    {
+        const int maximumLength = 2048;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var trimmed = value.Trim();
+        return trimmed.Length <= maximumLength ? trimmed : null;
+    }
+
+    private readonly record struct RarityMetadata(
+        bool Known,
+        bool IsRare,
+        double? Percentage);
 }

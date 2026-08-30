@@ -1,10 +1,10 @@
 [CmdletBinding()]
 param(
     [ValidatePattern('^\d+\.\d+\.\d+$')]
-    [string] $Version = '0.4.3',
+    [string] $Version = '0.5.0',
 
     [ValidatePattern('^\d+\.\d+\.\d+\.\d+$')]
-    [string] $MsixVersion = '0.4.3.0',
+    [string] $MsixVersion = '0.5.0.0',
 
     [string] $PackageDirectory,
 

@@ -21,6 +21,7 @@ Provider payload examples must be synthetic or thoroughly redacted. Replace acco
    ```powershell
    dotnet build .\AchievementRelay.sln --configuration Release
    dotnet run --project .\tests\AchievementRelay.Core.Tests --configuration Release
+   dotnet run --project .\tests\AchievementRelay.App.Tests --configuration Release
    .\scripts\Test-Repository.ps1
    ```
 

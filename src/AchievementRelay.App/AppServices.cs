@@ -13,10 +13,17 @@ public sealed class AppServices : IDisposable
         SettingsStore = new SettingsStore(Paths);
         EventLedger = new EventLedger(Paths);
         WebhookClient = new DiscordWebhookClient();
+        ArtworkClient = new AchievementArtworkClient();
+        CollectorCardRenderer = new DiscordCollectorCardRenderer();
+        AchievementPostComposer = new DiscordAchievementPostComposer(
+            ArtworkClient,
+            CollectorCardRenderer,
+            ActivityLog);
         AchievementDeliveryService = new AchievementDeliveryService(
             WebhookProtector,
             EventLedger,
             WebhookClient,
+            AchievementPostComposer,
             ActivityLog);
         OpenXblClient = new OpenXblClient();
         SyncStateStore = new XboxSyncStateStore(Paths);
@@ -61,6 +68,12 @@ public sealed class AppServices : IDisposable
 
     public DiscordWebhookClient WebhookClient { get; }
 
+    public AchievementArtworkClient ArtworkClient { get; }
+
+    public DiscordCollectorCardRenderer CollectorCardRenderer { get; }
+
+    public DiscordAchievementPostComposer AchievementPostComposer { get; }
+
     public AchievementDeliveryService AchievementDeliveryService { get; }
 
     public OpenXblClient OpenXblClient { get; }
@@ -87,6 +100,7 @@ public sealed class AppServices : IDisposable
         SteamMonitorCoordinator.Dispose();
         RelayCoordinator.Dispose();
         AchievementDeliveryService.Dispose();
+        ArtworkClient.Dispose();
         OpenXblClient.Dispose();
         SteamRarityClient.Dispose();
         WebhookClient.Dispose();

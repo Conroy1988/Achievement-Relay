@@ -1,5 +1,7 @@
 using System.Threading;
 using System.Windows;
+using System.Runtime.InteropServices;
+using AchievementRelay.App.Services;
 using AchievementRelay.Core.Services;
 
 namespace AchievementRelay.App;
@@ -15,6 +17,12 @@ public partial class App : System.Windows.Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        if (TryExportCollectorCardPreview(e.Args, out var previewExitCode))
+        {
+            Shutdown(previewExitCode);
+            return;
+        }
 
         _singleInstanceMutex = new Mutex(initiallyOwned: true, SingleInstanceMutexName, out var createdNew);
         _ownsSingleInstanceMutex = createdNew;
@@ -121,6 +129,54 @@ public partial class App : System.Windows.Application
 
         _mainWindow.RefreshStatus();
         _services.UpdateService.StartAutomaticChecks();
+    }
+
+    private static bool TryExportCollectorCardPreview(string[] args, out int exitCode)
+    {
+        exitCode = 0;
+        var optionIndex = Array.FindIndex(
+            args,
+            value => string.Equals(
+                value,
+                "--export-collector-card-preview",
+                StringComparison.OrdinalIgnoreCase));
+        if (optionIndex < 0)
+        {
+            return false;
+        }
+
+        if (optionIndex + 1 >= args.Length || string.IsNullOrWhiteSpace(args[optionIndex + 1]))
+        {
+            exitCode = 2;
+            return true;
+        }
+
+        try
+        {
+            var outputPath = Path.GetFullPath(args[optionIndex + 1]);
+            var directory = Path.GetDirectoryName(outputPath);
+            if (string.IsNullOrWhiteSpace(directory))
+            {
+                exitCode = 2;
+                return true;
+            }
+
+            Directory.CreateDirectory(directory);
+            var card = new DiscordCollectorCardRenderer().RenderGoldFallbackPreview();
+            File.WriteAllBytes(outputPath, card.Bytes);
+        }
+        catch (Exception exception) when (exception is ArgumentException or
+                                          ExternalException or
+                                          IOException or
+                                          InvalidOperationException or
+                                          NotSupportedException or
+                                          OutOfMemoryException or
+                                          PlatformNotSupportedException)
+        {
+            exitCode = 2;
+        }
+
+        return true;
     }
 
     public void ExitApplication()

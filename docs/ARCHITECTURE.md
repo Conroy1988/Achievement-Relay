@@ -2,8 +2,8 @@
 
 Achievement Relay is a local Windows desktop app with three projects:
 
-- `AchievementRelay.Core` contains platform-neutral OpenXBL parsing, Xbox and Steam delta rules, PNG encoding, validation, deterministic event identity, settings models, and Discord payload construction.
-- `AchievementRelay.App` contains the WPF/tray UI, provider coordinators, OpenXBL/Steam-rarity/Discord HTTP clients, Steam game detection, DPAPI secret storage, durable provider state, the shared event ledger, installer import, startup integration, and logging.
+- `AchievementRelay.Core` contains platform-neutral OpenXBL parsing, Xbox and Steam delta rules, rarity/platform classification, PNG encoding, validation, deterministic event identity, settings models, and Discord payload construction.
+- `AchievementRelay.App` contains the WPF/tray UI, Collector Card rendering, provider coordinators, OpenXBL/Steam-rarity/Discord HTTP clients, Steam game detection, DPAPI secret storage, durable provider state, the shared event ledger, installer import, startup integration, and logging.
 - `AchievementRelay.SteamBridge` is a minimal x64 .NET Framework helper that reads the active App ID's local Steamworks achievement state and emits versioned complete snapshots over redirected standard I/O. It has no Discord, settings, or write-to-Steam responsibility.
 
 The MSIX manifest supplies package identity, `internetClient`, `runFullTrust`, the packaged startup task, and unvirtualized per-user AppData. The app's durable state remains under `%LOCALAPPDATA%\AchievementRelay`, with both the legacy full-trust declaration and an explicit Windows 11 virtualization exclusion. The one-time installer handoff uses `%USERPROFILE%\.achievement-relay` instead, which is outside AppData virtualization. Current releases have no `userNotificationListener` capability.
@@ -24,7 +24,7 @@ sequenceDiagram
             A->>X: GET changed title achievements
             X-->>A: Achievement v2 JSON
             A->>L: Stable-ID set difference + dedup check
-            A->>D: HTTPS webhook embed
+            A->>D: HTTPS embed + Collector Card PNG
             D-->>A: Delivery result
             A->>L: Mark processed + save title snapshots
         else No title changed
@@ -52,7 +52,7 @@ sequenceDiagram
         A->>L: Store unlocked API names silently
     else Directly proven new unlock
         A->>L: Compare monotonic unlocked-ID set
-        A->>D: Embed + optional PNG attachment
+        A->>D: Embed + Collector Card PNG
         D-->>A: Confirmed webhook response
         A->>L: Mark processed + advance Steam state
     end
@@ -89,17 +89,29 @@ Steam uses a separate state file with the same fail-closed philosophy. The x64 h
 1. accepts a documented `achievements` collection or root array;
 2. keeps only entries explicitly marked achieved, including the Xbox 360 `unlocked` boolean;
 3. rejects revoked entries while retaining achieved entries with missing or sentinel legacy times;
-4. maps title, description, Gamerscore, rarity, and icon when available; and
+4. maps title, description, Gamerscore, validated rarity percentage, platform evidence, and artwork when available; and
 5. deduplicates by deterministic event identity.
 
 The parser never interprets response data as code and does not log raw provider responses.
+
+## Collector Card and Discord path
+
+An eligible achievement is enriched and rendered only after the anti-backlog and deduplication rules have proved it can be delivered. The card path is deliberately presentation-only: a missing percentage, unavailable artwork or rendering problem cannot authorize an event, alter its deterministic identity, or advance provider state past a failed Discord delivery.
+
+Validated percentages are classified into four Relay tiers: Bronze at 25% or more, Silver from 10% through 24.99%, Gold from 3% through 9.99%, and Platinum below 3%. Values must be finite and between 0 and 100. Missing or invalid values select the neutral Unranked design instead of inventing a percentage.
+
+Xbox device metadata is also treated conservatively. Exact Windows-only evidence can produce **Xbox PC**, console-only evidence can produce **Xbox Console**, and the legacy achievement route can produce **Xbox 360**. Mixed, unknown or incomplete evidence produces **Xbox**. Steam events use **Steam** directly. Platform evidence is display metadata and never becomes part of an event ID.
+
+The renderer creates one bounded PNG in memory. Usable provider artwork is cropped behind a deterministic dark readability treatment; otherwise the renderer draws the complete Achievement Relay fallback. The multipart attachment includes a concise author-controlled description, and the achievement name, game, platform, percentage and tier also remain in the normal Discord embed because client support for attachment descriptions can vary.
+
+The webhook uses `multipart/form-data` with the JSON payload in `payload_json` and the finished card as `files[0]`. Its embed refers to the constant attachment name through `attachment://`. If optional artwork cannot be used, rendering continues with the branded fallback. If the complete renderer cannot produce a safe attachment, delivery falls back to the text embed and records a privacy-safe warning rather than losing the achievement.
 
 ## Secrets and local state
 
 | File | Contents |
 |---|---|
 | `settings.json` | Preferences, XUID, gamertag, and current-user DPAPI ciphertext for OpenXBL/Discord secrets |
-| `xbox-sync-state.json` | Account ID, first-run baseline, poll/background timestamps, per-title count/Gamerscore/stable-ID snapshots, and a durable pending-title queue with proven live-delivery epochs |
+| `xbox-sync-state.json` | Account ID, first-run baseline, poll/background timestamps, per-title count/Gamerscore/stable-ID/device snapshots, and a durable pending-title queue with proven live-delivery epochs and normalized platform evidence |
 | `steam-sync-state.json` | Steam account ID and per-App-ID monitoring time, last observation, game name, monotonic unlocked API-name set, and pending live deliveries |
 | `processed-events.json` | Bounded deterministic IDs and processed timestamps |
 | `achievement-relay.log` | Size-bounded operational messages; no intentional credentials or raw JSON |
@@ -129,6 +141,6 @@ Downloads are limited to the exact `AchievementRelay_Setup.exe` asset on the off
 
 Settings schema 1 is migrated through schema 2 to schema 3 while retaining encrypted secrets and preferences. A completed 0.2 Xbox/Discord setup remains complete; Steam is added without resetting the Xbox cursor. A 0.1.x user must still choose a current achievement source. Legacy notification capture classes and manifest permissions remain removed.
 
-Xbox sync-state schemas 2–5 migrate to schema 6 without discarding saved counts, Gamerscore, cursors, or verified identity sets. Schema 5 added the durable pending-title queue and last background-work time; schema 6 adds the live-delivery epoch and untimestamped live-evidence fields needed for safe restart retry. Older queued work receives no inferred live proof during migration. Schema-3 zero-count snapshots are reopened as unverified because they were created without a detail request. The first complete detail response stores the full ID set; only a trustworthy timestamp after the current delivery epoch can post during that transition, and count/Gamerscore inference is forbidden.
+Xbox sync-state schemas 2–6 migrate to schema 7 without discarding saved counts, Gamerscore, cursors, or verified identity sets. Schema 5 added the durable pending-title queue and last background-work time; schema 6 added the live-delivery epoch and untimestamped live-evidence fields needed for safe restart retry; schema 7 adds normalized title-device evidence to snapshots and pending work. Older queued work receives no inferred live proof or specific platform claim during migration. Schema-3 zero-count snapshots are reopened as unverified because they were created without a detail request. The first complete detail response stores the full ID set; only a trustworthy timestamp after the current delivery epoch can post during that transition, and count/Gamerscore inference is forbidden.
 
 The provider research, failure matrices, and Windows release gates are maintained in [OpenXBL reliability research](OPENXBL-RELIABILITY.md) and [Steam integration research](STEAM-INTEGRATION.md).

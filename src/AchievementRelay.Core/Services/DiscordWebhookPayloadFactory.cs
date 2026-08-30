@@ -9,7 +9,10 @@ public static class DiscordWebhookPayloadFactory
 {
     private const int XboxGreen = 0x107C10;
     private const int SteamBlue = 0x1B6E9F;
-    private const int RareGold = 0xF2C94C;
+    private const int Bronze = 0xCD7F32;
+    private const int Silver = 0xC0C5C8;
+    private const int Gold = 0xF2C94C;
+    private const int Platinum = 0x72E2F1;
     private const string ProjectUrl = "https://github.com/Conroy1988/Achievement-Relay";
 
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web)
@@ -34,7 +37,8 @@ public static class DiscordWebhookPayloadFactory
             fields.Add(new { name = "Gamerscore", value = $"+{achievement.Gamerscore}G", inline = true });
         }
 
-        if (achievement.RarityPercentage is { } rarityPercentage)
+        var rarityTier = RelayRarityClassifier.Classify(achievement.RarityPercentage);
+        if (rarityTier != RelayRarityTier.Unranked)
         {
             var population = string.Equals(achievement.SourceProvider, "Steam", StringComparison.OrdinalIgnoreCase)
                 ? "Steam players"
@@ -42,15 +46,18 @@ public static class DiscordWebhookPayloadFactory
             fields.Add(new
             {
                 name = "Rarity",
-                value = achievement.IsRare
-                    ? $"💎 Rare achievement • {rarityPercentage:0.##}% of {population}"
-                    : $"{rarityPercentage:0.##}% of {population}",
+                value = $"{GetTierTextIcon(rarityTier)} Relay {RelayRarityClassifier.DisplayName(rarityTier)} tier • " +
+                        $"{RelayRarityClassifier.FormatPercentage(achievement.RarityPercentage)} of {population}",
                 inline = true
             });
         }
         else if (achievement.IsRare)
         {
-            fields.Add(new { name = "Rarity", value = "💎 Rare achievement", inline = true });
+            fields.Add(new { name = "Rarity", value = "◇ Rare achievement • global percentage unavailable", inline = true });
+        }
+        else
+        {
+            fields.Add(new { name = "Rarity", value = "◇ Unranked • global percentage unavailable", inline = true });
         }
 
         var playerName = string.IsNullOrWhiteSpace(settings.DisplayName)
@@ -61,11 +68,9 @@ public static class DiscordWebhookPayloadFactory
             fields.Add(new { name = "Player", value = Truncate(playerName, 1024), inline = true });
         }
 
-        if (!string.IsNullOrWhiteSpace(achievement.SourceProvider))
+        var platform = ResolvePlatform(achievement);
+        if (!string.IsNullOrWhiteSpace(platform))
         {
-            var platform = string.Equals(achievement.SourceProvider, "OpenXBL", StringComparison.OrdinalIgnoreCase)
-                ? "Xbox"
-                : achievement.SourceProvider;
             fields.Add(new { name = "Platform", value = Truncate(platform, 1024), inline = true });
         }
 
@@ -79,11 +84,7 @@ public static class DiscordWebhookPayloadFactory
         var embed = new Dictionary<string, object?>
         {
             ["title"] = Truncate($"🏆 {achievement.Name}", 256),
-            ["color"] = achievement.IsRare
-                ? RareGold
-                : string.Equals(achievement.SourceProvider, "Steam", StringComparison.OrdinalIgnoreCase)
-                    ? SteamBlue
-                    : XboxGreen,
+            ["color"] = GetEmbedColor(rarityTier, achievement.SourceProvider),
             ["timestamp"] = (achievement.UnlockedAt ?? DateTimeOffset.UtcNow).ToUniversalTime().ToString("O"),
             ["footer"] = new
             {
@@ -103,7 +104,13 @@ public static class DiscordWebhookPayloadFactory
             embed["fields"] = fields;
         }
 
-        if (achievement.ImageBytes is { Length: > 0 } && !string.IsNullOrWhiteSpace(achievement.ImageFileName))
+        var hasAttachment = achievement.ImageBytes is { Length: > 0 } &&
+                            !string.IsNullOrWhiteSpace(achievement.ImageFileName);
+        if (achievement.IsCollectorCard && hasAttachment)
+        {
+            embed["image"] = new { url = $"attachment://{achievement.ImageFileName}" };
+        }
+        else if (hasAttachment)
         {
             embed["thumbnail"] = new { url = $"attachment://{achievement.ImageFileName}" };
         }
@@ -113,12 +120,25 @@ public static class DiscordWebhookPayloadFactory
             embed["thumbnail"] = new { url = imageUri.ToString() };
         }
 
-        var payload = new
+        var payload = new Dictionary<string, object?>
         {
-            username = Truncate(settings.DiscordUsername, 80),
-            allowed_mentions = new { parse = Array.Empty<string>() },
-            embeds = new[] { embed }
+            ["username"] = Truncate(settings.DiscordUsername, 80),
+            ["allowed_mentions"] = new { parse = Array.Empty<string>() },
+            ["embeds"] = new[] { embed }
         };
+
+        if (achievement.IsCollectorCard && hasAttachment)
+        {
+            payload["attachments"] = new[]
+            {
+                new
+                {
+                    id = 0,
+                    filename = achievement.ImageFileName,
+                    description = CreateAttachmentDescription(achievement, settings, rarityTier, platform)
+                }
+            };
+        }
 
         return JsonSerializer.Serialize(payload, SerializerOptions);
     }
@@ -154,6 +174,65 @@ public static class DiscordWebhookPayloadFactory
         value = $"[Get the relay]({ProjectUrl})",
         inline = false
     };
+
+    private static string ResolvePlatform(AchievementEvent achievement)
+    {
+        if (!string.IsNullOrWhiteSpace(achievement.Platform))
+        {
+            return achievement.Platform;
+        }
+
+        return string.Equals(achievement.SourceProvider, "OpenXBL", StringComparison.OrdinalIgnoreCase)
+            ? "Xbox"
+            : achievement.SourceProvider;
+    }
+
+    private static int GetEmbedColor(RelayRarityTier tier, string sourceProvider) => tier switch
+    {
+        RelayRarityTier.Bronze => Bronze,
+        RelayRarityTier.Silver => Silver,
+        RelayRarityTier.Gold => Gold,
+        RelayRarityTier.Platinum => Platinum,
+        _ => string.Equals(sourceProvider, "Steam", StringComparison.OrdinalIgnoreCase)
+            ? SteamBlue
+            : XboxGreen
+    };
+
+    private static string GetTierTextIcon(RelayRarityTier tier) => tier switch
+    {
+        RelayRarityTier.Bronze => "🥉",
+        RelayRarityTier.Silver => "◈",
+        RelayRarityTier.Gold => "🏅",
+        RelayRarityTier.Platinum => "💠",
+        _ => "◇"
+    };
+
+    private static string CreateAttachmentDescription(
+        AchievementEvent achievement,
+        AppSettings settings,
+        RelayRarityTier tier,
+        string platform)
+    {
+        var game = string.IsNullOrWhiteSpace(achievement.GameName)
+            ? string.Empty
+            : $" in {achievement.GameName.Trim()}";
+        var rarity = tier == RelayRarityTier.Unranked
+            ? "Global rarity percentage unavailable."
+            : $"Relay {RelayRarityClassifier.DisplayName(tier)} tier; " +
+              $"unlocked by {RelayRarityClassifier.FormatPercentage(achievement.RarityPercentage)} of players.";
+        var player = string.IsNullOrWhiteSpace(settings.DisplayName)
+            ? achievement.PlayerName
+            : settings.DisplayName;
+        var playerText = string.IsNullOrWhiteSpace(player)
+            ? string.Empty
+            : $" Player: {player.Trim()}.";
+        var platformText = string.IsNullOrWhiteSpace(platform)
+            ? string.Empty
+            : $" Platform: {platform.Trim()}.";
+        return Truncate(
+            $"Achievement unlocked: {achievement.Name}{game}. {rarity}{playerText}{platformText}",
+            1024);
+    }
 
     private static string Truncate(string? value, int maximumLength)
     {

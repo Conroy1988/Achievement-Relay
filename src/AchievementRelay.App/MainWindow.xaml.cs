@@ -528,7 +528,7 @@ public partial class MainWindow : Window
 
     private void PopulateControls()
     {
-        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.4.3";
+        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.5.0";
         AboutVersionText.Text = $"Version {version}";
 
         var xboxConfigured = TryGetOpenXblApiKey(out _) && !string.IsNullOrWhiteSpace(_settings.XboxUserId);
@@ -1139,12 +1139,20 @@ public partial class MainWindow : Window
                 GameName = "Achievement Relay Setup",
                 Gamerscore = 10,
                 IsRare = true,
+                RarityKnown = true,
+                RarityPercentage = 4.7,
+                PlayerName = "Relay Player",
                 SourceProvider = "Achievement Relay",
+                Platform = "Windows PC",
                 UnlockedAt = DateTimeOffset.UtcNow
             };
+            var post = await _services.AchievementPostComposer.ComposeAsync(sample, _settings);
             var result = await _services.WebhookClient.SendAsync(
                 webhookUri,
-                DiscordWebhookPayloadFactory.Create(sample, _settings));
+                post.JsonPayload,
+                post.AttachmentBytes,
+                post.AttachmentFileName,
+                post.AttachmentContentType);
             _services.ActivityLog.Info(result.Success
                 ? "Sample achievement posted to Discord."
                 : $"Sample achievement failed: {result.Message}");

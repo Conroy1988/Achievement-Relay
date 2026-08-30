@@ -10,6 +10,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using AchievementRelay.App.Services;
 using AchievementRelay.Core.Models;
+using Color = System.Windows.Media.Color;
 
 namespace AchievementRelay.App;
 

@@ -41,6 +41,17 @@ Each Collector Card attachment includes an author-controlled description summari
 - Provider strings are bounded and wrapped so long localized names cannot cover the rarity or platform information.
 - If a complete safe card cannot be rendered, the ordinary text embed is still delivered.
 
+## Signal Strip overlay
+
+The local Signal Strip is a brief, non-interactive visual complement to the durable Activity entry and Discord post; it is never the only record of an achievement.
+
+- The strip does not activate, take keyboard focus or intercept pointer input from the game beneath it.
+- No achievement sound is played, so the feature does not override game audio or rely on an audio cue.
+- Achievement and game names use bounded layouts, while rarity is communicated through the emblem silhouette, percentage and written tier treatment rather than colour alone.
+- Missing percentages use the explicit **Unranked** state instead of an ambiguous blank or false numeric value.
+- Consecutive unlocks are shown sequentially for five seconds each rather than stacked, flashing or rapidly replacing one another.
+- The feature can be disabled independently in Settings without disabling monitoring or Discord delivery.
+
 ## Reporting a problem
 
 If a label is hard to read or a control is difficult to use with keyboard or assistive technology, open a [GitHub issue](https://github.com/Conroy1988/Achievement-Relay/issues) or join [Community & Support on Discord](https://discord.gg/3ZdXhYjgDm). Do not include an OpenXBL key or Discord webhook in a report.

@@ -8,6 +8,8 @@ using AchievementRelay.Core.Services;
 
 var tests = new (string Name, Action Run)[]
 {
+    ("Legacy settings enable the achievement overlay without resetting preferences", LegacySettingsEnableAchievementOverlay),
+    ("Achievement overlay opt-out survives the settings JSON round trip", AchievementOverlayOptOutSurvivesJsonRoundTrip),
     ("OpenXBL API keys are normalized without weakening validation", ValidatesOpenXblApiKeys),
     ("OpenXBL account profile is parsed case-insensitively", ParsesOpenXblAccount),
     ("OpenXBL object profiles and display-name fallbacks are supported", ParsesOpenXblObjectAccount),
@@ -99,6 +101,59 @@ foreach (var test in tests)
 
 Console.WriteLine($"{tests.Length - failures.Count}/{tests.Length} checks passed.");
 return failures.Count == 0 ? 0 : 1;
+
+static void LegacySettingsEnableAchievementOverlay()
+{
+    var settings = JsonSerializer.Deserialize<AppSettings>("""
+        {
+          "schemaVersion": 3,
+          "protectedWebhookUrl": "protected-webhook",
+          "protectedOpenXblApiKey": "protected-xbox-key",
+          "xboxUserId": "123456789",
+          "xboxGamertag": "RelayPlayer",
+          "displayName": "Display Player",
+          "startWithWindows": false,
+          "startMinimized": false,
+          "postRareOnly": true,
+          "steamEnabled": false,
+          "includeRawDetailsWhenUncertain": false,
+          "setupCompleted": true,
+          "discordUsername": "Relay Bot",
+          "pollIntervalSeconds": 120
+        }
+        """, new JsonSerializerOptions(JsonSerializerDefaults.Web)) ??
+        throw new InvalidOperationException("Legacy settings JSON did not deserialize.");
+
+    Assert(settings.AchievementOverlayEnabled, "A legacy installation did not receive the default-on achievement overlay.");
+    Assert(settings.ProtectedWebhookUrl == "protected-webhook", "The encrypted Discord setting was reset.");
+    Assert(settings.ProtectedOpenXblApiKey == "protected-xbox-key", "The encrypted Xbox setting was reset.");
+    Assert(settings.XboxUserId == "123456789" && settings.XboxGamertag == "RelayPlayer", "The Xbox identity was reset.");
+    Assert(settings.DisplayName == "Display Player" && settings.DiscordUsername == "Relay Bot", "Saved display preferences were reset.");
+    Assert(!settings.StartWithWindows && !settings.StartMinimized, "Saved Windows startup preferences were reset.");
+    Assert(settings.PostRareOnly && !settings.IncludeRawDetailsWhenUncertain, "Saved post preferences were reset.");
+    Assert(!settings.SteamEnabled && settings.SetupCompleted, "Saved provider/setup preferences were reset.");
+    Assert(settings.PollIntervalSeconds == 120, "The saved polling interval was reset.");
+}
+
+static void AchievementOverlayOptOutSurvivesJsonRoundTrip()
+{
+    var source = new AppSettings
+    {
+        ProtectedWebhookUrl = "protected-webhook",
+        AchievementOverlayEnabled = false,
+        SteamEnabled = false,
+        SetupCompleted = true
+    };
+    var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+    var serialized = JsonSerializer.Serialize(source, options);
+    var restored = JsonSerializer.Deserialize<AppSettings>(serialized, options) ??
+        throw new InvalidOperationException("Current settings JSON did not deserialize.");
+
+    Assert(restored.SchemaVersion == AppSettings.CurrentSchemaVersion, "The current settings schema version did not survive serialization.");
+    Assert(!restored.AchievementOverlayEnabled, "An explicit achievement-overlay opt-out was reset.");
+    Assert(restored.ProtectedWebhookUrl == "protected-webhook", "The encrypted Discord setting did not survive serialization.");
+    Assert(!restored.SteamEnabled && restored.SetupCompleted, "Unrelated settings did not survive serialization.");
+}
 
 static void ParsesUpdateManifest()
 {

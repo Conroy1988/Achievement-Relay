@@ -87,6 +87,12 @@ Use **Help & support → Send Discord test** to verify the fallback independentl
 
 **Unranked** means Xbox/OpenXBL or Steam did not supply a valid global unlock percentage for that achievement. Achievement Relay accepts only finite values from 0 through 100 and never turns missing or malformed data into `0%` or a Platinum tier. The achievement remains deliverable, including when **Only post rare achievements** is enabled and the provider did not establish its rarity.
 
+## Signal Strip does not appear
+
+Open **Settings** and confirm **Achievement overlay** is enabled. The Signal Strip appears only for a newly proven live achievement; first baselines, startup reconciliation, offline history and other unproven changes remain silent by design. **Only post achievements confirmed as rare** filters Discord delivery, not the separate local Signal Strip. A Discord sample tests the Collector Card and webhook—it is not historical achievement evidence and may be handled separately from a live overlay.
+
+If a genuine live achievement reaches Discord but no strip appears, check Activity, install the latest release and include the redacted support summary in an issue. The strip is intentionally silent, mouse-transparent and self-dismissing, so it will not appear in the taskbar or take focus from the game.
+
 ## Xbox card does not say Xbox PC
 
 Achievement Relay uses a specific label only when the provider evidence is reliable. PC-only evidence can produce **Xbox PC**, console-only evidence can produce **Xbox Console**, and a legacy achievement response can produce **Xbox 360**. A Play Anywhere title that advertises both PC and console support, an unknown device token, or missing metadata remains **Xbox**. This generic label is intentional; supported-device lists alone do not prove which device produced one unlock.

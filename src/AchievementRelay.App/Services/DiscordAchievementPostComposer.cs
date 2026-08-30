@@ -10,7 +10,8 @@ public sealed record DiscordAchievementPost(
     byte[]? AttachmentBytes,
     string? AttachmentFileName,
     string? AttachmentContentType,
-    bool UsesCollectorCard);
+    bool UsesCollectorCard,
+    byte[]? AchievementIconBytes);
 
 /// <summary>
 /// Builds the visual Discord post without making presentation enrichment a
@@ -30,9 +31,11 @@ public sealed class DiscordAchievementPostComposer(
         ArgumentNullException.ThrowIfNull(achievement);
         ArgumentNullException.ThrowIfNull(settings);
 
+        var achievementIconBytes = achievement.ImageBytes;
         try
         {
             var artwork = await artworkClient.GetAsync(achievement, cancellationToken);
+            achievementIconBytes = artwork.AchievementIconBytes;
             var card = cardRenderer.Render(achievement, settings, artwork);
             var cardAchievement = achievement with
             {
@@ -46,7 +49,8 @@ public sealed class DiscordAchievementPostComposer(
                 card.Bytes,
                 card.FileName,
                 card.ContentType,
-                UsesCollectorCard: true);
+                UsesCollectorCard: true,
+                achievementIconBytes);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -56,13 +60,14 @@ public sealed class DiscordAchievementPostComposer(
         {
             activityLog.Warning(
                 $"Collector Card rendering was unavailable for {achievement.Name}; the standard Discord presentation was used safely.");
-            return CreateLegacyPost(achievement, settings);
+            return CreateLegacyPost(achievement, settings, achievementIconBytes);
         }
     }
 
     private static DiscordAchievementPost CreateLegacyPost(
         AchievementEvent achievement,
-        AppSettings settings)
+        AppSettings settings,
+        byte[]? achievementIconBytes)
     {
         var legacyAchievement = achievement.IsCollectorCard
             ? achievement with
@@ -78,7 +83,8 @@ public sealed class DiscordAchievementPostComposer(
             legacyAchievement.ImageBytes,
             legacyAchievement.ImageFileName,
             legacyAchievement.ImageContentType,
-            UsesCollectorCard: false);
+            UsesCollectorCard: false,
+            achievementIconBytes);
     }
 
     private static bool IsRecoverablePresentationFailure(Exception exception) =>

@@ -319,6 +319,7 @@ public partial class MainWindow : Window
             $"Last Steam observation: {FormatLocalTimestamp(_services.SteamMonitorCoordinator.LastObservationUtc)}",
             $"Last Steam error: {(string.IsNullOrWhiteSpace(steamError) ? "none" : steamError)}",
             $"Discord: {(webhookConfigured ? "configured" : "not configured")}",
+            $"Signal Strip overlay: {(_settings.AchievementOverlayEnabled ? "enabled" : "disabled")}",
             $"Update status: {FormatUpdateStatus(_services.UpdateService.Snapshot)}",
             $"Windows package version: {_services.UpdateService.CurrentPackageVersion}",
             $"Polling interval: {Math.Clamp(_settings.PollIntervalSeconds, 60, 3600)} seconds",
@@ -528,7 +529,7 @@ public partial class MainWindow : Window
 
     private void PopulateControls()
     {
-        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.5.0";
+        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.6.0";
         AboutVersionText.Text = $"Version {version}";
 
         var xboxConfigured = TryGetOpenXblApiKey(out _) && !string.IsNullOrWhiteSpace(_settings.XboxUserId);
@@ -548,6 +549,7 @@ public partial class MainWindow : Window
         SettingsSteamEnabledCheckBox.IsChecked = _settings.SteamEnabled;
         SettingsRareOnlyCheckBox.IsChecked = _settings.PostRareOnly;
         SettingsRawDetailsCheckBox.IsChecked = _settings.IncludeRawDetailsWhenUncertain;
+        SettingsAchievementOverlayEnabledCheckBox.IsChecked = _settings.AchievementOverlayEnabled;
         SettingsStartWithWindowsCheckBox.IsChecked = _settings.StartWithWindows;
         SettingsStartMinimizedCheckBox.IsChecked = _settings.StartMinimized;
 
@@ -1119,6 +1121,16 @@ public partial class MainWindow : Window
         }
     }
 
+    private void PreviewAchievementOverlay_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_services.AchievementOverlayService.Preview(CreateSampleAchievement()))
+        {
+            ShowMessage(
+                "The Signal Strip preview queue is busy. Wait for the current preview to finish and try again.",
+                MessageBoxImage.Information);
+        }
+    }
+
     private async void SendSampleAchievement_Click(object sender, RoutedEventArgs e)
     {
         if (!TryGetWebhook(out var webhookUri) || webhookUri is null)
@@ -1131,21 +1143,7 @@ public partial class MainWindow : Window
         SetButtonBusy(sender, true);
         try
         {
-            var sample = new AchievementEvent
-            {
-                Id = Guid.NewGuid().ToString("N"),
-                Name = "Relay online",
-                Description = "This is a sample achievement from Achievement Relay.",
-                GameName = "Achievement Relay Setup",
-                Gamerscore = 10,
-                IsRare = true,
-                RarityKnown = true,
-                RarityPercentage = 4.7,
-                PlayerName = "Relay Player",
-                SourceProvider = "Achievement Relay",
-                Platform = "Windows PC",
-                UnlockedAt = DateTimeOffset.UtcNow
-            };
+            var sample = CreateSampleAchievement();
             var post = await _services.AchievementPostComposer.ComposeAsync(sample, _settings);
             var result = await _services.WebhookClient.SendAsync(
                 webhookUri,
@@ -1153,6 +1151,13 @@ public partial class MainWindow : Window
                 post.AttachmentBytes,
                 post.AttachmentFileName,
                 post.AttachmentContentType);
+            if (result.Success)
+            {
+                _services.AchievementOverlayService.Enqueue(
+                    sample,
+                    _settings,
+                    post.AchievementIconBytes);
+            }
             _services.ActivityLog.Info(result.Success
                 ? "Sample achievement posted to Discord."
                 : $"Sample achievement failed: {result.Message}");
@@ -1163,6 +1168,22 @@ public partial class MainWindow : Window
             SetButtonBusy(sender, false);
         }
     }
+
+    private static AchievementEvent CreateSampleAchievement() => new()
+    {
+        Id = Guid.NewGuid().ToString("N"),
+        Name = "Relay online",
+        Description = "This is a sample achievement from Achievement Relay.",
+        GameName = "Achievement Relay Showcase",
+        Gamerscore = 30,
+        IsRare = true,
+        RarityKnown = true,
+        RarityPercentage = 4.7,
+        PlayerName = "Relay Player",
+        SourceProvider = "Achievement Relay",
+        Platform = "Xbox PC",
+        UnlockedAt = DateTimeOffset.UtcNow
+    };
 
     private async void TestSettingsWebhook_Click(object sender, RoutedEventArgs e)
     {
@@ -1227,6 +1248,7 @@ public partial class MainWindow : Window
                 SteamEnabled = SettingsSteamEnabledCheckBox.IsChecked == true,
                 PostRareOnly = SettingsRareOnlyCheckBox.IsChecked == true,
                 IncludeRawDetailsWhenUncertain = SettingsRawDetailsCheckBox.IsChecked == true,
+                AchievementOverlayEnabled = SettingsAchievementOverlayEnabledCheckBox.IsChecked == true,
                 StartWithWindows = startWithWindows,
                 StartMinimized = SettingsStartMinimizedCheckBox.IsChecked == true
             };
@@ -1236,6 +1258,11 @@ public partial class MainWindow : Window
             var hasProvider = xboxConfigured || _settings.SteamEnabled;
             _settings = _settings with { SetupCompleted = _settings.SetupCompleted && webhookConfigured && hasProvider };
             await _services.SettingsStore.SaveAsync(_settings);
+            if (!_settings.AchievementOverlayEnabled)
+            {
+                _services.AchievementOverlayService.Clear();
+            }
+
             var startupApplied = await _services.StartupService.SetEnabledAsync(startWithWindows);
             if (_services.UpdateService.IsUpdateRequired)
             {
@@ -1477,6 +1504,7 @@ public partial class MainWindow : Window
             $"Last Steam observation: {(_services.SteamMonitorCoordinator.LastObservationUtc?.ToString("O") ?? "not yet")}",
             $"Last Steam error: {_services.SteamMonitorCoordinator.LastError ?? "none"}",
             $"Discord configured: {TryGetWebhook(out _)}",
+            $"Signal Strip overlay enabled: {_settings.AchievementOverlayEnabled}",
             $"Setup completed: {_settings.SetupCompleted}",
             $"Update status: {FormatUpdateStatus(_services.UpdateService.Snapshot)}",
             $"Windows package version: {_services.UpdateService.CurrentPackageVersion}",

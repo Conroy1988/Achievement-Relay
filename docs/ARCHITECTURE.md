@@ -3,7 +3,7 @@
 Achievement Relay is a local Windows desktop app with three projects:
 
 - `AchievementRelay.Core` contains platform-neutral OpenXBL parsing, Xbox and Steam delta rules, rarity/platform classification, PNG encoding, validation, deterministic event identity, settings models, and Discord payload construction.
-- `AchievementRelay.App` contains the WPF/tray UI, Collector Card rendering, provider coordinators, OpenXBL/Steam-rarity/Discord HTTP clients, Steam game detection, DPAPI secret storage, durable provider state, the shared event ledger, installer import, startup integration, and logging.
+- `AchievementRelay.App` contains the WPF/tray UI, passive Signal Strip queue, Collector Card rendering, provider coordinators, OpenXBL/Steam-rarity/Discord HTTP clients, Steam game detection, DPAPI secret storage, durable provider state, the shared event ledger, installer import, startup integration, and logging.
 - `AchievementRelay.SteamBridge` is a minimal x64 .NET Framework helper that reads the active App ID's local Steamworks achievement state and emits versioned complete snapshots over redirected standard I/O. It has no Discord, settings, or write-to-Steam responsibility.
 
 The MSIX manifest supplies package identity, `internetClient`, `runFullTrust`, the packaged startup task, and unvirtualized per-user AppData. The app's durable state remains under `%LOCALAPPDATA%\AchievementRelay`, with both the legacy full-trust declaration and an explicit Windows 11 virtualization exclusion. The one-time installer handoff uses `%USERPROFILE%\.achievement-relay` instead, which is outside AppData virtualization. Current releases have no `userNotificationListener` capability.
@@ -106,11 +106,19 @@ The renderer creates one bounded PNG in memory. Usable provider artwork is cropp
 
 The webhook uses `multipart/form-data` with the JSON payload in `payload_json` and the finished card as `files[0]`. Its embed refers to the constant attachment name through `attachment://`. If optional artwork cannot be used, rendering continues with the branded fallback. If the complete renderer cannot produce a safe attachment, delivery falls back to the text embed and records a privacy-safe warning rather than losing the achievement.
 
+## Signal Strip path
+
+The local Signal Strip is downstream of the same Xbox/Steam eligibility decision used for delivery. Provider baselines, startup reconciliation, historical hydration and unproven changes never enter its queue. Eligible events are projected into bounded presentation models and added to a bounded first-in, first-out queue; the WPF dispatcher presents one five-second strip at a time.
+
+The overlay window is topmost without activation, has no taskbar entry, is mouse-transparent and never requests keyboard focus. It is positioned at the top centre of the active display's working area and clamped to the available bounds. Artwork is optional and uses the same safe local/fetched bytes already selected for the achievement presentation; the Relay fallback keeps the notification complete when no image is available. No screen content is read or captured.
+
+Closing or disabling the overlay clears presentation work only. It cannot mark an event processed, change provider snapshots, acknowledge Discord delivery or bypass the shared event ledger. The overlay therefore remains a passive consumer rather than part of the reliability boundary.
+
 ## Secrets and local state
 
 | File | Contents |
 |---|---|
-| `settings.json` | Preferences, XUID, gamertag, and current-user DPAPI ciphertext for OpenXBL/Discord secrets |
+| `settings.json` | Preferences including the Signal Strip opt-out, XUID, gamertag, and current-user DPAPI ciphertext for OpenXBL/Discord secrets |
 | `xbox-sync-state.json` | Account ID, first-run baseline, poll/background timestamps, per-title count/Gamerscore/stable-ID/device snapshots, and a durable pending-title queue with proven live-delivery epochs and normalized platform evidence |
 | `steam-sync-state.json` | Steam account ID and per-App-ID monitoring time, last observation, game name, monotonic unlocked API-name set, and pending live deliveries |
 | `processed-events.json` | Bounded deterministic IDs and processed timestamps |
@@ -139,7 +147,7 @@ The app queries GitHub's latest stable release endpoint at startup and approxima
 
 Downloads are limited to the exact `AchievementRelay_Setup.exe` asset on the official release. The app bounds redirects to GitHub-owned HTTPS hosts and verifies the release tag, signed product/package versions, asset size, SHA-256, executable product/file version resources, Windows Authenticode result, and an embedded SHA-256 fingerprint for the publisher certificate. It repeats file and signature checks just before launch. The same Inno Setup executable switches to `/UPDATE=1`, skips onboarding/task pages, keeps the desktop shortcut as-is, and calls `Add-AppxPackage` on the higher package identity. Per-user state under `%LOCALAPPDATA%\AchievementRelay` is outside the package and remains intact.
 
-Settings schema 1 is migrated through schema 2 to schema 3 while retaining encrypted secrets and preferences. A completed 0.2 Xbox/Discord setup remains complete; Steam is added without resetting the Xbox cursor. A 0.1.x user must still choose a current achievement source. Legacy notification capture classes and manifest permissions remain removed.
+Settings schema 1 is migrated through schema 2 and schema 3 to schema 4 while retaining encrypted secrets and preferences. A completed 0.2 Xbox/Discord setup remains complete; Steam and the default-on Signal Strip are added without resetting the Xbox cursor or reopening onboarding. An explicit overlay opt-out survives repair and later update imports. A 0.1.x user must still choose a current achievement source. Legacy notification capture classes and manifest permissions remain removed.
 
 Xbox sync-state schemas 2–6 migrate to schema 7 without discarding saved counts, Gamerscore, cursors, or verified identity sets. Schema 5 added the durable pending-title queue and last background-work time; schema 6 added the live-delivery epoch and untimestamped live-evidence fields needed for safe restart retry; schema 7 adds normalized title-device evidence to snapshots and pending work. Older queued work receives no inferred live proof or specific platform claim during migration. Schema-3 zero-count snapshots are reopened as unverified because they were created without a detail request. The first complete detail response stores the full ID set; only a trustworthy timestamp after the current delivery epoch can post during that transition, and count/Gamerscore inference is forbidden.
 

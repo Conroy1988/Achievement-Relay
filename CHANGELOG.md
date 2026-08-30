@@ -6,6 +6,26 @@ All notable changes to Achievement Relay are documented here. The project follow
 
 No changes yet.
 
+## [0.6.0] - 2026-08-30
+
+### Added
+
+- Added the compact top-centre **Signal Strip** overlay for newly proven Xbox and Steam achievements
+- Added achievement artwork with the premium Relay fallback, the matching Bronze/Silver/Gold/Platinum/Unranked emblem, exact global unlock percentage, platform and Gamerscore to the local banner
+- Added a default-on **Achievement overlay** preference that existing and new installations can disable without affecting Discord delivery
+
+### Interaction and accessibility
+
+- Made the overlay click-through, non-activating and silent so it cannot take mouse or keyboard control away from a game
+- Added a five-second slide-in presentation and a bounded sequential queue so consecutive unlocks remain readable without banners stacking over gameplay
+- Kept rarity meaning redundant through emblem shape, percentage and written tier treatment rather than relying on colour alone
+
+### Reliability and privacy
+
+- Reused the established live-unlock eligibility boundary: baselines, startup reconciliation, offline history and unproven provider changes cannot produce an overlay
+- Kept all overlay composition local and added no account service, telemetry, screen capture or new network destination
+- Preserved encrypted connections, provider baselines, pending Discord deliveries, deduplication, Collector Cards and the certificate-pinned automatic-update chain
+
 ## [0.5.0] - 2026-08-30
 
 ### Added
@@ -210,7 +230,8 @@ No changes yet.
 - x64/Arm64 MSIX packaging, installer scripts, development signing, CI, and tagged release workflow
 - User, privacy, security, troubleshooting, architecture, contributor, and release documentation
 
-[Unreleased]: https://github.com/Conroy1988/Achievement-Relay/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/Conroy1988/Achievement-Relay/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.6.0
 [0.5.0]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.5.0
 [0.4.3]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.4.3
 [0.4.2]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.4.2

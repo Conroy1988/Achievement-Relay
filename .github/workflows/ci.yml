@@ -13,8 +13,8 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 30
     env:
-      TEST_MSIX_VERSION: "0.4.3.${{ github.run_number }}"
-      APPLICATION_VERSION: "0.5.0"
+      TEST_MSIX_VERSION: "0.5.0.${{ github.run_number }}"
+      APPLICATION_VERSION: "0.6.0"
 
     steps:
       - name: Check out source
@@ -68,10 +68,47 @@ jobs:
             throw 'The Collector Card preview must be the real 1200x675 PNG output.'
           }
 
+      - name: Render Signal Strip preview
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path .\artifacts -Force | Out-Null
+          $signalPreviewPath = Join-Path $PWD 'artifacts\AchievementRelay_SignalStrip_Preview.png'
+          $appPath = Join-Path $PWD 'src\AchievementRelay.App\bin\Release\net10.0-windows10.0.19041.0\AchievementRelay.App.exe'
+          $signalPreviewArguments = "--export-signal-strip-preview `"$signalPreviewPath`""
+          $signalPreviewProcess = Start-Process `
+            -FilePath $appPath `
+            -ArgumentList $signalPreviewArguments `
+            -Wait `
+            -PassThru
+          if ($signalPreviewProcess.ExitCode -ne 0 -or
+              -not (Test-Path -LiteralPath $signalPreviewPath -PathType Leaf)) {
+            throw 'The real Signal Strip renderer did not produce its bounded preview PNG.'
+          }
+          $signalPreviewBytes = [System.IO.File]::ReadAllBytes($signalPreviewPath)
+          $signalPreviewSignature = if ($signalPreviewBytes.Length -ge 8) {
+            [Convert]::ToHexString([byte[]] $signalPreviewBytes[0..7])
+          }
+          $signalPreviewChunk = if ($signalPreviewBytes.Length -ge 24) {
+            [Text.Encoding]::ASCII.GetString($signalPreviewBytes, 12, 4)
+          }
+          $signalPreviewWidth = if ($signalPreviewBytes.Length -ge 24) {
+            [Net.IPAddress]::NetworkToHostOrder([BitConverter]::ToInt32($signalPreviewBytes, 16))
+          }
+          $signalPreviewHeight = if ($signalPreviewBytes.Length -ge 24) {
+            [Net.IPAddress]::NetworkToHostOrder([BitConverter]::ToInt32($signalPreviewBytes, 20))
+          }
+          if ($signalPreviewBytes.Length -le 2KB -or
+              $signalPreviewSignature -cne '89504E470D0A1A0A' -or
+              $signalPreviewChunk -cne 'IHDR' -or
+              $signalPreviewWidth -ne 520 -or
+              $signalPreviewHeight -ne 76) {
+            throw 'The Signal Strip preview must be the real 520x76 PNG output.'
+          }
+
       - name: Run core contract checks
         run: dotnet run --project .\tests\AchievementRelay.Core.Tests --configuration Release --no-build
 
-      - name: Run Collector Card renderer smoke checks
+      - name: Run app presentation smoke checks
         run: dotnet run --project .\tests\AchievementRelay.App.Tests --configuration Release --no-build
 
       - name: Exercise Steam bridge protocol
@@ -94,7 +131,7 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
-          name: AchievementRelay-v0.5.0-r${{ github.run_number }}-windows-test
+          name: AchievementRelay-v0.6.0-r${{ github.run_number }}-windows-test
           path: |
             artifacts/AchievementRelay_Setup.exe
             artifacts/AchievementRelay_${{ env.TEST_MSIX_VERSION }}_x64.msix
@@ -104,6 +141,7 @@ jobs:
             artifacts/AchievementRelay_Update.json
             artifacts/AchievementRelay_Update.sig
             artifacts/AchievementRelay_CollectorCard_Preview.png
+            artifacts/AchievementRelay_SignalStrip_Preview.png
           if-no-files-found: error
           retention-days: 7
           compression-level: 0

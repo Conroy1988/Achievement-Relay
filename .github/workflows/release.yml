@@ -9,7 +9,7 @@ on:
       version:
         description: Release tag in vX.Y.Z format
         required: true
-        default: v0.5.0
+        default: v0.6.0
         type: string
       publish_release:
         description: Publish the immutable GitHub Release after signing checks pass
@@ -73,6 +73,37 @@ jobs:
               $previewWidth -ne 1200 -or
               $previewHeight -ne 675) {
             throw 'The Collector Card preview must be the real 1200x675 PNG output.'
+          }
+          $signalPreviewPath = Join-Path $PWD 'artifacts\AchievementRelay_SignalStrip_Preview.png'
+          $signalPreviewArguments = "--export-signal-strip-preview `"$signalPreviewPath`""
+          $signalPreviewProcess = Start-Process `
+            -FilePath $appPath `
+            -ArgumentList $signalPreviewArguments `
+            -Wait `
+            -PassThru
+          if ($signalPreviewProcess.ExitCode -ne 0 -or
+              -not (Test-Path -LiteralPath $signalPreviewPath -PathType Leaf)) {
+            throw 'The real Signal Strip renderer did not produce its bounded preview PNG.'
+          }
+          $signalPreviewBytes = [System.IO.File]::ReadAllBytes($signalPreviewPath)
+          $signalPreviewSignature = if ($signalPreviewBytes.Length -ge 8) {
+            [Convert]::ToHexString([byte[]] $signalPreviewBytes[0..7])
+          }
+          $signalPreviewChunk = if ($signalPreviewBytes.Length -ge 24) {
+            [Text.Encoding]::ASCII.GetString($signalPreviewBytes, 12, 4)
+          }
+          $signalPreviewWidth = if ($signalPreviewBytes.Length -ge 24) {
+            [Net.IPAddress]::NetworkToHostOrder([BitConverter]::ToInt32($signalPreviewBytes, 16))
+          }
+          $signalPreviewHeight = if ($signalPreviewBytes.Length -ge 24) {
+            [Net.IPAddress]::NetworkToHostOrder([BitConverter]::ToInt32($signalPreviewBytes, 20))
+          }
+          if ($signalPreviewBytes.Length -le 2KB -or
+              $signalPreviewSignature -cne '89504E470D0A1A0A' -or
+              $signalPreviewChunk -cne 'IHDR' -or
+              $signalPreviewWidth -ne 520 -or
+              $signalPreviewHeight -ne 76) {
+            throw 'The Signal Strip preview must be the real 520x76 PNG output.'
           }
           dotnet run --project .\tests\AchievementRelay.Core.Tests --configuration Release --no-build
           dotnet run --project .\tests\AchievementRelay.App.Tests --configuration Release --no-build

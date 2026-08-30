@@ -36,11 +36,15 @@ For each new achievement, Achievement Relay may send the following to the user-s
 
 Collector Cards are rendered in memory after an achievement is eligible for delivery. They are not added to achievement history or retained as a local card library. Discord receives this data under the user's relationship with Discord. The app disables Discord mention parsing so an achievement title cannot ping `@everyone` or a role.
 
+## Local Signal Strip
+
+For an eligible live achievement, the optional Signal Strip displays a compact notification using the same achievement metadata and available artwork on the user's active display. It is composed locally, is not retained as an overlay history and does not capture the game, desktop, keyboard, mouse, microphone or system audio. The overlay adds no network request or third-party recipient. Disabling it in Settings does not change Discord delivery or provider monitoring.
+
 ## Local storage
 
 Achievement Relay stores data under `%LOCALAPPDATA%\AchievementRelay`:
 
-- `settings.json`: preferences, setup state, XUID, gamertag, and current-user DPAPI ciphertext for the OpenXBL API key and Discord webhook;
+- `settings.json`: preferences including the Signal Strip opt-out, setup state, XUID, gamertag, and current-user DPAPI ciphertext for the OpenXBL API key and Discord webhook;
 - `xbox-sync-state.json`: account identifier, baseline/poll/background timestamps, per-title achievement counts, Gamerscore and stable achievement IDs, plus queued title identifiers, names, counts, normalized platform evidence, last-played/observation times and live-delivery proof needed to pace work and retry a genuine pending unlock safely across restarts;
 - `steam-sync-state.json`: Steam account ID and, for each monitored App ID, game name, baseline/observation times, the monotonic set of unlocked achievement API names, and any live transition awaiting Discord delivery;
 - `processed-events.json`: deterministic achievement identifiers and processed timestamps, capped at 1,000 entries and 90 days;

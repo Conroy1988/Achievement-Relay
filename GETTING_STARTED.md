@@ -82,7 +82,15 @@ Xbox labels are evidence-based. A title is shown as **Xbox PC**, **Xbox Console*
 
 Use **Help & support → Send Discord test** after setup to see the production fallback card without earning another achievement.
 
-## 6. Test a real Steam achievement
+## 6. Know what will appear on your screen
+
+For a genuine live Xbox or Steam unlock, Achievement Relay shows a compact **Signal Strip** at the top centre of the active display. It uses the achievement artwork or Relay fallback, rarity emblem and percentage, platform, and Gamerscore when available. It slides away after five seconds and queues consecutive achievements one at a time.
+
+The strip is silent, does not take keyboard focus, and passes mouse input through to the game. It is enabled automatically after updating; use **Settings → Achievement overlay** to turn it off without changing Discord delivery.
+
+The same anti-backlog boundary controls both destinations. A first baseline, an achievement reconciled after starting another PC, offline history, or any other unproven change produces neither a Discord post nor a local strip.
+
+## 7. Test a real Steam achievement
 
 1. Leave Achievement Relay and Steam running.
 2. Start a Steam game. Home should change from **Steam: Ready** to **Steam: Monitoring**.
@@ -92,7 +100,7 @@ Use **Help & support → Send Discord test** after setup to see the production f
 
 If Achievement Relay was closed when an achievement unlocked, that identity is silently added to the baseline the next time the game is monitored. Achievement Relay posts only a live locked-to-unlocked transition it directly observed or Steam's completed-achievement callback received during the current helper session. Timestamps are display metadata and never authorize a post. This is the anti-backlog safety boundary.
 
-## 7. Test a real Xbox achievement
+## 8. Test a real Xbox achievement
 
 1. Leave Achievement Relay running.
 2. Unlock an Xbox network achievement in a PC game.
@@ -125,6 +133,10 @@ Version 0.4 preserves the Xbox cursor, processed-event ledger, encrypted OpenXBL
 ## Upgrading from 0.4.x
 
 Version 0.5 preserves encrypted connections, provider baselines, pending work, processed-event history and all preferences. Collector Cards and rarity tiers require no new setting. The first achievement after updating uses the new presentation automatically; the update does not repost existing achievements merely to create cards for them.
+
+## Upgrading from 0.5.x
+
+Version 0.6 preserves encrypted connections, provider baselines, pending work, processed-event history and all existing preferences. The Signal Strip is enabled by default after updating and remains subject to the established live-unlock proof, so the upgrade cannot turn existing history into local banners. Disable **Achievement overlay** in Settings at any time if Discord-only delivery is preferred.
 
 ## Moving from a pre-official 0.3.x test
 

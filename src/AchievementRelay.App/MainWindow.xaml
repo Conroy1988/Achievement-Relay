@@ -730,6 +730,32 @@
               </Border>
             </Grid>
 
+            <Border Style="{StaticResource Card}" Margin="0,0,0,18">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="54" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border Width="42" Height="42" CornerRadius="12" Background="#24D8B878" BorderBrush="{StaticResource LegendaryBrush}" BorderThickness="1" VerticalAlignment="Top">
+                  <Image Source="Assets/TrophyCup.png" Width="27" Height="27" />
+                </Border>
+                <StackPanel Grid.Column="1">
+                  <TextBlock Text="In-game achievement overlay" Style="{StaticResource SectionTitle}" />
+                  <CheckBox x:Name="SettingsAchievementOverlayEnabledCheckBox"
+                            Content="Show the Signal Strip when an achievement unlocks"
+                            AutomationProperties.HelpText="A silent five-second banner appears at the top centre without taking focus or blocking clicks." />
+                  <TextBlock Text="Silent five-second banner at the top centre. It never takes focus, blocks clicks, or plays sound. Supported over windowed and borderless games; true exclusive fullscreen can hide desktop overlays like this one."
+                             Foreground="{StaticResource MutedTextBrush}"
+                             FontSize="11"
+                             TextWrapping="Wrap"
+                             Margin="0,7,0,10" />
+                  <Button Content="Preview Signal Strip"
+                          Click="PreviewAchievementOverlay_Click"
+                          HorizontalAlignment="Left" />
+                </StackPanel>
+              </Grid>
+            </Border>
+
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
               <Button Content="Save settings" Style="{StaticResource PrimaryButton}" Click="SaveSettings_Click" MinWidth="145" />
             </StackPanel>
@@ -839,7 +865,7 @@
                 <Image Source="Assets/AchievementRelay.png" Width="56" Height="56" VerticalAlignment="Top" />
                 <StackPanel Grid.Column="1">
                   <TextBlock Text="Achievement Relay" FontSize="20" FontWeight="SemiBold" />
-                  <TextBlock x:Name="AboutVersionText" Text="Version 0.5.0" Foreground="{StaticResource AccentTextBrush}" FontWeight="SemiBold" Margin="0,2,0,9" />
+                  <TextBlock x:Name="AboutVersionText" Text="Version 0.6.0" Foreground="{StaticResource AccentTextBrush}" FontWeight="SemiBold" Margin="0,2,0,9" />
                   <TextBlock Text="Xbox and Steam achievements relayed to the Discord channel you choose. Secrets are encrypted locally; Steam monitoring is local and read-only." Foreground="{StaticResource MutedTextBrush}" FontSize="12" Margin="0,0,0,12" />
                   <WrapPanel>
                     <Button Content="Privacy" Click="OpenPrivacyPolicy_Click" Margin="0,0,8,8" />

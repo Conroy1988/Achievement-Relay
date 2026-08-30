@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
@@ -18,9 +19,11 @@ var tests = new (string Name, Action Run)[]
     ("OpenXBL title-history envelopes and userTitles are supported", ParsesTitleHistoryEnvelope),
     ("Modern recent-progress title fields are supported", ParsesModernRecentTitleProgress),
     ("OpenXBL string-wrapped title history is supported", ParsesStringWrappedTitleHistory),
+    ("Xbox platform evidence is classified conservatively", ClassifiesXboxPlatforms),
     ("Only unlocked, non-revoked achievements are parsed", ParsesUnlockedAchievements),
     ("Achievement identities are stable and account-specific", AchievementIdentityIsStable),
     ("OpenXBL root arrays and alternate fields are supported", ParsesAlternateAchievementShape),
+    ("OpenXBL rarity percentages remain exact and fail closed", ParsesXboxRarityMetadata),
     ("OpenXBL string-wrapped achievements are supported", ParsesStringWrappedAchievements),
     ("OpenXBL achievement continuation tokens are discovered", ParsesAchievementContinuationToken),
     ("OpenXBL Xbox 360 achievements are supported", ParsesXbox360Achievements),
@@ -46,7 +49,7 @@ var tests = new (string Name, Action Run)[]
     ("OpenXBL rate-limit reset pauses and recovers automatically", HonorsOpenXblRateLimitReset),
     ("Xbox delivery epochs reset after startup and interruptions", ResetsXboxDeliveryEpochAfterInterruption),
     ("Xbox sync work prioritizes live changes and throttles history", PrioritizesLiveXboxSyncWork),
-    ("Pending Xbox sync work survives durable JSON state", PersistsPendingXboxSyncWork),
+    ("Pending Xbox sync work and device evidence survive durable JSON state", PersistsPendingXboxSyncWork),
     ("Steam first snapshot silently baselines old unlocks", SteamFirstSnapshotIsSilentBaseline),
     ("Steam launch race posts only a callback-proven unlock", SteamLaunchRacePostsProvenUnlock),
     ("Steam locked-to-unlocked transition posts once", SteamTransitionPostsOnce),
@@ -54,9 +57,12 @@ var tests = new (string Name, Action Run)[]
     ("Steam timestamps cannot bypass the baseline", SteamTimestampCannotAuthorizeUnlock),
     ("Steam event identities are stable and account-specific", SteamEventIdentityIsStable),
     ("Steam rarity accepts provider string and numeric percentages", ParsesSteamRarityPercentages),
+    ("Relay rarity tiers use the approved exact boundaries", ClassifiesRelayRarityTiers),
+    ("Relay rarity formatting is precise and culture invariant", FormatsRelayRarityPercentages),
     ("Steam bridge Base64 artwork wire format decodes to bytes", SteamBridgeBase64ArtworkWireFormat),
     ("Steam RGBA artwork is encoded as a PNG attachment", SteamArtworkEncodesAsPng),
     ("Steam Discord payload identifies platform and attachment", SteamPayloadIncludesPlatformAndAttachment),
+    ("Collector Card payload uses a full-width image with accessible text", CollectorCardPayloadIsFullWidthAndAccessible),
     ("Xbox Discord payload labels the player platform", XboxPayloadUsesPlatformLabel),
     ("Every Discord post links to Achievement Relay", DiscordPostsIncludeProjectLink),
     ("Webhook URL validation is strict", ValidatesWebhookUrls),
@@ -482,6 +488,7 @@ static void PersistsPendingXboxSyncWork()
             LastPlayedAt = observedAt.AddYears(-10),
             FirstObservedUtc = observedAt,
             LastObservedUtc = observedAt.AddMinutes(1),
+            Devices = new[] { "WindowsDesktop", "Scarlett" },
             IsPriority = false
         }
     };
@@ -494,7 +501,14 @@ static void PersistsPendingXboxSyncWork()
     Assert(restoredWork.CurrentAchievements == 75, "The queued target count changed during persistence.");
     Assert(restoredWork.CurrentGamerscore == 1_500, "The queued Gamerscore changed during persistence.");
     Assert(restoredWork.FirstObservedUtc == observedAt, "The queued observation time changed during persistence.");
+    Assert(restoredWork.Devices.SequenceEqual(new[] { "WindowsDesktop", "Scarlett" }),
+        "The queued Xbox device evidence was lost during persistence.");
     Assert(!restoredWork.IsPriority, "Historical queue priority changed during persistence.");
+
+    var legacyWork = JsonSerializer.Deserialize<XboxTitleSyncWork>("{\"titleId\":\"legacy-without-devices\"}") ??
+                     throw new InvalidOperationException("Legacy pending work JSON could not be restored.");
+    Assert(legacyWork.Devices is { Length: 0 },
+        "Pending work from before device persistence did not migrate to safe empty evidence.");
 }
 
 static void ValidatesOpenXblApiKeys()
@@ -735,6 +749,54 @@ static void ParsesModernRecentTitleProgress()
     Assert(title.LastPlayedAt == new DateTimeOffset(2026, 8, 15, 18, 30, 0, TimeSpan.Zero), "Modern lastUnlock was not parsed.");
 }
 
+static void ClassifiesXboxPlatforms()
+{
+    Assert(
+        XboxPlatformClassifier.Classify("WindowsDesktop", new[] { "XboxOne", "Scarlett" }) == "Xbox PC",
+        "Direct Windows unlock evidence did not override title-level console compatibility.");
+    Assert(
+        XboxPlatformClassifier.Classify(null, new[] { "WindowsDesktop", "Win64" }) == "Xbox PC",
+        "PC-only title evidence was not classified as Xbox PC.");
+    Assert(
+        XboxPlatformClassifier.Classify(null, new[] { "XboxOne", "Scarlett" }) == "Xbox Console",
+        "Console-only title evidence was not classified as Xbox Console.");
+    Assert(
+        XboxPlatformClassifier.Classify("Xenon") == "Xbox 360",
+        "Direct Xbox 360 evidence was not classified as Xbox 360.");
+    Assert(
+        XboxPlatformClassifier.Classify(null, new[] { "WindowsDesktop", "Scarlett" }) is null,
+        "A Play Anywhere title was guessed as one device without direct unlock evidence.");
+    Assert(
+        XboxPlatformClassifier.Classify(null, new[] { "CloudGaming" }) is null,
+        "An unknown Xbox device token was presented as a specific platform.");
+    Assert(
+        XboxPlatformClassifier.Classify("CloudGaming", new[] { "WindowsDesktop" }) is null,
+        "An unknown direct unlock token incorrectly fell back to title-level PC evidence.");
+    Assert(
+        XboxPlatformClassifier.Classify(null, new[] { "WindowsDesktop", "CloudGaming" }) is null,
+        "Unknown title evidence was discarded to force a specific PC label.");
+    Assert(
+        XboxPlatformClassifier.ForDelivery(null, new[] { "WindowsDesktop", "Scarlett" }) == "Xbox" &&
+        XboxPlatformClassifier.ForDelivery(null, new[] { "CloudGaming" }) == "Xbox" &&
+        XboxPlatformClassifier.ForDelivery("Xbox", new[] { "WindowsDesktop" }) == "Xbox",
+        "Ambiguous or unknown evidence did not fall back to the safe Xbox label.");
+
+    const string providerEvidence = """
+        {
+          "achievements": [
+            { "id": "unknown-direct", "name": "Unknown Direct", "progressState": "Achieved", "platform": "CloudGaming" },
+            { "id": "missing-direct", "name": "Missing Direct", "progressState": "Achieved" }
+          ]
+        }
+        """;
+    var parsed = OpenXblResponseParser.ParseAchievements(providerEvidence, "account-a")
+        .ToDictionary(achievement => achievement.Name, StringComparer.Ordinal);
+    Assert(parsed["Unknown Direct"].Platform == "Xbox",
+        "Present-but-unknown event platform evidence was not retained as a generic Xbox sentinel.");
+    Assert(parsed["Missing Direct"].Platform is null,
+        "Missing event platform evidence was confused with an explicit unknown provider value.");
+}
+
 static void ParsesUnlockedAchievements()
 {
     var achievements = OpenXblResponseParser.ParseAchievements(StandardAchievementResponse(), "2533274999999999");
@@ -746,6 +808,13 @@ static void ParsesUnlockedAchievements()
     Assert(achievement.GameName == "Starfield", $"Unexpected game: {achievement.GameName}");
     Assert(achievement.Gamerscore == 15, $"Unexpected gamerscore: {achievement.Gamerscore}");
     Assert(achievement.IsRare, "Rare achievement metadata was not preserved.");
+    Assert(achievement.RarityKnown, "Nested Xbox rarity metadata was not marked as known.");
+    Assert(achievement.RarityPercentage == 4.25, $"Unexpected nested Xbox rarity percentage: {achievement.RarityPercentage}");
+    Assert(
+        RelayRarityClassifier.Classify(achievement.RarityPercentage) == RelayRarityTier.Gold,
+        "The nested Xbox percentage did not map to the approved Gold tier.");
+    Assert(achievement.HeroImageUrl == "https://images.example.test/background.png",
+        "Xbox background artwork was not preserved for the Collector Card.");
     Assert(achievement.ImageUrl == "https://images.example.test/achievement.png", "Achievement icon was not parsed.");
     Assert(achievement.SourceProvider == "OpenXBL", "Provider metadata was not set.");
     Assert(
@@ -794,6 +863,96 @@ static void ParsesAlternateAchievementShape()
     Assert(achievements[0].GameName == "Example Game", "Alternate title field was not parsed.");
     Assert(achievements[0].Gamerscore == 25, "Direct gamerscore field was not parsed.");
     Assert(achievements[0].IsRare, "Direct rarity percentage was not parsed.");
+    Assert(achievements[0].RarityKnown, "Direct string rarity percentage was not marked as known.");
+    Assert(achievements[0].RarityPercentage == 9.9, "Direct string rarity percentage was not preserved exactly.");
+    Assert(
+        RelayRarityClassifier.Classify(achievements[0].RarityPercentage) == RelayRarityTier.Gold,
+        "The direct Xbox percentage did not map to the approved Gold tier.");
+}
+
+static void ParsesXboxRarityMetadata()
+{
+    const string json = """
+        {
+          "achievements": [
+            {
+              "id": "nested-string",
+              "name": "Nested String",
+              "progressState": "Achieved",
+              "rarity": { "currentPercentage": "10.0" }
+            },
+            {
+              "id": "direct-number",
+              "name": "Direct Number",
+              "progressState": "Achieved",
+              "rarityPercentage": 25
+            },
+            {
+              "id": "direct-string",
+              "name": "Direct String",
+              "progressState": "Achieved",
+              "rarityPercentage": "2.99"
+            },
+            {
+              "id": "invalid-negative",
+              "name": "Invalid Negative",
+              "progressState": "Achieved",
+              "rarity": { "currentPercentage": -0.01 }
+            },
+            {
+              "id": "invalid-high",
+              "name": "Invalid High",
+              "progressState": "Achieved",
+              "rarityPercentage": "100.01"
+            },
+            {
+              "id": "invalid-nan",
+              "name": "Invalid NaN",
+              "progressState": "Achieved",
+              "rarityPercentage": "NaN"
+            },
+            {
+              "id": "missing",
+              "name": "Missing",
+              "progressState": "Achieved"
+            }
+          ]
+        }
+        """;
+
+    var achievements = OpenXblResponseParser.ParseAchievements(json, "account-a")
+        .ToDictionary(achievement => achievement.Name, StringComparer.Ordinal);
+
+    var nestedString = achievements["Nested String"];
+    Assert(nestedString.RarityKnown && nestedString.RarityPercentage == 10.0,
+        "A nested string percentage was not exposed as known Xbox rarity.");
+    Assert(!nestedString.IsRare, "Exactly 10% must be Silver, not a rare Gold/Platinum unlock.");
+    Assert(RelayRarityClassifier.Classify(nestedString.RarityPercentage) == RelayRarityTier.Silver,
+        "Exactly 10% did not map to Silver.");
+
+    var directNumber = achievements["Direct Number"];
+    Assert(directNumber.RarityKnown && directNumber.RarityPercentage == 25,
+        "A direct numeric Xbox percentage was not preserved.");
+    Assert(!directNumber.IsRare, "Exactly 25% must be Bronze, not rare.");
+    Assert(RelayRarityClassifier.Classify(directNumber.RarityPercentage) == RelayRarityTier.Bronze,
+        "Exactly 25% did not map to Bronze.");
+
+    var directString = achievements["Direct String"];
+    Assert(directString.RarityKnown && directString.RarityPercentage == 2.99,
+        "A direct string Xbox percentage was not preserved.");
+    Assert(directString.IsRare, "A 2.99% Xbox achievement was not marked rare.");
+    Assert(RelayRarityClassifier.Classify(directString.RarityPercentage) == RelayRarityTier.Platinum,
+        "A 2.99% Xbox achievement did not map to Platinum.");
+
+    foreach (var name in new[] { "Invalid Negative", "Invalid High", "Invalid NaN", "Missing" })
+    {
+        var achievement = achievements[name];
+        Assert(!achievement.RarityKnown, $"{name} was incorrectly treated as known rarity.");
+        Assert(achievement.RarityPercentage is null, $"{name} retained an unusable rarity percentage.");
+        Assert(!achievement.IsRare, $"{name} was incorrectly marked rare.");
+        Assert(RelayRarityClassifier.Classify(achievement.RarityPercentage) == RelayRarityTier.Unranked,
+            $"{name} did not fall back to Unranked.");
+    }
 }
 
 static void ParsesStringWrappedAchievements()
@@ -845,6 +1004,7 @@ static void ParsesXbox360Achievements()
     Assert(achievements.Count == 1, $"Expected one unlocked Xbox 360 achievement, found {achievements.Count}.");
     Assert(achievements[0].Name == "Legacy Unlock", "Xbox 360 achievement name was not parsed.");
     Assert(achievements[0].Gamerscore == 15, "Xbox 360 Gamerscore was not parsed.");
+    Assert(achievements[0].Platform == "Xbox 360", "Legacy Xbox achievement evidence was not labelled Xbox 360.");
     Assert(
         achievements[0].UnlockedAt == new DateTimeOffset(2026, 8, 15, 19, 45, 0, TimeSpan.Zero),
         $"Unexpected Xbox 360 unlock time: {achievements[0].UnlockedAt}");
@@ -1411,8 +1571,12 @@ static void ParsesSteamRarityPercentages()
             "achievements": [
               { "name": "NEW_ACHIEVEMENT_1_10", "percent": "91.0" },
               { "name": "NUMERIC_PERCENT", "percent": 3.5 },
+              { "name": "ZERO_PERCENT", "percent": 0 },
+              { "name": "MAX_PERCENT", "percent": "100" },
               { "name": "INVALID_PERCENT", "percent": "unknown" },
-              { "name": "OUT_OF_RANGE", "percent": 101 }
+              { "name": "NAN_PERCENT", "percent": "NaN" },
+              { "name": "NEGATIVE_PERCENT", "percent": -0.01 },
+              { "name": "OUT_OF_RANGE", "percent": 100.01 }
             ]
           }
         }
@@ -1423,8 +1587,101 @@ static void ParsesSteamRarityPercentages()
         "Steam's string percentage response was not parsed.");
     Assert(rarity.TryGetValue("NUMERIC_PERCENT", out var numericPercentage) && numericPercentage == 3.5,
         "Steam's numeric percentage response was not parsed.");
-    Assert(!rarity.ContainsKey("INVALID_PERCENT") && !rarity.ContainsKey("OUT_OF_RANGE"),
+    Assert(rarity.TryGetValue("ZERO_PERCENT", out var zeroPercentage) && zeroPercentage == 0,
+        "Steam's zero-percent boundary was not parsed.");
+    Assert(rarity.TryGetValue("MAX_PERCENT", out var maximumPercentage) && maximumPercentage == 100,
+        "Steam's 100-percent boundary was not parsed.");
+    Assert(!rarity.ContainsKey("INVALID_PERCENT") &&
+           !rarity.ContainsKey("NAN_PERCENT") &&
+           !rarity.ContainsKey("NEGATIVE_PERCENT") &&
+           !rarity.ContainsKey("OUT_OF_RANGE"),
         "An invalid Steam percentage was accepted.");
+}
+
+static void ClassifiesRelayRarityTiers()
+{
+    var cases = new (double? Percentage, RelayRarityTier Expected)[]
+    {
+        (null, RelayRarityTier.Unranked),
+        (double.NaN, RelayRarityTier.Unranked),
+        (double.NegativeInfinity, RelayRarityTier.Unranked),
+        (double.PositiveInfinity, RelayRarityTier.Unranked),
+        (-0.01, RelayRarityTier.Unranked),
+        (100.01, RelayRarityTier.Unranked),
+        (0, RelayRarityTier.Platinum),
+        (2.99, RelayRarityTier.Platinum),
+        (2.999, RelayRarityTier.Platinum),
+        (3, RelayRarityTier.Gold),
+        (9.99, RelayRarityTier.Gold),
+        (9.999, RelayRarityTier.Gold),
+        (10, RelayRarityTier.Silver),
+        (24.99, RelayRarityTier.Silver),
+        (24.999, RelayRarityTier.Silver),
+        (25, RelayRarityTier.Bronze),
+        (100, RelayRarityTier.Bronze)
+    };
+
+    foreach (var (percentage, expected) in cases)
+    {
+        var actual = RelayRarityClassifier.Classify(percentage);
+        Assert(actual == expected, $"Rarity {percentage?.ToString(CultureInfo.InvariantCulture) ?? "missing"} mapped to {actual}, not {expected}.");
+    }
+
+    Assert(RelayRarityClassifier.DisplayName(RelayRarityTier.Unranked) == "Unranked",
+        "The missing-percentage tier was not labelled Unranked.");
+    Assert(RelayRarityClassifier.Range(RelayRarityTier.Platinum) == "under 3%",
+        "The Platinum range text no longer matches the approved threshold.");
+}
+
+static void FormatsRelayRarityPercentages()
+{
+    var originalCulture = CultureInfo.CurrentCulture;
+    var originalUiCulture = CultureInfo.CurrentUICulture;
+    try
+    {
+        CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("fr-FR");
+        CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("fr-FR");
+
+        Assert(RelayRarityClassifier.FormatPercentage(null) == "—%",
+            "Missing rarity did not use the neutral percentage fallback.");
+        Assert(RelayRarityClassifier.FormatPercentage(double.NaN) == "—%",
+            "Invalid rarity did not use the neutral percentage fallback.");
+        Assert(RelayRarityClassifier.FormatPercentage(0) == "0%",
+            "A true zero percentage was not displayed exactly.");
+        Assert(RelayRarityClassifier.FormatPercentage(0.001) == "<0.01%",
+            "An ultra-rare nonzero percentage was misleadingly rounded to zero.");
+        Assert(RelayRarityClassifier.FormatPercentage(0.009) == "<0.01%",
+            "A sub-hundredth percentage lost its ultra-rare precision.");
+        Assert(RelayRarityClassifier.FormatPercentage(0.01) == "0.01%",
+            "The hundredth-percent boundary was formatted incorrectly.");
+        Assert(RelayRarityClassifier.FormatPercentage(4.25) == "4.25%",
+            "Rarity formatting followed the current comma-decimal culture instead of Discord's invariant format.");
+        Assert(RelayRarityClassifier.FormatPercentage(4.256) == "4.26%",
+            "An ordinary in-tier percentage did not retain the preferred compact rounding.");
+        Assert(RelayRarityClassifier.FormatPercentage(2.999) == "2.999%",
+            "Platinum formatting rounded across the 3% Gold boundary.");
+        Assert(RelayRarityClassifier.FormatPercentage(9.999) == "9.999%",
+            "Gold formatting rounded across the 10% Silver boundary.");
+        Assert(RelayRarityClassifier.FormatPercentage(24.999) == "24.999%",
+            "Silver formatting rounded across the 25% Bronze boundary.");
+        Assert(RelayRarityClassifier.FormatPercentage(2.9999999) == "<3%",
+            "A high-precision Platinum value was displayed as another tier.");
+        Assert(RelayRarityClassifier.FormatPercentage(9.9999999) == "<10%",
+            "A high-precision Gold value was displayed as another tier.");
+        Assert(RelayRarityClassifier.FormatPercentage(24.9999999) == "<25%",
+            "A high-precision Silver value was displayed as another tier.");
+        Assert(RelayRarityClassifier.FormatPercentage(3) == "3%" &&
+               RelayRarityClassifier.FormatPercentage(10) == "10%" &&
+               RelayRarityClassifier.FormatPercentage(25) == "25%",
+            "An exact rarity threshold was not displayed exactly.");
+        Assert(RelayRarityClassifier.FormatPercentage(91.0) == "91%",
+            "A whole-number rarity gained unnecessary decimal places.");
+    }
+    finally
+    {
+        CultureInfo.CurrentCulture = originalCulture;
+        CultureInfo.CurrentUICulture = originalUiCulture;
+    }
 }
 
 static void SteamBridgeBase64ArtworkWireFormat()
@@ -1469,8 +1726,73 @@ static void SteamPayloadIncludesPlatformAndAttachment()
                                field.GetProperty("value").GetString() == "Local Steam Player"),
         "The local Steam player name was not used as a Discord fallback.");
     Assert(fields.Any(field => field.GetProperty("name").GetString() == "Rarity" &&
+                               field.GetProperty("value").GetString()?.Contains("Gold tier", StringComparison.Ordinal) == true &&
                                field.GetProperty("value").GetString()?.Contains("3.5% of Steam players", StringComparison.Ordinal) == true),
-        "The Steam global unlock percentage was not included in the Discord payload.");
+        "The Steam tier and global unlock percentage were not included in the Discord payload.");
+}
+
+static void CollectorCardPayloadIsFullWidthAndAccessible()
+{
+    var achievement = Achievement("Against All Odds", "Complete the impossible") with
+    {
+        GameName = "Relay Showcase",
+        Gamerscore = 50,
+        IsRare = true,
+        RarityKnown = true,
+        RarityPercentage = 2.5,
+        PlayerName = "Relay Player",
+        Platform = "Xbox PC",
+        ImageBytes = new byte[] { 1, 2, 3 },
+        ImageFileName = "achievement-relay-card.png",
+        ImageContentType = "image/png",
+        IsCollectorCard = true
+    };
+
+    using var document = JsonDocument.Parse(DiscordWebhookPayloadFactory.Create(achievement, new AppSettings()));
+    var root = document.RootElement;
+    var mentions = root.GetProperty("allowed_mentions").GetProperty("parse");
+    Assert(mentions.GetArrayLength() == 0, "The Collector Card payload allowed Discord mentions.");
+
+    var embed = root.GetProperty("embeds")[0];
+    Assert(embed.GetProperty("image").GetProperty("url").GetString() ==
+           "attachment://achievement-relay-card.png",
+        "The Collector Card was not referenced as the embed's full-width image.");
+    Assert(!embed.TryGetProperty("thumbnail", out _),
+        "The full Collector Card was reduced to a Discord thumbnail.");
+    Assert(embed.GetProperty("title").GetString()?.Contains("Against All Odds", StringComparison.Ordinal) == true,
+        "The visual card did not retain a textual achievement title for assistive technology.");
+
+    var fields = embed.GetProperty("fields").EnumerateArray().ToArray();
+    Assert(fields.Any(field => field.GetProperty("name").GetString() == "Game" &&
+                               field.GetProperty("value").GetString() == "Relay Showcase"),
+        "The visual card did not retain a textual game name.");
+    Assert(fields.Any(field => field.GetProperty("name").GetString() == "Rarity" &&
+                               field.GetProperty("value").GetString()?.Contains("Platinum tier", StringComparison.Ordinal) == true &&
+                               field.GetProperty("value").GetString()?.Contains("2.5% of players", StringComparison.Ordinal) == true),
+        "The visual card did not retain its textual rarity tier and percentage.");
+    Assert(fields.Any(field => field.GetProperty("name").GetString() == "Player" &&
+                               field.GetProperty("value").GetString() == "Relay Player"),
+        "The visual card did not retain a textual player label.");
+    Assert(fields.Any(field => field.GetProperty("name").GetString() == "Platform" &&
+                               field.GetProperty("value").GetString() == "Xbox PC"),
+        "The visual card did not retain a textual platform label.");
+
+    var attachment = root.GetProperty("attachments")[0];
+    Assert(attachment.GetProperty("id").GetInt32() == 0,
+        "The Collector Card attachment ID no longer matches files[0].");
+    Assert(attachment.GetProperty("filename").GetString() == "achievement-relay-card.png",
+        "The Collector Card attachment metadata used a different filename.");
+    var description = attachment.GetProperty("description").GetString() ?? string.Empty;
+    Assert(description.StartsWith(
+            "Achievement unlocked: Against All Odds in Relay Showcase.",
+            StringComparison.Ordinal),
+        "The Collector Card attachment omitted its accessible achievement and game summary.");
+    Assert(description.Contains("Platinum tier; unlocked by 2.5% of players.", StringComparison.Ordinal),
+        "The Collector Card attachment omitted its accessible rarity summary.");
+    Assert(description.Contains("Player: Relay Player.", StringComparison.Ordinal) &&
+           description.Contains("Platform: Xbox PC.", StringComparison.Ordinal),
+        "The Collector Card attachment omitted accessible player or platform context.");
+    Assert(description.Length <= 1024, "The Collector Card attachment description exceeds Discord's limit.");
 }
 
 static void XboxPayloadUsesPlatformLabel()

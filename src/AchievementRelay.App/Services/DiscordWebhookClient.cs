@@ -41,7 +41,7 @@ public sealed class DiscordWebhookClient : IDisposable
             try
             {
                 using var request = new HttpRequestMessage(HttpMethod.Post, AddWaitParameter(webhookUri));
-                request.Headers.UserAgent.Add(new ProductInfoHeaderValue("AchievementRelay", "0.4.3"));
+                request.Headers.UserAgent.Add(new ProductInfoHeaderValue("AchievementRelay", "0.5.0"));
                 if (attachment is { Length: > 0 } && !string.IsNullOrWhiteSpace(attachmentFileName))
                 {
                     var multipart = new MultipartFormDataContent();

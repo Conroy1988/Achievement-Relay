@@ -33,7 +33,11 @@ DPAPI protects secrets at rest from other ordinary Windows users; it does not pr
 
 The API key is sent only to OpenXBL's `https://api.xbl.io/` service in the `X-Authorization` header. Route negotiation changes only the path on that fixed HTTPS origin. Discord payloads are sent only to a URL accepted by `WebhookUrlValidator`. HTTP responses are size-bounded and requests use timeouts. No provider response is treated as executable content.
 
-Steam monitoring needs no credential. A narrow out-of-process helper reads local Steamworks state for the detected App ID and emits versioned JSON snapshots over redirected standard I/O. It is bundled with the reviewed MIT-licensed Facepunch.Steamworks 2.5.2 package; the repository check pins its SHA-256. The helper has no settings, webhook, or Steam mutation code. Public rarity requests are fixed to `https://api.steampowered.com/` and carry no personal key.
+Steam monitoring needs no credential. A narrow out-of-process helper reads local Steamworks state for the detected App ID and emits versioned JSON snapshots over redirected standard I/O. It is bundled with the reviewed MIT-licensed Facepunch.Steamworks 2.5.2 package; the repository check pins its SHA-256. The helper has no settings, webhook, or Steam mutation code. Public rarity requests are fixed to `https://api.steampowered.com/`; optional Collector Card hero art uses an allowlisted Steam CDN URL derived from the numeric App ID. Neither request carries a personal key.
+
+Collector Card inputs remain untrusted presentation data. Provider percentages must be finite and within 0–100; text is normalized and bounded before layout. Optional remote artwork is accepted only through a bounded HTTPS fetch with redirect, response-size, content and decoded-dimension controls. The fetch carries no OpenXBL key or Discord webhook. Rendering occurs only after an event has independently passed the live-unlock rules, and a card failure cannot authorize an event or disable text-only delivery.
+
+The finished card is sent as one bounded Discord attachment. Its filename is constant rather than provider-controlled, the JSON still disables mention parsing, and the achievement's important facts remain ordinary embed text. Card or artwork bytes are not written to the application log.
 
 OpenXBL, Valve/Steam, and Discord are independent third parties. A compromise or behavioral change at a provider is outside Achievement Relay's security boundary; users can revoke the Xbox key, disable Steam monitoring, or remove the webhook at any time.
 

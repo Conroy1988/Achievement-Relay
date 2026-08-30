@@ -2,16 +2,16 @@
 
 ## Versioning
 
-Use four-part numeric MSIX versions such as `0.4.3.0`. Create a matching Git tag such as `v0.4.3`. The release workflow converts a three-part tag to its four-part MSIX version.
+Use four-part numeric MSIX versions such as `0.5.0.0`. Create a matching Git tag such as `v0.5.0`. The release workflow converts a three-part tag to its four-part MSIX version.
 
-v0.4.3 pull-request artifacts use the reserved package lane `0.4.2.<run>` while reporting product version `0.4.3`. They install over public v0.4.2 for Windows verification, while the final `0.4.3.0` package remains numerically newer than every test build. For each later release, reserve the immediately preceding patch lane; never give a test package a version that would make the final package look like a downgrade.
+v0.5.0 pull-request artifacts use the reserved package lane `0.4.3.<run>` while reporting product version `0.5.0`. They install over public v0.4.3 for Windows verification, while the final `0.5.0.0` package remains numerically newer than every test build. For each later release, reserve the latest public package lane; never give a test package a version that would make the final package look like a downgrade.
 
 ## Local package
 
 On Windows with .NET 10, the Windows SDK, and Inno Setup 6:
 
 ```powershell
-.\scripts\Build-Release.ps1 -Version 0.4.3.0
+.\scripts\Build-Release.ps1 -Version 0.5.0.0
 ```
 
 Without signing parameters, the script creates a temporary two-year development certificate, signs both architecture packages and `AchievementRelay_Setup.exe`, exports only the public certificate, and deletes the private key file from its temporary folder. The versioned ZIP remains as a manual fallback. This path is for local/CI testing only: each generated certificate has a different fingerprint, so one test build must not silently trust a later test installer.
@@ -20,7 +20,7 @@ For the reviewed persistent project certificate whose subject matches `CN=Achiev
 
 ```powershell
 .\scripts\Build-Release.ps1 `
-  -Version 0.4.3.0 `
+  -Version 0.5.0.0 `
   -PfxPath C:\secure\AchievementRelay.pfx `
   -PfxPassword $env:ACHIEVEMENT_RELAY_PFX_PASSWORD `
   -TimestampUrl http://timestamp.digicert.com `
@@ -31,7 +31,7 @@ That switch does not accept an arbitrary self-signed key. The build hashes the P
 
 ## Automatic-update release contract
 
-Every build creates `AchievementRelay_Update.json` and `AchievementRelay_Update.sig` beside the installer. The manifest contains the three-part product version, four-part Windows package version, reviewed minimum supported version, UTC build timestamp, exact installer name, byte size, and SHA-256. The `.sig` envelope contains the release certificate and an RSA/SHA-256 signature over the exact manifest bytes. The app pins that certificate and also requires the signed values to agree with GitHub's latest stable release tag, asset metadata, and the setup executable's product/file versions. The separate package version lets final `0.4.3.0` correctly supersede a `0.4.2.<run>` test package even though the test build reports product version `0.4.3`.
+Every build creates `AchievementRelay_Update.json` and `AchievementRelay_Update.sig` beside the installer. The manifest contains the three-part product version, four-part Windows package version, reviewed minimum supported version, UTC build timestamp, exact installer name, byte size, and SHA-256. The `.sig` envelope contains the release certificate and an RSA/SHA-256 signature over the exact manifest bytes. The app pins that certificate and also requires the signed values to agree with GitHub's latest stable release tag, asset metadata, and the setup executable's product/file versions. The separate package version lets final `0.5.0.0` correctly supersede a `0.4.3.<run>` test package even though the test build reports product version `0.5.0`.
 
 `release/update-policy.json` is authoritative for `minimumSupportedVersion`. Leave it at the oldest still-supported updater-capable version for an optional release. Raise it only through a reviewed commit when older builds must stop monitoring and update. The minimum cannot exceed the release being built. Never edit or replace the manifest or installer inside an existing release; publish a higher patch version.
 

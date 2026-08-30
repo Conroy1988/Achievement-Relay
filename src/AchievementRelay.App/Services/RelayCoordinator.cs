@@ -286,11 +286,22 @@ public sealed class RelayCoordinator(
 
             var visibleTitles = progressFetch.Titles
                 .GroupBy(title => title.TitleId, StringComparer.Ordinal)
-                .Select(group => group
-                    .OrderByDescending(title => title.CurrentAchievements)
-                    .ThenByDescending(title => title.CurrentGamerscore)
-                    .ThenByDescending(title => title.LastPlayedAt)
-                    .First())
+                .Select(group =>
+                {
+                    var selected = group
+                        .OrderByDescending(title => title.CurrentAchievements)
+                        .ThenByDescending(title => title.CurrentGamerscore)
+                        .ThenByDescending(title => title.LastPlayedAt)
+                        .First();
+                    return selected with
+                    {
+                        Devices = XboxPlatformClassifier.NormalizeDevices(
+                            group.SelectMany(title => title.Devices)),
+                        DisplayImageUrl = group
+                            .Select(title => title.DisplayImageUrl)
+                            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))
+                    };
+                })
                 .ToArray();
             var currentSnapshots = state.Titles.ToDictionary(
                 entry => entry.Key,
@@ -323,7 +334,9 @@ public sealed class RelayCoordinator(
                     currentSnapshots[title.TitleId] = new XboxTitleSnapshot
                     {
                         CurrentAchievements = Math.Max(0, title.CurrentAchievements),
-                        CurrentGamerscore = Math.Max(0, title.CurrentGamerscore)
+                        CurrentGamerscore = Math.Max(0, title.CurrentGamerscore),
+                        Devices = XboxPlatformClassifier.NormalizeDevices(title.Devices),
+                        DisplayImageUrl = NormalizeUrlHint(title.DisplayImageUrl)
                     };
                 }
             }
@@ -428,7 +441,12 @@ public sealed class RelayCoordinator(
                 }
 
                 foreach (var achievement in delta.NewAchievements.Select(item =>
-                             PrepareForDelivery(item, selectedWork.Name, now)))
+                             PrepareForDelivery(
+                                 item,
+                                 selectedWork.Name,
+                                 selectedWork.Devices,
+                                 selectedWork.DisplayImageUrl,
+                                 now)))
                 {
                     var handling = await deliveryService.DeliverAsync(achievement, settings, cancellationToken);
                     if (handling == AchievementDeliveryResult.RetryRequired)
@@ -451,6 +469,12 @@ public sealed class RelayCoordinator(
                     CurrentGamerscore = Math.Max(
                         selectedWork.CurrentGamerscore,
                         hadPreviousSnapshot ? previous!.CurrentGamerscore : 0),
+                    Devices = XboxPlatformClassifier.NormalizeDevices(
+                        selectedWork.Devices,
+                        previous?.Devices),
+                    DisplayImageUrl = FirstUrlHint(
+                        selectedWork.DisplayImageUrl,
+                        previous?.DisplayImageUrl),
                     UnlockedAchievementIds = delta.CurrentAchievementIds.ToArray()
                 };
                 pendingTitles.Remove(selectedWork.TitleId);
@@ -618,6 +642,14 @@ public sealed class RelayCoordinator(
                 Math.Max(0, title.CurrentGamerscore),
                 existing?.CurrentGamerscore ?? 0),
             LastPlayedAt = Max(existing?.LastPlayedAt, title.LastPlayedAt),
+            Devices = XboxPlatformClassifier.NormalizeDevices(
+                title.Devices,
+                existing?.Devices,
+                previous?.Devices),
+            DisplayImageUrl = FirstUrlHint(
+                title.DisplayImageUrl,
+                existing?.DisplayImageUrl,
+                previous?.DisplayImageUrl),
             FirstObservedUtc = firstObserved,
             LastObservedUtc = observedAt,
             LiveDeliveryEpochUtc = existing?.LiveDeliveryEpochUtc ??
@@ -676,6 +708,8 @@ public sealed class RelayCoordinator(
     private static AchievementEvent PrepareForDelivery(
         AchievementEvent achievement,
         string? fallbackGameName,
+        IEnumerable<string>? titleDevices,
+        string? fallbackHeroImageUrl,
         DateTimeOffset observedAt)
     {
         var reportedTimeIsUsable = achievement.UnlockedAt is { } unlockedAt &&
@@ -685,9 +719,41 @@ public sealed class RelayCoordinator(
             GameName = string.IsNullOrWhiteSpace(achievement.GameName)
                 ? fallbackGameName
                 : achievement.GameName,
+            Platform = XboxPlatformClassifier.ForDelivery(
+                achievement.Platform,
+                titleDevices),
+            HeroImageUrl = string.IsNullOrWhiteSpace(achievement.HeroImageUrl)
+                ? NormalizeUrlHint(fallbackHeroImageUrl)
+                : achievement.HeroImageUrl,
             UnlockedAt = reportedTimeIsUsable ? achievement.UnlockedAt : observedAt,
             UnlockTimeEstimated = achievement.UnlockTimeEstimated || !reportedTimeIsUsable
         };
+    }
+
+    private static string? NormalizeUrlHint(string? value)
+    {
+        const int maximumLength = 2048;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var trimmed = value.Trim();
+        return trimmed.Length <= maximumLength ? trimmed : null;
+    }
+
+    private static string? FirstUrlHint(params string?[] values)
+    {
+        foreach (var value in values)
+        {
+            var normalized = NormalizeUrlHint(value);
+            if (normalized is not null)
+            {
+                return normalized;
+            }
+        }
+
+        return null;
     }
 
 }

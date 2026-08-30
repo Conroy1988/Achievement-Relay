@@ -30,6 +30,17 @@ Normal text and meaningful control states target at least 4.5:1. Meaningful non-
 - The layout uses WPF device-independent sizing and scrollable pages so Windows display scaling does not clip the primary workflow.
 - The notification-area menu, message boxes, title bar and Setup/updater controls remain native Windows controls and therefore use the operating system's accessibility behavior.
 
+## Discord Collector Cards
+
+Each Collector Card attachment includes an author-controlled description summarising the achievement, game, platform and rarity. Because Discord client support for attachment descriptions can vary, the card is never the only copy of essential information: the achievement name, game, challenge, reward, player, platform, percentage/tier and timestamp also remain available as ordinary Discord embed text when supplied.
+
+- Game artwork always receives a deterministic dark readability treatment before text is drawn over it.
+- The no-artwork fallback uses the same controlled palette rather than inheriting colors from a game image.
+- Bronze, Silver, Gold, Platinum and Unranked use different emblem silhouettes, internal marks and written tier names; color is not the sole distinction.
+- A missing percentage is written as **Unranked** instead of being represented by color or a false numeric value.
+- Provider strings are bounded and wrapped so long localized names cannot cover the rarity or platform information.
+- If a complete safe card cannot be rendered, the ordinary text embed is still delivered.
+
 ## Reporting a problem
 
 If a label is hard to read or a control is difficult to use with keyboard or assistive technology, open a [GitHub issue](https://github.com/Conroy1988/Achievement-Relay/issues) or join [Community & Support on Discord](https://discord.gg/3ZdXhYjgDm). Do not include an OpenXBL key or Discord webhook in a report.

@@ -1,6 +1,6 @@
 # Steam integration research and reliability contract
 
-Research frozen: 2026-08-16. This document records the evidence, design decisions, safety invariants, failure policy, and Windows release gates for Achievement Relay 0.3. It is the implementation contract, not a claim that Valve or every game guarantees identical behavior forever.
+Detection research frozen: 2026-08-16; Collector Card presentation reviewed 2026-08-30. This document records the evidence, design decisions, safety invariants, failure policy, and Windows release gates for Achievement Relay. It is the implementation contract, not a claim that Valve or every game guarantees identical behavior forever.
 
 ## Decision
 
@@ -25,10 +25,11 @@ Achievement Relay does not copy SAN code or its Electron architecture. It implem
 - [Steam achievements](https://partner.steamgames.com/doc/features/achievements) explains that games define achievements by stable API names and store player state through Steam user stats.
 - [Steam Web API overview](https://partner.steamgames.com/doc/webapi_overview) distinguishes publisher/user-authenticated web operations from public interfaces. Achievement Relay does not use a personal key.
 - Steam's public `ISteamUserStats/GetGlobalAchievementPercentagesForApp` endpoint is used only to enrich a newly detected unlock with rarity. The response is cached once per App ID for the process lifetime. Failure never blocks the unlock.
+- After that unlock is independently eligible, the main app may request the game's public `library_hero.jpg` from an allowlisted Steam CDN using the numeric App ID. The request is credential-free, bounded and optional; the local achievement icon and branded fallback remain sufficient when it fails.
 
 ### Discord contract
 
-[Discord webhook execution](https://docs.discord.com/developers/resources/webhook#execute-webhook) supports JSON embeds and multipart file uploads. Achievement Relay sends `payload_json` plus `files[0]`, then references local Steam artwork as `attachment://steam-achievement.png`. `allowed_mentions.parse` is always empty.
+[Discord webhook execution](https://docs.discord.com/developers/resources/webhook#execute-webhook) supports JSON embeds and multipart file uploads. Achievement Relay sends `payload_json` plus `files[0]`, then references the locally rendered Collector Card through a constant `attachment://` filename. A Steam icon can be incorporated into that card, but provider-controlled filenames are never used. `allowed_mentions.parse` is always empty.
 
 ### Managed wrapper and supply chain
 
@@ -74,12 +75,13 @@ The helper repeats directly proven transitions on complete heartbeats for its li
 
 This policy deliberately prefers a missed unprovable or offline event over a historical flood. Unlocks earned while Achievement Relay is closed are folded silently into the next initial snapshot; only pending webhook delivery of an already observed live transition is recovered across restarts.
 
-## Rarity, artwork, and timestamps
+## Rarity, Collector Cards, and timestamps
 
-- A global percentage at or below 10% is labeled rare.
-- Steam's public endpoint has returned `percent` as both a JSON number and a numeric string; both representations are accepted and the exact global unlock percentage is included in the Discord Rarity field.
+- Steam's public endpoint has returned `percent` as both a JSON number and a numeric string; both representations are accepted only when finite and within 0–100.
+- The exact global unlock percentage is displayed prominently and classified as Bronze at 25% or more, Silver at 10–24.99%, Gold at 3–9.99%, or Platinum below 3%.
 - If the public rarity request fails or omits the achievement, rarity is unknown. **Rare only** never discards an unknown-rarity unlock.
-- Artwork is read locally only for a newly observed helper transition, limited to 512×512 RGBA, converted to PNG by the platform-neutral core, and uploaded directly to Discord. Artwork failure cannot lose the event.
+- Missing or invalid rarity uses the neutral Unranked Collector Card and never becomes a false `0%` or Platinum result.
+- Artwork is read locally only for a newly observed helper transition, limited to 512×512 RGBA, converted to PNG by the platform-neutral core, and incorporated into the finished Collector Card. Artwork failure selects the complete Relay fallback and cannot lose the event.
 - Helper artwork bytes cross the JSON protocol as an explicitly tested Base64 string, matching the main app's `System.Text.Json` byte-array contract; the raw decoded byte count remains the snapshot budget.
 - Steam's unlock time is display metadata only and is used when valid. It never authorizes delivery. If absent or unusable, the local observation time is shown and the Discord footer labels it as detected/estimated.
 - Steam has no Xbox-style Gamerscore, so the field is omitted.
@@ -99,7 +101,7 @@ Durable local state:
 - per-App-ID game name, monitoring start/last-observed times, unlocked API-name set, and pending live-transition identities;
 - processed deterministic event IDs and normal bounded activity logs.
 
-The Steam account ID and local player name are never included in the copied support summary. No Steam credentials are collected. Outbound Steam traffic is limited to the optional public global-rarity request after a new unlock. Discord receives the achievement fields and optional icon selected by the user through their webhook.
+The Steam account ID and local player name are never included in the copied support summary. No Steam credentials are collected. Outbound Steam traffic after an eligible unlock is limited to the optional public global-rarity request and optional bounded public library-hero request. Discord receives the ordinary achievement fields and one locally composed card—not the raw provider image—through the user's webhook.
 
 ## Failure policy
 
@@ -112,7 +114,7 @@ The Steam account ID and local player name are never included in the copied supp
 - Unreadable or oversized helper output: terminate and restart only the isolated helper; a directly proven transition already persisted by the app remains pending.
 - Helper protocol mismatch or missing packaged files: show a reinstall-required diagnostic.
 - Discord/network failure: retain the durably pending live identity and retry it without reclassifying history, using bounded 1/2/5/15/30-minute backoff after the normal short transport retries.
-- Rarity, icon, or malformed provider-text failure: discard or repair only that enrichment and continue with the proven achievement.
+- Rarity, icon, card-artwork, or malformed provider-text failure: discard or repair only that enrichment, render the branded fallback where possible, and continue with the proven achievement.
 - App/game exit: attempt graceful helper shutdown, then terminate its isolated process if required.
 
 ## Automated contract matrix
@@ -127,7 +129,9 @@ Core checks prove:
 - recent or future-skewed timestamps cannot escape the baseline;
 - event IDs are deterministic and account/App-ID scoped;
 - RGBA artwork produces a valid PNG container;
-- Discord includes Steam platform/player/rarity/attachment metadata and suppresses mentions.
+- all Relay tier boundaries and neutral Unranked behavior are deterministic;
+- the no-artwork path renders a complete fallback rather than a blank surface; and
+- Discord includes Steam platform/player/rarity/card metadata, retains accessible text, and suppresses mentions.
 
 Repository checks additionally enforce the dependency hash, explicit local-user stats bootstrap, bounded startup watchdog, helper files, package wiring, Steam-only installer path, truthful UI phases, and anti-backlog source invariants. CI builds the .NET Framework helper, executes a JSON protocol self-test that proves successful, empty-player, and timed-out stats-request gates, builds both MSIX architectures, and retains the signed test installer.
 
@@ -138,7 +142,7 @@ Before a production release, test on x64 and Windows on Arm where hardware is av
 1. Fresh Steam-only install with Discord configured and OpenXBL blank.
 2. Upgrade from 0.2 with the tray app already running.
 3. Existing game with many historical achievements: Home remains **Preparing** until baseline activity appears, then changes to **Monitoring** while Discord stays silent.
-4. New achievement after baseline: exactly one Discord post with correct game, player, time, rarity when available, and icon when available.
+4. New achievement after baseline: exactly one Discord post with correct game, player, time, percentage/tier when available, and a complete Collector Card with either the Steam icon or branded fallback.
 5. Restart app/game: no duplicate.
 6. Unlock while Discord is unreachable, restore network, and verify one retry post.
 7. Close Achievement Relay, earn an unlock in a previously baselined game, reopen/launch the game, and verify it is silently baselined rather than posted as a backlog item.

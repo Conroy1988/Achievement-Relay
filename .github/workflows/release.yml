@@ -9,7 +9,7 @@ on:
       version:
         description: Release tag in vX.Y.Z format
         required: true
-        default: v0.4.3
+        default: v0.5.0
         type: string
       publish_release:
         description: Publish the immutable GitHub Release after signing checks pass
@@ -41,7 +41,41 @@ jobs:
         shell: pwsh
         run: |
           dotnet build .\AchievementRelay.sln --configuration Release
+          New-Item -ItemType Directory -Path .\artifacts -Force | Out-Null
+          $previewPath = Join-Path $PWD 'artifacts\AchievementRelay_CollectorCard_Preview.png'
+          $appPath = Join-Path $PWD 'src\AchievementRelay.App\bin\Release\net10.0-windows10.0.19041.0\AchievementRelay.App.exe'
+          $previewArguments = "--export-collector-card-preview `"$previewPath`""
+          $previewProcess = Start-Process `
+            -FilePath $appPath `
+            -ArgumentList $previewArguments `
+            -Wait `
+            -PassThru
+          if ($previewProcess.ExitCode -ne 0 -or
+              -not (Test-Path -LiteralPath $previewPath -PathType Leaf)) {
+            throw 'The real Collector Card renderer did not produce its bounded preview PNG.'
+          }
+          $previewBytes = [System.IO.File]::ReadAllBytes($previewPath)
+          $previewSignature = if ($previewBytes.Length -ge 8) {
+            [Convert]::ToHexString([byte[]] $previewBytes[0..7])
+          }
+          $previewChunk = if ($previewBytes.Length -ge 24) {
+            [Text.Encoding]::ASCII.GetString($previewBytes, 12, 4)
+          }
+          $previewWidth = if ($previewBytes.Length -ge 24) {
+            [Net.IPAddress]::NetworkToHostOrder([BitConverter]::ToInt32($previewBytes, 16))
+          }
+          $previewHeight = if ($previewBytes.Length -ge 24) {
+            [Net.IPAddress]::NetworkToHostOrder([BitConverter]::ToInt32($previewBytes, 20))
+          }
+          if ($previewBytes.Length -le 10KB -or
+              $previewSignature -cne '89504E470D0A1A0A' -or
+              $previewChunk -cne 'IHDR' -or
+              $previewWidth -ne 1200 -or
+              $previewHeight -ne 675) {
+            throw 'The Collector Card preview must be the real 1200x675 PNG output.'
+          }
           dotnet run --project .\tests\AchievementRelay.Core.Tests --configuration Release --no-build
+          dotnet run --project .\tests\AchievementRelay.App.Tests --configuration Release --no-build
           $bridgeOutput = & .\src\AchievementRelay.SteamBridge\bin\Release\net48\AchievementRelay.SteamBridge.exe --self-test
           if ($LASTEXITCODE -ne 0 -or $bridgeOutput -notmatch '"protocolVersion":1' -or $bridgeOutput -notmatch '"status":"self-test"' -or $bridgeOutput -notmatch '"message":"ok"') {
             throw "Steam bridge self-test failed: $bridgeOutput"

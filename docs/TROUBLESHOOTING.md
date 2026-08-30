@@ -77,6 +77,20 @@ OpenXBL profile lookup, title-history lookup, and per-title achievement lookup a
 
 HTTP 401 or 404 normally means the webhook was deleted, rotated, or copied incorrectly. Create a replacement. HTTP 429 is retried according to Discord's response.
 
+## Collector Card uses the Relay fallback
+
+That is normal when the provider supplies no usable game/achievement artwork, the image cannot be fetched safely, or Steam exposes no local achievement icon. The black, red and metallic Relay composition is the complete supported fallback—not an image-loading error—and the achievement should still include its normal text fields.
+
+Use **Help & support → Send Discord test** to verify the fallback independently of Xbox, Steam and game artwork. If the post has no card at all, install the latest release and check Activity. Achievement delivery can deliberately fall back to the accessible text embed if the complete renderer cannot create a safe bounded attachment.
+
+## Collector Card says Unranked
+
+**Unranked** means Xbox/OpenXBL or Steam did not supply a valid global unlock percentage for that achievement. Achievement Relay accepts only finite values from 0 through 100 and never turns missing or malformed data into `0%` or a Platinum tier. The achievement remains deliverable, including when **Only post rare achievements** is enabled and the provider did not establish its rarity.
+
+## Xbox card does not say Xbox PC
+
+Achievement Relay uses a specific label only when the provider evidence is reliable. PC-only evidence can produce **Xbox PC**, console-only evidence can produce **Xbox Console**, and a legacy achievement response can produce **Xbox 360**. A Play Anywhere title that advertises both PC and console support, an unknown device token, or missing metadata remains **Xbox**. This generic label is intentional; supported-device lists alone do not prove which device produced one unlock.
+
 ## Game Bar showed the unlock but Discord received nothing
 
 A Game Bar overlay is no longer the capture source. Check:

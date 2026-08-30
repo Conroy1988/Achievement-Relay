@@ -13,8 +13,8 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 30
     env:
-      TEST_MSIX_VERSION: "0.4.2.${{ github.run_number }}"
-      APPLICATION_VERSION: "0.4.3"
+      TEST_MSIX_VERSION: "0.4.3.${{ github.run_number }}"
+      APPLICATION_VERSION: "0.5.0"
 
     steps:
       - name: Check out source
@@ -31,8 +31,48 @@ jobs:
       - name: Build
         run: dotnet build .\AchievementRelay.sln --configuration Release --no-restore
 
+      - name: Render Collector Card preview
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path .\artifacts -Force | Out-Null
+          $previewPath = Join-Path $PWD 'artifacts\AchievementRelay_CollectorCard_Preview.png'
+          $appPath = Join-Path $PWD 'src\AchievementRelay.App\bin\Release\net10.0-windows10.0.19041.0\AchievementRelay.App.exe'
+          $previewArguments = "--export-collector-card-preview `"$previewPath`""
+          $previewProcess = Start-Process `
+            -FilePath $appPath `
+            -ArgumentList $previewArguments `
+            -Wait `
+            -PassThru
+          if ($previewProcess.ExitCode -ne 0 -or
+              -not (Test-Path -LiteralPath $previewPath -PathType Leaf)) {
+            throw 'The real Collector Card renderer did not produce its bounded preview PNG.'
+          }
+          $previewBytes = [System.IO.File]::ReadAllBytes($previewPath)
+          $previewSignature = if ($previewBytes.Length -ge 8) {
+            [Convert]::ToHexString([byte[]] $previewBytes[0..7])
+          }
+          $previewChunk = if ($previewBytes.Length -ge 24) {
+            [Text.Encoding]::ASCII.GetString($previewBytes, 12, 4)
+          }
+          $previewWidth = if ($previewBytes.Length -ge 24) {
+            [Net.IPAddress]::NetworkToHostOrder([BitConverter]::ToInt32($previewBytes, 16))
+          }
+          $previewHeight = if ($previewBytes.Length -ge 24) {
+            [Net.IPAddress]::NetworkToHostOrder([BitConverter]::ToInt32($previewBytes, 20))
+          }
+          if ($previewBytes.Length -le 10KB -or
+              $previewSignature -cne '89504E470D0A1A0A' -or
+              $previewChunk -cne 'IHDR' -or
+              $previewWidth -ne 1200 -or
+              $previewHeight -ne 675) {
+            throw 'The Collector Card preview must be the real 1200x675 PNG output.'
+          }
+
       - name: Run core contract checks
         run: dotnet run --project .\tests\AchievementRelay.Core.Tests --configuration Release --no-build
+
+      - name: Run Collector Card renderer smoke checks
+        run: dotnet run --project .\tests\AchievementRelay.App.Tests --configuration Release --no-build
 
       - name: Exercise Steam bridge protocol
         shell: pwsh
@@ -54,7 +94,7 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
-          name: AchievementRelay-v0.4.3-r${{ github.run_number }}-windows-test
+          name: AchievementRelay-v0.5.0-r${{ github.run_number }}-windows-test
           path: |
             artifacts/AchievementRelay_Setup.exe
             artifacts/AchievementRelay_${{ env.TEST_MSIX_VERSION }}_x64.msix
@@ -63,6 +103,7 @@ jobs:
             artifacts/AchievementRelay.Development.cer
             artifacts/AchievementRelay_Update.json
             artifacts/AchievementRelay_Update.sig
+            artifacts/AchievementRelay_CollectorCard_Preview.png
           if-no-files-found: error
           retention-days: 7
           compression-level: 0

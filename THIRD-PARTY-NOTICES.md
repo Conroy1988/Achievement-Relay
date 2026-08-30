@@ -11,7 +11,7 @@ The reviewed NuGet package is committed under `third_party/packages`; its expect
 
 ## Art
 
-Achievement Relay's cinematic relay artwork and installer artwork were generated with OpenAI image tooling from project-specific prompts, then cropped and optimized for the Windows interface. The logo and brand graphics were also created for this project. These assets do not copy or include third-party game characters, logos, screenshots, or distinctive franchise assets.
+Achievement Relay's cinematic relay artwork and installer artwork were generated with OpenAI image tooling from project-specific prompts, then cropped and optimized for the Windows interface. The logo and brand graphics were also created for this project. The Collector Card fallback, tier-emblem geometry and metallic treatments are original project designs rendered by the application. These assets do not copy or include third-party game characters, logos, screenshots, or distinctive franchise assets.
 
 The following interface icons are redistributed under their authors' stated licence:
 

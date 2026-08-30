@@ -13,4 +13,6 @@ public sealed record XboxTitleProgress
     public DateTimeOffset? LastPlayedAt { get; init; }
 
     public IReadOnlyList<string> Devices { get; init; } = [];
+
+    public string? DisplayImageUrl { get; init; }
 }

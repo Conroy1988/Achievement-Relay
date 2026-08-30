@@ -65,7 +65,24 @@ If Discord works but optional Xbox verification fails, Steam can still start imm
 
 You can close the window after setup. Achievement Relay continues in the Windows notification area; right-click the tray icon to reopen or exit.
 
-## 5. Test a real Steam achievement
+## 5. Know what will appear in Discord
+
+A real achievement post includes a wide **Collector Card** plus ordinary Discord text for the game, challenge, reward, player and platform. The card uses provider artwork when it is safe and usable. If a game has no suitable image—or an image cannot be loaded—the same post uses Achievement Relay's complete black, red and metallic fallback design.
+
+The percentage shown is the global unlock rate reported by Xbox/OpenXBL or Steam. It selects one Relay tier:
+
+- **Bronze:** 25% or more;
+- **Silver:** 10% to 24.99%;
+- **Gold:** 3% to 9.99%; and
+- **Platinum:** under 3%.
+
+If the provider does not supply a valid percentage, the card says **Unranked**. It never turns missing data into `0%` or a Platinum result.
+
+Xbox labels are evidence-based. A title is shown as **Xbox PC**, **Xbox Console** or **Xbox 360** only when the available metadata proves that classification. Play Anywhere titles that expose both PC and console support, and responses with no usable device evidence, remain labelled **Xbox**. Steam posts are labelled **Steam**.
+
+Use **Help & support → Send Discord test** after setup to see the production fallback card without earning another achievement.
+
+## 6. Test a real Steam achievement
 
 1. Leave Achievement Relay and Steam running.
 2. Start a Steam game. Home should change from **Steam: Ready** to **Steam: Monitoring**.
@@ -75,7 +92,7 @@ You can close the window after setup. Achievement Relay continues in the Windows
 
 If Achievement Relay was closed when an achievement unlocked, that identity is silently added to the baseline the next time the game is monitored. Achievement Relay posts only a live locked-to-unlocked transition it directly observed or Steam's completed-achievement callback received during the current helper session. Timestamps are display metadata and never authorize a post. This is the anti-backlog safety boundary.
 
-## 6. Test a real Xbox achievement
+## 7. Test a real Xbox achievement
 
 1. Leave Achievement Relay running.
 2. Unlock an Xbox network achievement in a PC game.
@@ -104,6 +121,10 @@ Version 0.1.x depended on Windows Notification Center and cannot detect a Game B
 ## Upgrading from 0.2.x
 
 Version 0.4 preserves the Xbox cursor, processed-event ledger, encrypted OpenXBL key, encrypted Discord webhook, and preferences. Steam monitoring is enabled by default and waits locally for the next Steam game. Each Steam account/game pair receives its own first complete silent baseline, so upgrading cannot dump the Steam library's achievement history into Discord.
+
+## Upgrading from 0.4.x
+
+Version 0.5 preserves encrypted connections, provider baselines, pending work, processed-event history and all preferences. Collector Cards and rarity tiers require no new setting. The first achievement after updating uses the new presentation automatically; the update does not repost existing achievements merely to create cards for them.
 
 ## Moving from a pre-official 0.3.x test
 

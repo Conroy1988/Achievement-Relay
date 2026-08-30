@@ -50,6 +50,7 @@ jobs:
         run: |
           dotnet build .\AchievementRelay.sln --configuration Release
           dotnet run --project .\tests\AchievementRelay.Core.Tests --configuration Release --no-build
+          dotnet run --project .\tests\AchievementRelay.App.Tests --configuration Release --no-build
           $bridgeOutput = & .\src\AchievementRelay.SteamBridge\bin\Release\net48\AchievementRelay.SteamBridge.exe --self-test
           if ($LASTEXITCODE -ne 0 -or
               $bridgeOutput -notmatch '"protocolVersion":1' -or

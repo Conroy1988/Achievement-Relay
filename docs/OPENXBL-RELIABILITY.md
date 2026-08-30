@@ -1,6 +1,6 @@
 # OpenXBL reliability research and operating contract
 
-Last reviewed: 2026-08-15
+Last reviewed: 2026-08-30
 
 This document records the provider research, live Windows findings, detection invariants, and acceptance gates for Achievement Relay. It deliberately contains no API key, webhook, XUID, gamertag, or raw private account response.
 
@@ -29,6 +29,8 @@ The relevant response families differ:
 
 Microsoft also documents that offline achievement updates can be queued before reaching the service. A provider timestamp is therefore useful display metadata, but it is not a safe cursor or event identity.
 
+Modern achievement responses can also expose `rarity.currentPercentage`, while title-history responses can expose `devices` or `platforms`. Neither family is guaranteed by OpenXBL's published response schema. Achievement Relay treats them as optional display enrichment: percentages must be finite and within 0–100, and a platform is named specifically only when every relevant token is recognized and unambiguous. Unknown or mixed evidence falls back to Unranked or Xbox rather than changing delivery eligibility.
+
 ## Live failures that established the design requirements
 
 The Windows acceptance cycle exposed each layer independently:
@@ -45,7 +47,7 @@ The Windows acceptance cycle exposed each layer independently:
 
 These are distinct failure classes. A successful profile check is not proof of a readable title index, a readable title index is not proof of complete per-title details, and a complete detail list is not proof that every unlock has a timestamp.
 
-The live historical-flood regression established a stricter rule: uncertainty must cost a missed notification, never a backlog. The affected build was stopped immediately; its credentials and durable event ledger remain valid. Schema 4 introduced fail-closed identity repair; schema 5 added a durable, paced detail queue; schema 6 adds restart-safe live-delivery proof and fresh epochs for device handoffs.
+The live historical-flood regression established a stricter rule: uncertainty must cost a missed notification, never a backlog. The affected build was stopped immediately; its credentials and durable event ledger remain valid. Schema 4 introduced fail-closed identity repair; schema 5 added a durable, paced detail queue; schema 6 added restart-safe live-delivery proof and fresh epochs for device handoffs; schema 7 retains normalized title-device evidence for honest, restart-safe platform labels.
 
 ## Detection invariants
 
@@ -63,6 +65,8 @@ Achievement Relay uses these rules:
 10. **Identity baselines are hydrated gradually.** A summary count, including zero, is never treated as a verified ID set. Historical queue work and unchanged baseline hydration share one background slot every 15 minutes and never run from a manual sync. Fresh and upgraded installs therefore converge without a provider burst.
 11. **Provider regressions cannot erase durable history.** Saved counts, Gamerscore, and identities do not shrink when a partial or changed provider representation reports less data. If a route suddenly represents more identities than the summary increase can explain, the app baselines the representation change instead of flooding historical achievements.
 12. **Request capacity is transactional too.** Each detail operation is capped at 12 requests, the process is capped at 120 requests per rolling hour, and provider remaining/reset headers can stop it earlier. Background history preserves a larger reserve than live monitoring, and no UI action bypasses the gate.
+13. **Rarity is presentation, never evidence.** A global percentage can select Bronze, Silver, Gold or Platinum only after validation. Missing or malformed values select Unranked and cannot create, suppress or identify an event by themselves.
+14. **Platform labels fail generic.** Exact PC-only, console-only or legacy-route evidence can select Xbox PC, Xbox Console or Xbox 360. Mixed, unknown or absent evidence remains Xbox. Device metadata never enters the achievement identity.
 
 ## State and delivery transaction
 
@@ -75,11 +79,11 @@ For each one-minute poll:
 5. when no priority work exists and the 15-minute slot is due, select one old pending title or one unchanged count-only title;
 6. keep probing compatible modern/Xbox 360 routes and continuation pages, but stop the operation after 12 requests;
 7. compute stable-ID differences;
-8. send each proven new event to Discord with `wait=true` so an HTTP success confirms creation rather than only queue acceptance;
+8. render its bounded Collector Card and send the card plus accessible embed text to Discord with `wait=true` so an HTTP success confirms creation rather than only queue acceptance;
 9. persist each processed event ID immediately; and
 10. commit that title's identity snapshot and remove its queue entry only after complete detail and required deliveries succeed.
 
-The queue is part of schema 5, and schema 6 adds its optional original live-delivery epoch plus untimestamped live-evidence flag. A restart cannot turn delayed work into an updated cursor or force the title index to reveal it again; a genuinely live failed delivery keeps its proof, while work migrated without proof fails closed. Low-priority failure does not mark live monitoring as failed; the item remains queued. Priority failure remains visible because a potential new unlock is awaiting exact detail or Discord delivery.
+The queue is part of schema 5, schema 6 adds its optional original live-delivery epoch plus untimestamped live-evidence flag, and schema 7 adds normalized device evidence to snapshots and pending work. A restart cannot turn delayed work into an updated cursor, force the title index to reveal it again, or silently change a proven platform label. A genuinely live failed delivery keeps its proof, while work migrated without proof fails closed. Low-priority failure does not mark live monitoring as failed; the item remains queued. Priority failure remains visible because a potential new unlock is awaiting exact detail or Discord delivery.
 
 The request gate counts attempts before transport because OpenXBL counts successful, failed, and cached HTTP requests. It permits at most 120 requests in any local rolling hour, even when allowance headers are missing. When `X-RateLimit-Remaining`/limit/reset or their standard equivalents are present, background work requires a 50-request free-plan reserve plus the full operation capacity, while essential work retains a final reserve. HTTP 429 uses the published hourly fallback only when no usable reset is supplied.
 
@@ -109,6 +113,7 @@ Discord webhooks do not provide an idempotency key. `wait=true`, deterministic l
 - Raw provider responses are not persisted because they can contain account identifiers and private profile data.
 - Transport exception text is not surfaced for Discord requests because platform messages can embed the credential-bearing webhook URI.
 - Discord payloads disable mention parsing, validate the webhook host/path, canonicalize the legacy Discord host, refuse redirects that could forward a token, truncate every user/provider string to Discord limits, and use a declared product user agent.
+- Collector Card artwork is optional and untrusted: remote requests carry no OpenXBL or Discord credential, and download size, redirect behavior, content, decoded dimensions and final PNG output are bounded. Rendering failure falls back without changing the delivery cursor.
 
 ## Automated and live acceptance matrix
 
@@ -124,7 +129,10 @@ Automated checks must cover:
 - rolling-hour, provider-remaining, essential/background reserve, and reset-window request decisions;
 - live-before-history queue priority and the 15-minute background eligibility boundary;
 - mention suppression and estimated-time disclosure;
-- state schema 6, durable live-delivery evidence, omitted-title retention, route ordering/cache, rate-limit handling, installer versioning, and running-app shutdown.
+- finite/range-checked rarity percentages, every tier boundary, neutral Unranked behavior, distinct tier semantics and a complete no-artwork fallback;
+- PC-only, console-only, Xbox 360, mixed, unknown and missing platform evidence, including retry/restart persistence without changing deterministic IDs;
+- Collector Card attachment/payload agreement and accessible text retention when images are unavailable;
+- state schema 7, durable live-delivery/platform evidence, omitted-title retention, route ordering/cache, rate-limit handling, installer versioning, and running-app shutdown.
 
 The Windows release gate is not complete until all of these pass on the generated installer:
 

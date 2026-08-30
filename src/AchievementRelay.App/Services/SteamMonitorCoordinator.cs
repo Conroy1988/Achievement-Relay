@@ -28,7 +28,6 @@ public sealed class SteamMonitorCoordinator(
     ActivityLog activityLog) : IDisposable
 {
     private const int ProtocolVersion = 1;
-    private const double RareAchievementThreshold = 10.0;
     private static readonly TimeSpan FutureClockTolerance = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan GameExitGracePeriod = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan BridgeRestartDelay = TimeSpan.FromSeconds(5);
@@ -797,6 +796,8 @@ public sealed class SteamMonitorCoordinator(
                 processingStage = "achievement preparation";
                 rarity.TryGetValue(observation.ApiName, out var rarityPercentage);
                 var rarityKnown = rarity.ContainsKey(observation.ApiName);
+                var rarityTier = RelayRarityClassifier.Classify(
+                    rarityKnown ? rarityPercentage : null);
                 byte[]? icon = null;
                 if (observation.IconRgba is { Length: > 0 })
                 {
@@ -821,14 +822,16 @@ public sealed class SteamMonitorCoordinator(
                     Name = observation.Name,
                     Description = observation.Description,
                     GameName = game.Name,
-                    IsRare = rarityKnown && rarityPercentage <= RareAchievementThreshold,
+                    IsRare = rarityTier is RelayRarityTier.Gold or RelayRarityTier.Platinum,
                     RarityKnown = rarityKnown,
                     RarityPercentage = rarityKnown ? rarityPercentage : null,
+                    HeroImageUrl = $"https://cdn.akamai.steamstatic.com/steam/apps/{snapshot.AppId.ToString(CultureInfo.InvariantCulture)}/library_hero.jpg",
                     ImageBytes = icon,
                     ImageFileName = icon is null ? null : "steam-achievement.png",
                     ImageContentType = icon is null ? null : "image/png",
                     PlayerName = string.IsNullOrWhiteSpace(snapshot.PlayerName) ? null : snapshot.PlayerName.Trim(),
                     SourceProvider = "Steam",
+                    Platform = "Steam",
                     UnlockedAt = reportedTimeIsUsable ? observation.UnlockedAt : observedAt,
                     UnlockTimeEstimated = !reportedTimeIsUsable
                 };

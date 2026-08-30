@@ -2,12 +2,13 @@ using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AchievementRelay.Core.Models;
+using AchievementRelay.Core.Services;
 
 namespace AchievementRelay.App.Services;
 
 public sealed record XboxSyncState
 {
-    public const int CurrentSchemaVersion = 6;
+    public const int CurrentSchemaVersion = 7;
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
 
@@ -29,6 +30,14 @@ public sealed record XboxTitleSnapshot
     public int CurrentAchievements { get; init; }
 
     public int CurrentGamerscore { get; init; }
+
+    /// <summary>
+    /// Bounded title-history device hints. Multiple or unfamiliar families
+    /// intentionally remain ambiguous when a Discord platform is selected.
+    /// </summary>
+    public string[] Devices { get; init; } = [];
+
+    public string? DisplayImageUrl { get; init; }
 
     /// <summary>
     /// Null means the title has only an unverified count snapshot, whether it
@@ -132,7 +141,11 @@ public sealed class XboxSyncStateStore(AppPaths paths)
 
         foreach (var group in titles.GroupBy(title => title.TitleId, StringComparer.Ordinal))
         {
-            var title = group.First();
+            var title = group
+                .OrderByDescending(item => item.CurrentAchievements)
+                .ThenByDescending(item => item.CurrentGamerscore)
+                .ThenByDescending(item => item.LastPlayedAt)
+                .First();
             XboxTitleSnapshot? previous = null;
             if (previousTitles is not null)
             {
@@ -150,6 +163,12 @@ public sealed class XboxSyncStateStore(AppPaths paths)
                 CurrentGamerscore = Math.Max(
                     title.CurrentGamerscore,
                     previous?.CurrentGamerscore ?? 0),
+                Devices = XboxPlatformClassifier.NormalizeDevices(
+                    group.SelectMany(item => item.Devices),
+                    previous?.Devices),
+                DisplayImageUrl = FirstUrlHint(
+                    group.Select(item => item.DisplayImageUrl)
+                        .Append(previous?.DisplayImageUrl)),
                 // Counts alone never prove an identity baseline, including a
                 // reported zero. Leave new titles unverified until a complete
                 // detail response has been silently hydrated.
@@ -231,7 +250,9 @@ public sealed class XboxSyncStateStore(AppPaths paths)
 
         return snapshot with
         {
-            UnlockedAchievementIds = normalizedIds
+            UnlockedAchievementIds = normalizedIds,
+            Devices = XboxPlatformClassifier.NormalizeDevices(snapshot.Devices),
+            DisplayImageUrl = NormalizeUrlHint(snapshot.DisplayImageUrl)
         };
     }
 
@@ -260,6 +281,8 @@ public sealed class XboxSyncStateStore(AppPaths paths)
             CurrentAchievements = Math.Max(0, work.CurrentAchievements),
             CurrentGamerscore = Math.Max(0, work.CurrentGamerscore),
             LastPlayedAt = work.LastPlayedAt?.ToUniversalTime(),
+            Devices = XboxPlatformClassifier.NormalizeDevices(work.Devices),
+            DisplayImageUrl = NormalizeUrlHint(work.DisplayImageUrl),
             FirstObservedUtc = firstObservedUtc,
             LastObservedUtc = lastObservedUtc,
             // Older schemas did not record whether queued work had direct
@@ -269,5 +292,31 @@ public sealed class XboxSyncStateStore(AppPaths paths)
             AllowsUntimestampedDelivery = hasValidLiveEvidence &&
                                           work.AllowsUntimestampedDelivery
         };
+    }
+
+    private static string? NormalizeUrlHint(string? value)
+    {
+        const int maximumLength = 2048;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var trimmed = value.Trim();
+        return trimmed.Length <= maximumLength ? trimmed : null;
+    }
+
+    private static string? FirstUrlHint(IEnumerable<string?> values)
+    {
+        foreach (var value in values)
+        {
+            var normalized = NormalizeUrlHint(value);
+            if (normalized is not null)
+            {
+                return normalized;
+            }
+        }
+
+        return null;
     }
 }

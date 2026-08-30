@@ -68,7 +68,7 @@ function Get-ThemeColor {
 
 $manifestPath = Join-Path $repositoryRoot 'src\AchievementRelay.Package\AppxManifest.xml'
 $manifestText = Get-Content -LiteralPath $manifestPath -Raw
-$manifestText = $manifestText.Replace('__VERSION__', '0.4.3.0').Replace('__ARCHITECTURE__', 'x64')
+$manifestText = $manifestText.Replace('__VERSION__', '0.5.0.0').Replace('__ARCHITECTURE__', 'x64')
 [xml] $manifest = $manifestText
 
 $namespaceManager = [System.Xml.XmlNamespaceManager]::new($manifest.NameTable)
@@ -118,6 +118,7 @@ $requiredFiles = @(
     'docs\RELEASE-NOTES-0.4.1.md',
     'docs\RELEASE-NOTES-0.4.2.md',
     'docs\RELEASE-NOTES-0.4.3.md',
+    'docs\RELEASE-NOTES-0.5.0.md',
     'docs\ACCESSIBILITY.md',
     'docs\images\achievement-relay-banner.png',
     'docs\images\achievement-relay-interface.png',
@@ -127,14 +128,22 @@ $requiredFiles = @(
     'src\AchievementRelay.Core\Services\SteamAchievementDeltaDetector.cs',
     'src\AchievementRelay.Core\Services\SteamRarityResponseParser.cs',
     'src\AchievementRelay.Core\Services\RgbaPngEncoder.cs',
+    'src\AchievementRelay.Core\Services\RelayRarityClassifier.cs',
+    'src\AchievementRelay.Core\Services\XboxPlatformClassifier.cs',
+    'src\AchievementRelay.Core\Models\RelayRarityTier.cs',
     'src\AchievementRelay.Core\Services\UpdatePolicy.cs',
     'src\AchievementRelay.Core\Services\XboxDeliveryWindowPolicy.cs',
     'src\AchievementRelay.Core\Models\UpdateManifest.cs',
+    'tests\AchievementRelay.App.Tests\AchievementRelay.App.Tests.csproj',
+    'tests\AchievementRelay.App.Tests\Program.cs',
     'third_party\Facepunch.Steamworks.LICENSE.txt',
     'third_party\packages\Facepunch.Steamworks.2.5.2.nupkg',
     'src\AchievementRelay.App\MainWindow.xaml',
     'src\AchievementRelay.App\Services\AppUpdateService.cs',
     'src\AchievementRelay.App\Services\InstallerTrustVerifier.cs',
+    'src\AchievementRelay.App\Services\AchievementArtworkClient.cs',
+    'src\AchievementRelay.App\Services\DiscordAchievementPostComposer.cs',
+    'src\AchievementRelay.App\Services\DiscordCollectorCardRenderer.cs',
     'src\AchievementRelay.Core\Services\UpdateManifestSignatureVerifier.cs',
     'src\AchievementRelay.App\Assets\AchievementRelay.ico',
     'assets\brand\achievement-relay-icon-source.png',
@@ -491,11 +500,13 @@ if (-not $openXblParserText.Contains('DateTimeOffset? unlockedAt = null') -or
     -not $deliveryWindowPolicyText.Contains('elapsed < TimeSpan.Zero || elapsed > continuityLimit') -or
     -not $syncWorkText.Contains('LiveDeliveryEpochUtc') -or
     -not $syncWorkText.Contains('AllowsUntimestampedDelivery') -or
-    -not $syncStateText.Contains('CurrentSchemaVersion = 6') -or
+    -not $syncStateText.Contains('CurrentSchemaVersion = 7') -or
     -not $syncStateText.Contains('sourceSchemaVersion') -or
     -not $syncStateText.Contains('sourceSchemaVersion >= 6') -or
     -not $syncStateText.Contains('hasValidLiveEvidence') -or
     -not $syncStateText.Contains('UnlockedAchievementIds') -or
+    -not $syncStateText.Contains('XboxPlatformClassifier.NormalizeDevices') -or
+    -not $syncWorkText.Contains('string[] Devices') -or
     -not $syncStateText.Contains('PendingTitles') -or
     -not $syncStateText.Contains('LastBackgroundWorkUtc') -or
     -not $syncStateText.Contains('Math.Max(') -or
@@ -538,6 +549,68 @@ $steamRarityParserText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'sr
 $steamBridgeText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.SteamBridge\Program.cs') -Raw
 $discordPayloadText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.Core\Services\DiscordWebhookPayloadFactory.cs') -Raw
 $buildMsixText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'scripts\Build-Msix.ps1') -Raw
+$rarityClassifierText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.Core\Services\RelayRarityClassifier.cs') -Raw
+$platformClassifierText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.Core\Services\XboxPlatformClassifier.cs') -Raw
+$collectorCardRendererText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\DiscordCollectorCardRenderer.cs') -Raw
+$artworkClientText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\AchievementArtworkClient.cs') -Raw
+$postComposerText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\DiscordAchievementPostComposer.cs') -Raw
+$deliveryServiceText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\AchievementDeliveryService.cs') -Raw
+$appServicesText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\AppServices.cs') -Raw
+$appSmokeTestsText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'tests\AchievementRelay.App.Tests\Program.cs') -Raw
+if (-not $rarityClassifierText.Contains('< 3 => RelayRarityTier.Platinum') -or
+    -not $rarityClassifierText.Contains('< 10 => RelayRarityTier.Gold') -or
+    -not $rarityClassifierText.Contains('< 25 => RelayRarityTier.Silver') -or
+    -not $rarityClassifierText.Contains('RelayRarityTier.Unranked') -or
+    -not $rarityClassifierText.Contains('double.IsFinite(percentage)') -or
+    -not $rarityClassifierText.Contains('percentage is < 0 or > 100') -or
+    -not $platformClassifierText.Contains('return classifications.Count == 1 ? classifications.Single() : null') -or
+    -not $platformClassifierText.Contains('return ClassifyToken(earnedPlatform)') -or
+    -not $platformClassifierText.Contains('return "Xbox PC"') -or
+    -not $platformClassifierText.Contains('return "Xbox Console"') -or
+    -not $platformClassifierText.Contains('return "Xbox 360"')) {
+    throw 'Collector Card rarity tiers and Xbox platform labels must use validated, fail-generic evidence.'
+}
+if (-not $collectorCardRendererText.Contains('CardWidth = 1200') -or
+    -not $collectorCardRendererText.Contains('CardHeight = 675') -or
+    -not $collectorCardRendererText.Contains('achievement-relay-card.png') -or
+    -not $collectorCardRendererText.Contains('MaximumCardBytes') -or
+    -not $collectorCardRendererText.Contains('DrawFallbackPattern') -or
+    -not $collectorCardRendererText.Contains('DrawTierEmblem') -or
+    -not $collectorCardRendererText.Contains('RelayRarityTier.Unranked') -or
+    -not $artworkClientText.Contains('AllowAutoRedirect = false') -or
+    -not $artworkClientText.Contains('MaximumArtworkBytes') -or
+    -not $artworkClientText.Contains('CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)') -or
+    -not $artworkClientText.Contains('timeout.CancelAfter(ArtworkRequestTimeout)') -or
+    -not $artworkClientText.Contains('candidate.Scheme != Uri.UriSchemeHttps') -or
+    -not $artworkClientText.Contains('AllowedImageHosts') -or
+    -not $artworkClientText.Contains('"images-eds-ssl.xboxlive.com"') -or
+    -not $artworkClientText.Contains('"store-images.s-microsoft.com"') -or
+    -not $artworkClientText.Contains('"cdn.akamai.steamstatic.com"') -or
+    -not $artworkClientText.Contains('IsSupportedRasterImage')) {
+    throw 'Collector Cards must remain bounded, locally rendered and complete without optional provider artwork.'
+}
+if (-not $appServicesText.Contains('AchievementPostComposer = new DiscordAchievementPostComposer') -or
+    -not $appServicesText.Contains('AchievementPostComposer,') -or
+    -not $deliveryServiceText.Contains('postComposer.ComposeAsync') -or
+    -not $deliveryServiceText.Contains('post.AttachmentBytes') -or
+    -not $deliveryServiceText.Contains('post.AttachmentFileName') -or
+    -not $deliveryServiceText.Contains('post.AttachmentContentType') -or
+    -not $mainWindowText.Contains('_services.AchievementPostComposer.ComposeAsync(sample') -or
+    -not $postComposerText.Contains('CreateLegacyPost') -or
+    -not $discordPayloadText.Contains('embed["image"]') -or
+    -not $discordPayloadText.Contains('embed["thumbnail"]') -or
+    -not $discordPayloadText.Contains('payload["attachments"]') -or
+    -not $discordPayloadText.Contains('CreateAttachmentDescription')) {
+    throw 'Collector Card composition, attachment delivery, sample posting and legacy thumbnail fallback must remain connected end to end.'
+}
+if (-not $appSmokeTestsText.Contains('Collector Card PNG contract') -or
+    -not $appSmokeTestsText.Contains('Collector Card artwork composition') -or
+    -not $appSmokeTestsText.Contains('Collector Card long text safety') -or
+    -not $appSmokeTestsText.Contains('Collector Card tier emblems are distinct') -or
+    -not $appSmokeTestsText.Contains('BinaryPrimitives.ReadInt32BigEndian') -or
+    -not $appSmokeTestsText.Contains('HashTierEmblem')) {
+    throw 'Collector Card renderer smoke coverage must retain output, artwork, text-safety and distinct-tier checks.'
+}
 $steamMutationPattern = '(?m)\b(?:achievement|new\s+Achievement\s*\([^)]*\))\s*\.\s*(?:Trigger|Clear)\s*\(|\bSteamUserStats\s*\.\s*(?:StoreStats|ResetAll)\s*\('
 if (-not $steamDeltaText.Contains('Merely appearing unlocked is always history') -or
     -not $steamDeltaText.Contains('Unlock timestamps are display metadata') -or
@@ -634,7 +707,14 @@ if (-not $releaseWorkflowText.Contains("'.exe'") -or
     -not $releaseWorkflowText.Contains('Cert:\LocalMachine\TrustedPeople') -or
     -not $releaseWorkflowText.Contains('http://timestamp.digicert.com') -or
     -not $releaseWorkflowText.Contains('AchievementRelay.Publisher.cer') -or
-    -not $releaseWorkflowText.Contains('default: v0.4.3') -or
+    -not $releaseWorkflowText.Contains('default: v0.5.0') -or
+    -not $releaseWorkflowText.Contains('--export-collector-card-preview') -or
+    -not $releaseWorkflowText.Contains('AchievementRelay_CollectorCard_Preview.png') -or
+    -not $releaseWorkflowText.Contains('Start-Process') -or
+    -not $releaseWorkflowText.Contains('$previewProcess.ExitCode') -or
+    -not $releaseWorkflowText.Contains('$previewWidth -ne 1200') -or
+    -not $releaseWorkflowText.Contains('$previewHeight -ne 675') -or
+    -not $releaseWorkflowText.Contains('tests\AchievementRelay.App.Tests') -or
     -not $releaseWorkflowText.Contains('publish_release:') -or
     -not $releaseWorkflowText.Contains('Retain signed release candidate') -or
     -not $releaseWorkflowText.Contains('RELEASE-NOTES-$version.md')) {
@@ -705,14 +785,31 @@ $officialUpdatePolicy = Get-Content -LiteralPath (Join-Path $repositoryRoot 'rel
     ConvertFrom-Json
 $appProjectText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\AchievementRelay.App.csproj') -Raw
 $bridgeProjectText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.SteamBridge\AchievementRelay.SteamBridge.csproj') -Raw
+$buildReleaseText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'scripts\Build-Release.ps1') -Raw
+$buildInstallerText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'scripts\Build-Installer.ps1') -Raw
+$discordClientVersionText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\DiscordWebhookClient.cs') -Raw
+$openXblClientVersionText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\OpenXblClient.cs') -Raw
+$steamRarityClientVersionText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\SteamRarityClient.cs') -Raw
 if ($officialUpdatePolicy.schemaVersion -ne 1 -or
     $officialUpdatePolicy.minimumSupportedVersion -cne '0.4.0' -or
     @($officialUpdatePolicy.additionalPublisherCertificateSha256).Count -ne 0 -or
-    -not $appProjectText.Contains('<Version>0.4.3</Version>') -or
-    -not $appProjectText.Contains('<FileVersion>0.4.3.0</FileVersion>') -or
-    -not $bridgeProjectText.Contains('<Version>0.4.3</Version>') -or
-    -not $bridgeProjectText.Contains('<FileVersion>0.4.3.0</FileVersion>')) {
-    throw 'The v0.4.3 application and Steam bridge must retain the official v0.4.0 update baseline.'
+    -not $appProjectText.Contains('<Version>0.5.0</Version>') -or
+    -not $appProjectText.Contains('<FileVersion>0.5.0.0</FileVersion>') -or
+    -not $appProjectText.Contains('<AssemblyVersion>0.5.0.0</AssemblyVersion>') -or
+    -not $bridgeProjectText.Contains('<Version>0.5.0</Version>') -or
+    -not $bridgeProjectText.Contains('<FileVersion>0.5.0.0</FileVersion>') -or
+    -not $bridgeProjectText.Contains('<AssemblyVersion>0.5.0.0</AssemblyVersion>') -or
+    -not $installerText.Contains('#define AppVersion "0.5.0"') -or
+    -not $buildReleaseText.Contains("[string] `$Version = '0.5.0.0'") -or
+    -not $buildMsixText.Contains("[string] `$Version = '0.5.0.0'") -or
+    -not $buildInstallerText.Contains("[string] `$Version = '0.5.0'") -or
+    -not $buildInstallerText.Contains("[string] `$MsixVersion = '0.5.0.0'") -or
+    -not $mainWindowXaml.Contains('Text="Version 0.5.0"') -or
+    -not $mainWindowText.Contains('?? "0.5.0"') -or
+    -not $discordClientVersionText.Contains('ProductInfoHeaderValue("AchievementRelay", "0.5.0")') -or
+    -not $openXblClientVersionText.Contains('ProductInfoHeaderValue("AchievementRelay", "0.5.0")') -or
+    -not $steamRarityClientVersionText.Contains('ProductInfoHeaderValue("AchievementRelay", "0.5.0")')) {
+    throw 'The v0.5.0 application and Steam bridge must retain the official v0.4.0 update baseline.'
 }
 
 $liveUpdatePolicy = Get-Content -LiteralPath (Join-Path $repositoryRoot 'release\live-update-test-policy.json') -Raw |
@@ -740,7 +837,6 @@ $updatePolicyText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\Ach
 $appUpdateText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\AppUpdateService.cs') -Raw
 $installerTrustText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\InstallerTrustVerifier.cs') -Raw
 $manifestTrustText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.Core\Services\UpdateManifestSignatureVerifier.cs') -Raw
-$buildReleaseText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'scripts\Build-Release.ps1') -Raw
 $newUpdateManifestText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'scripts\New-UpdateManifest.ps1') -Raw
 if (-not $updatePolicyText.Contains('minimum supported version') -or
     -not $updatePolicyText.Contains('UpdateRequirement.Required') -or
@@ -779,15 +875,28 @@ if (-not $updatePolicyText.Contains('minimum supported version') -or
 }
 
 $ciWorkflowText = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github\workflows\ci.yml') -Raw
-if (-not $ciWorkflowText.Contains('0.4.2.${{ github.run_number }}') -or
-    -not $ciWorkflowText.Contains('APPLICATION_VERSION: "0.4.3"') -or
-    -not $ciWorkflowText.Contains('AchievementRelay-v0.4.3-r${{ github.run_number }}-windows-test') -or
+if (-not $ciWorkflowText.Contains('0.4.3.${{ github.run_number }}') -or
+    -not $ciWorkflowText.Contains('APPLICATION_VERSION: "0.5.0"') -or
+    -not $ciWorkflowText.Contains('AchievementRelay-v0.5.0-r${{ github.run_number }}-windows-test') -or
+    -not $ciWorkflowText.Contains('--export-collector-card-preview') -or
+    -not $ciWorkflowText.Contains('artifacts/AchievementRelay_CollectorCard_Preview.png') -or
+    -not $ciWorkflowText.Contains('Start-Process') -or
+    -not $ciWorkflowText.Contains('$previewProcess.ExitCode') -or
+    -not $ciWorkflowText.Contains('$previewWidth -ne 1200') -or
+    -not $ciWorkflowText.Contains('$previewHeight -ne 675') -or
+    -not $ciWorkflowText.Contains('tests\AchievementRelay.App.Tests') -or
     -not $ciWorkflowText.Contains('-ApplicationVersion $env:APPLICATION_VERSION') -or
     -not $ciWorkflowText.Contains('artifacts/AchievementRelay_Update.json') -or
     -not $ciWorkflowText.Contains('artifacts/AchievementRelay_Update.sig') -or
     -not $ciWorkflowText.Contains('AchievementRelay.SteamBridge.exe --self-test') -or
     -not $ciWorkflowText.Contains('"protocolVersion":1')) {
     throw 'Pull-request installers must use a monotonically increasing MSIX test revision.'
+}
+
+$liveUpdateWorkflowText = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github\workflows\live-update-test.yml') -Raw
+if (-not $liveUpdateWorkflowText.Contains('tests\AchievementRelay.Core.Tests') -or
+    -not $liveUpdateWorkflowText.Contains('tests\AchievementRelay.App.Tests')) {
+    throw 'Controlled live-update validation must run both Core contracts and Collector Card renderer smoke checks.'
 }
 
 Write-Host 'Repository structure and package manifest checks passed.' -ForegroundColor Green

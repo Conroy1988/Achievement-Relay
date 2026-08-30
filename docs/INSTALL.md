@@ -5,7 +5,7 @@
 - Windows 10 version 2004 (build 19041) or newer
 - Windows 11
 - x64 and Arm64 processors; Steam monitoring on Arm64 requires Windows 11 x64 emulation (Xbox remains available on Windows 10 Arm64)
-- HTTPS access to Discord; `api.xbl.io` is needed for Xbox and `api.steampowered.com` is used for optional Steam rarity
+- HTTPS access to Discord; `api.xbl.io` is needed for Xbox, while `api.steampowered.com` and an exact allowlisted Steam CDN host are used for optional Steam rarity and Collector Card artwork after an eligible unlock
 - the Windows Steam desktop client when Steam monitoring is enabled
 
 Release packages are self-contained; .NET does not need to be installed separately.

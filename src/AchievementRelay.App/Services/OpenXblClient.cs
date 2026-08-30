@@ -307,6 +307,9 @@ public sealed class OpenXblClient : IDisposable
         var bestCountDistance = int.MaxValue;
         foreach (var routeTemplate in PreferTitleAchievementRoute(titleId))
         {
+            var platformHint = routeTemplate.Contains("/x360/", StringComparison.OrdinalIgnoreCase)
+                ? "Xbox 360"
+                : null;
             var route = routeTemplate
                 .Replace("{xuid}", escapedAccountId, StringComparison.Ordinal)
                 .Replace("{titleId}", escapedTitleId, StringComparison.Ordinal);
@@ -337,7 +340,7 @@ public sealed class OpenXblClient : IDisposable
             try
             {
                 var achievementsById = OpenXblResponseParser
-                    .ParseAchievements(response.Content, accountId, titleId)
+                    .ParseAchievements(response.Content, accountId, titleId, platformHint)
                     .ToDictionary(achievement => achievement.Id, StringComparer.Ordinal);
                 var continuationToken = OpenXblResponseParser.ParseContinuationToken(response.Content);
                 var seenContinuationTokens = new HashSet<string>(StringComparer.Ordinal);
@@ -379,7 +382,8 @@ public sealed class OpenXblClient : IDisposable
                     foreach (var achievement in OpenXblResponseParser.ParseAchievements(
                                  continuationResponse.Content,
                                  accountId,
-                                 titleId))
+                                 titleId,
+                                 platformHint))
                     {
                         achievementsById.TryAdd(achievement.Id, achievement);
                     }
@@ -504,7 +508,7 @@ public sealed class OpenXblClient : IDisposable
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, relativePath);
             request.Headers.TryAddWithoutValidation("X-Authorization", apiKey);
-            request.Headers.UserAgent.Add(new ProductInfoHeaderValue("AchievementRelay", "0.4.3"));
+            request.Headers.UserAgent.Add(new ProductInfoHeaderValue("AchievementRelay", "0.5.0"));
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             if (!string.IsNullOrWhiteSpace(CultureInfo.CurrentUICulture.Name))
             {

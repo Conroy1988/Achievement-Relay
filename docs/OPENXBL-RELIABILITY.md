@@ -29,7 +29,7 @@ The relevant response families differ:
 
 Microsoft also documents that offline achievement updates can be queued before reaching the service. A provider timestamp is therefore useful display metadata, but it is not a safe cursor or event identity.
 
-Modern achievement responses can also expose `rarity.currentPercentage`, while title-history responses can expose `devices` or `platforms`. Neither family is guaranteed by OpenXBL's published response schema. Achievement Relay treats them as optional display enrichment: percentages must be finite and within 0–100, and a platform is named specifically only when every relevant token is recognized and unambiguous. Unknown or mixed evidence falls back to Unranked or Xbox rather than changing delivery eligibility.
+Modern achievement responses can also expose `rarity.currentPercentage` and singular `earnedPlatform`, `deviceType`, `device` or `platform` values, while achievement/title-history responses can expose plural `devices` or `platforms` arrays. Neither family is guaranteed by OpenXBL's published response schema. Achievement Relay treats them as optional display enrichment: percentages must be finite and within 0–100, and only recognized, mutually consistent singular per-achievement evidence can produce a specific modern platform label. Plural arrays describe availability and produce only generic Xbox when no recognized singular evidence exists. Unknown, conflicting or missing evidence falls back to Unranked or Xbox rather than changing delivery eligibility.
 
 ## Live failures that established the design requirements
 
@@ -47,7 +47,7 @@ The Windows acceptance cycle exposed each layer independently:
 
 These are distinct failure classes. A successful profile check is not proof of a readable title index, a readable title index is not proof of complete per-title details, and a complete detail list is not proof that every unlock has a timestamp.
 
-The live historical-flood regression established a stricter rule: uncertainty must cost a missed notification, never a backlog. The affected build was stopped immediately; its credentials and durable event ledger remain valid. Schema 4 introduced fail-closed identity repair; schema 5 added a durable, paced detail queue; schema 6 added restart-safe live-delivery proof and fresh epochs for device handoffs; schema 7 retains normalized title-device evidence for honest, restart-safe platform labels.
+The live historical-flood regression established a stricter rule: uncertainty must cost a missed notification, never a backlog. The affected build was stopped immediately; its credentials and durable event ledger remain valid. Schema 4 introduced fail-closed identity repair; schema 5 added a durable, paced detail queue; schema 6 added restart-safe live-delivery proof and fresh epochs for device handoffs; schema 7 retains normalized title-device metadata across retries. In v0.6, those plural title arrays remain availability context only and cannot create a specific PC or console label.
 
 ## Detection invariants
 
@@ -66,7 +66,7 @@ Achievement Relay uses these rules:
 11. **Provider regressions cannot erase durable history.** Saved counts, Gamerscore, and identities do not shrink when a partial or changed provider representation reports less data. If a route suddenly represents more identities than the summary increase can explain, the app baselines the representation change instead of flooding historical achievements.
 12. **Request capacity is transactional too.** Each detail operation is capped at 12 requests, the process is capped at 120 requests per rolling hour, and provider remaining/reset headers can stop it earlier. Background history preserves a larger reserve than live monitoring, and no UI action bypasses the gate.
 13. **Rarity is presentation, never evidence.** A global percentage can select Bronze, Silver, Gold or Platinum only after validation. Missing or malformed values select Unranked and cannot create, suppress or identify an event by themselves.
-14. **Platform labels fail generic.** Exact PC-only, console-only or legacy-route evidence can select Xbox PC, Xbox Console or Xbox 360. Mixed, unknown or absent evidence remains Xbox. Device metadata never enters the achievement identity.
+14. **Platform labels fail generic.** Legacy achievement response shape and its dedicated route select Xbox 360. Otherwise singular `earnedPlatform`, `deviceType` and `device` are evaluated together first and must agree, followed by singular `platform`; Windows tokens select Xbox PC and console tokens select Xbox Console. Unknown or conflicting event-level aliases, plural/title availability without recognized singular evidence, or absent evidence remains Xbox. Device metadata never enters the achievement identity.
 
 ## State and delivery transaction
 
@@ -113,7 +113,7 @@ Discord webhooks do not provide an idempotency key. `wait=true`, deterministic l
 - Raw provider responses are not persisted because they can contain account identifiers and private profile data.
 - Transport exception text is not surfaced for Discord requests because platform messages can embed the credential-bearing webhook URI.
 - Discord payloads disable mention parsing, validate the webhook host/path, canonicalize the legacy Discord host, refuse redirects that could forward a token, truncate every user/provider string to Discord limits, and use a declared product user agent.
-- Collector Card artwork is optional and untrusted: remote requests carry no OpenXBL or Discord credential, and download size, redirect behavior, content, decoded dimensions and final PNG output are bounded. Rendering failure falls back without changing the delivery cursor.
+- Collector Card artwork is optional and untrusted: remote requests carry no OpenXBL or Discord credential, and download size, redirect behavior, content, decoded dimensions and final PNG output are bounded. Suitable wide art can supply the ambient layer, while tiny or square icons remain contained in the foreground and are never stretched across the card. Rendering failure falls back without changing the delivery cursor.
 
 ## Automated and live acceptance matrix
 
@@ -130,8 +130,8 @@ Automated checks must cover:
 - live-before-history queue priority and the 15-minute background eligibility boundary;
 - mention suppression and estimated-time disclosure;
 - finite/range-checked rarity percentages, every tier boundary, neutral Unranked behavior, distinct tier semantics and a complete no-artwork fallback;
-- PC-only, console-only, Xbox 360, mixed, unknown and missing platform evidence, including retry/restart persistence without changing deterministic IDs;
-- Collector Card attachment/payload agreement and accessible text retention when images are unavailable;
+- recognized singular Windows evidence including the PC Game Pass `earnedPlatform: WindowsOneCore` regression, recognized singular console evidence, agreement/conflict handling across event-level aliases, Xbox 360 response/route context, and generic fallback for plural or mixed availability arrays without recognized singular evidence, unknown singular values and missing evidence, including retry/restart behavior without changing deterministic IDs;
+- Collector Card attachment/payload agreement, a materially larger foreground-art region, readable title/description/rarity sizing, tiny/square icon containment, ambient-art quality gates and accessible text retention when images are unavailable;
 - state schema 7, durable live-delivery/platform evidence, omitted-title retention, route ordering/cache, rate-limit handling, installer versioning, and running-app shutdown.
 
 The Windows release gate is not complete until all of these pass on the generated installer:
@@ -148,6 +148,8 @@ The Windows release gate is not complete until all of these pass on the generate
 10. a newly earned Xbox 360/backward-compatible achievement with no usable provider time posts exactly once with the detected-time footer; and
 11. restart/retry does not repost either event or lose the pending queue;
 12. an achievement posted on device A is silently reconciled when device B starts later; and
-13. the first poll after a monitoring gap longer than ten minutes is another silent handoff boundary.
+13. the first poll after a monitoring gap longer than ten minutes is another silent handoff boundary;
+14. a PC Game Pass achievement with a recognized singular Windows value is labelled **Xbox PC** in the Discord field, Collector Card and Signal Strip, while plural/title compatibility metadata alone remains **Xbox** and genuine direct console/Xbox 360 evidence retains its label; and
+15. both artwork-backed and fallback Collector Cards remain readable without opening the image at normal Discord desktop and mobile display size, with recognisable foreground artwork and a dominant rarity percentage.
 
 External Xbox/OpenXBL/Discord availability cannot be made infallible by a desktop client. The release criterion is that every supported upstream response or failure is handled deterministically, securely, without a stuck cursor, and without an avoidable duplicate or historical flood.

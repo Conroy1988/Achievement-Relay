@@ -32,9 +32,11 @@ Normal text and meaningful control states target at least 4.5:1. Meaningful non-
 
 ## Discord Collector Cards
 
-Each Collector Card attachment includes an author-controlled description summarising the achievement, game, platform and rarity. Because Discord client support for attachment descriptions can vary, the card is never the only copy of essential information: the achievement name, game, challenge, reward, player, platform, percentage/tier and timestamp also remain available as ordinary Discord embed text when supplied.
+Each Collector Card attachment includes an author-controlled description summarising the achievement, game, platform and rarity. Because Discord client support for attachment descriptions can vary, the card is never the only copy of essential information: the achievement name, game, challenge, reward, player, platform, percentage/tier and timestamp also remain available as ordinary Discord embed text when supplied. The card itself is designed for its normal roughly 400-pixel-wide Discord presentation, not only for opening the 1200×675 source image.
 
-- Game artwork always receives a deterministic dark readability treatment before text is drawn over it.
+- The foreground artwork has a 400×250 source-pixel showcase bay; small or square icons remain contained and are not stretched into ambient backgrounds.
+- Achievement titles fit between 46 and 68 source pixels, descriptions use 32 px and the dominant rarity percentage can reach 96 px, keeping the primary facts materially larger after Discord downscales the card.
+- Wide ambient artwork uses a lighter global treatment, while deterministic dark panels are localised behind text and rarity information.
 - The no-artwork fallback uses the same controlled palette rather than inheriting colors from a game image.
 - Bronze, Silver, Gold, Platinum and Unranked use different emblem silhouettes, internal marks and written tier names; color is not the sole distinction.
 - A missing percentage is written as **Unranked** instead of being represented by color or a false numeric value.

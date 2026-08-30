@@ -14,6 +14,9 @@ var tests = new (string Name, Action Run)[]
     ("Collector Card PNG contract", CollectorCardPngContract),
     ("Collector Card branded fallback", CollectorCardBrandedFallback),
     ("Collector Card artwork composition", CollectorCardArtworkComposition),
+    ("Collector Card icon-only artwork becomes a showcase", CollectorCardIconOnlyArtworkShowcase),
+    ("Collector Card tiny icons never become a backdrop", CollectorCardTinyIconIsNotPromoted),
+    ("Collector Card typography remains readable at Discord size", CollectorCardReadableTypographyContract),
     ("Collector Card unranked state", CollectorCardUnrankedState),
     ("Collector Card long text safety", CollectorCardLongTextSafety),
     ("Collector Card tier emblems are distinct", CollectorCardTierEmblemsAreDistinct),
@@ -195,23 +198,114 @@ static void CollectorCardArtworkComposition()
         CreateAchievement(4.7),
         CreateSettings(),
         new AchievementCardArtwork(hero, icon));
+    var heroOnlyCard = new DiscordCollectorCardRenderer().Render(
+        CreateAchievement(4.7),
+        CreateSettings(),
+        new AchievementCardArtwork(hero, null));
 
     AssertPngContract(artworkCard);
     Assert(
         !SHA256.HashData(fallback.Bytes).SequenceEqual(SHA256.HashData(artworkCard.Bytes)),
         "Supplying valid hero and achievement artwork did not change the rendered card.");
 
-    var fallbackHeroRegion = HashRegion(fallback.Bytes, new Rectangle(650, 80, 200, 240));
-    var artworkHeroRegion = HashRegion(artworkCard.Bytes, new Rectangle(650, 80, 200, 240));
+    var fallbackHeroRegion = HashRegion(fallback.Bytes, new Rectangle(60, 148, 376, 226));
+    var artworkHeroRegion = HashRegion(artworkCard.Bytes, new Rectangle(60, 148, 376, 226));
     Assert(
         !fallbackHeroRegion.SequenceEqual(artworkHeroRegion),
-        "The hero-art region did not contain evidence of the supplied image.");
+        "The 400x250 artwork showcase did not contain evidence of the supplied hero image.");
 
-    var fallbackIconRegion = HashRegion(fallback.Bytes, new Rectangle(72, 185, 202, 202));
-    var artworkIconRegion = HashRegion(artworkCard.Bytes, new Rectangle(72, 185, 202, 202));
+    var heroOnlyIconRegion = HashRegion(heroOnlyCard.Bytes, new Rectangle(74, 256, 106, 106));
+    var artworkIconRegion = HashRegion(artworkCard.Bytes, new Rectangle(74, 256, 106, 106));
     Assert(
-        !fallbackIconRegion.SequenceEqual(artworkIconRegion),
-        "The achievement-icon region did not contain evidence of the supplied image.");
+        !heroOnlyIconRegion.SequenceEqual(artworkIconRegion),
+        "The foreground achievement icon did not remain visible over the hero artwork.");
+}
+
+static void CollectorCardIconOnlyArtworkShowcase()
+{
+    var fallback = Render(CreateAchievement(4.7), artwork: null);
+    var wideAchievementArtwork = CreateTestArtwork(
+        960,
+        540,
+        Color.FromArgb(15, 120, 220),
+        Color.FromArgb(245, 82, 28));
+    var artworkCard = new DiscordCollectorCardRenderer().Render(
+        CreateAchievement(4.7),
+        CreateSettings(),
+        new AchievementCardArtwork(null, wideAchievementArtwork));
+
+    AssertPngContract(artworkCard);
+    Assert(
+        !HashRegion(fallback.Bytes, new Rectangle(60, 148, 376, 226)).SequenceEqual(
+            HashRegion(artworkCard.Bytes, new Rectangle(60, 148, 376, 226))),
+        "A valid landscape achievement image remained trapped in the old thumbnail footprint.");
+    Assert(
+        !HashRegion(fallback.Bytes, new Rectangle(520, 20, 250, 70)).SequenceEqual(
+            HashRegion(artworkCard.Bytes, new Rectangle(520, 20, 250, 70))),
+        "A valid landscape achievement image did not supply the ambient card backdrop.");
+}
+
+static void CollectorCardTinyIconIsNotPromoted()
+{
+    var fallback = Render(CreateAchievement(4.7), artwork: null);
+    var tinyIcon = CreateTestArtwork(64, 64, Color.FromArgb(10, 180, 120), Color.FromArgb(210, 30, 120));
+    var tinyCard = new DiscordCollectorCardRenderer().Render(
+        CreateAchievement(4.7),
+        CreateSettings(),
+        new AchievementCardArtwork(null, tinyIcon));
+
+    AssertPngContract(tinyCard);
+    Assert(
+        HashRegion(fallback.Bytes, new Rectangle(520, 20, 250, 70)).SequenceEqual(
+            HashRegion(tinyCard.Bytes, new Rectangle(520, 20, 250, 70))),
+        "A tiny square achievement icon was stretched into the full-card backdrop.");
+    Assert(
+        !HashRegion(fallback.Bytes, new Rectangle(160, 210, 128, 128)).SequenceEqual(
+            HashRegion(tinyCard.Bytes, new Rectangle(160, 210, 128, 128))),
+        "A tiny icon was discarded instead of being shown at a safe contained size.");
+
+    var tinyHeroCard = new DiscordCollectorCardRenderer().Render(
+        CreateAchievement(4.7),
+        CreateSettings(),
+        new AchievementCardArtwork(tinyIcon, null));
+    Assert(
+        HashRegion(fallback.Bytes, new Rectangle(520, 20, 250, 70)).SequenceEqual(
+            HashRegion(tinyHeroCard.Bytes, new Rectangle(520, 20, 250, 70))),
+        "A tiny hero asset was stretched into the full-card backdrop.");
+
+    var wideIcon = CreateTestArtwork(960, 540, Color.FromArgb(20, 110, 210), Color.FromArgb(240, 92, 32));
+    var wideIconOnlyCard = new DiscordCollectorCardRenderer().Render(
+        CreateAchievement(4.7),
+        CreateSettings(),
+        new AchievementCardArtwork(null, wideIcon));
+    var tinyHeroWithWideIconCard = new DiscordCollectorCardRenderer().Render(
+        CreateAchievement(4.7),
+        CreateSettings(),
+        new AchievementCardArtwork(tinyIcon, wideIcon));
+    Assert(
+        SHA256.HashData(wideIconOnlyCard.Bytes).SequenceEqual(
+            SHA256.HashData(tinyHeroWithWideIconCard.Bytes)),
+        "A tiny hero asset displaced a valid wide achievement image from the showcase.");
+}
+
+static void CollectorCardReadableTypographyContract()
+{
+    Assert(
+        DiscordCollectorCardRenderer.CardWidth == 1200 &&
+        DiscordCollectorCardRenderer.CardHeight == 675,
+        "The approved full-width Collector Card aspect ratio changed.");
+    Assert(
+        DiscordCollectorCardRenderer.ArtworkShowcaseWidth >= 400 &&
+        DiscordCollectorCardRenderer.ArtworkShowcaseHeight >= 250,
+        "Game artwork no longer has a dominant showcase-sized bay.");
+    Assert(
+        DiscordCollectorCardRenderer.AchievementTitleMaximumFontSize >= 68 &&
+        DiscordCollectorCardRenderer.AchievementTitleMinimumFontSize >= 46,
+        "Achievement title typography can shrink back to the unreadable v0.5 size.");
+    Assert(
+        DiscordCollectorCardRenderer.AchievementDescriptionFontSize >= 30 &&
+        DiscordCollectorCardRenderer.RarityPercentageMaximumFontSize >= 90,
+        "Description or rarity typography no longer survives normal Discord downscaling.");
 }
 
 static void CollectorCardUnrankedState()

@@ -67,7 +67,7 @@ You can close the window after setup. Achievement Relay continues in the Windows
 
 ## 5. Know what will appear in Discord
 
-A real achievement post includes a wide **Collector Card** plus ordinary Discord text for the game, challenge, reward, player and platform. The card uses provider artwork when it is safe and usable. If a game has no suitable image—or an image cannot be loaded—the same post uses Achievement Relay's complete black, red and metallic fallback design.
+A real achievement post includes a wide **Collector Card** plus ordinary Discord text for the game, challenge, reward, player and platform. The card gives the achievement image a large foreground showcase and uses suitable wide artwork as a softened ambient layer behind larger, locally protected text. Small or square icons remain contained instead of being stretched across the card. If a game has no suitable ambient image—or an image cannot be loaded—the same post uses Achievement Relay's complete black, red and metallic fallback design.
 
 The percentage shown is the global unlock rate reported by Xbox/OpenXBL or Steam. It selects one Relay tier:
 
@@ -78,7 +78,7 @@ The percentage shown is the global unlock rate reported by Xbox/OpenXBL or Steam
 
 If the provider does not supply a valid percentage, the card says **Unranked**. It never turns missing data into `0%` or a Platinum result.
 
-Xbox labels are evidence-based. A title is shown as **Xbox PC**, **Xbox Console** or **Xbox 360** only when the available metadata proves that classification. Play Anywhere titles that expose both PC and console support, and responses with no usable device evidence, remain labelled **Xbox**. Steam posts are labelled **Steam**.
+Xbox labels are evidence-based. A legacy achievement response can be shown as **Xbox 360**. Otherwise recognized, mutually consistent singular `earnedPlatform`, `deviceType` or `device` values are considered before singular `platform` and can prove **Xbox PC** or **Xbox Console**; for example, the Windows value `WindowsOneCore` produces **Xbox PC** for a PC Game Pass unlock when OpenXBL supplies it without conflicting event-level evidence. Plural supported-platform/device arrays describe title availability and never prove the device that earned one achievement, so availability-only, unknown, conflicting or missing evidence remains labelled **Xbox**. Steam posts are labelled **Steam**.
 
 Use **Help & support → Send Discord test** after setup to see the production fallback card without earning another achievement.
 
@@ -136,7 +136,7 @@ Version 0.5 preserves encrypted connections, provider baselines, pending work, p
 
 ## Upgrading from 0.5.x
 
-Version 0.6 preserves encrypted connections, provider baselines, pending work, processed-event history and all existing preferences. The Signal Strip is enabled by default after updating and remains subject to the established live-unlock proof, so the upgrade cannot turn existing history into local banners. Disable **Achievement overlay** in Settings at any time if Discord-only delivery is preferred.
+Version 0.6 preserves encrypted connections, provider baselines, pending work, processed-event history and all existing preferences. It automatically applies the artwork-led, larger-type Collector Card and corrected Xbox platform evidence rules; it does not repost old achievements merely to redesign or relabel them. The Signal Strip is enabled by default after updating and remains subject to the established live-unlock proof, so the upgrade cannot turn existing history into local banners. Disable **Achievement overlay** in Settings at any time if Discord-only delivery is preferred.
 
 ## Moving from a pre-official 0.3.x test
 

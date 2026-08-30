@@ -151,12 +151,21 @@ public partial class App : System.Windows.Application
     private static bool TryExportCollectorCardPreview(string[] args, out int exitCode)
     {
         exitCode = 0;
-        var optionIndex = Array.FindIndex(
+        var fallbackOptionIndex = Array.FindIndex(
             args,
             value => string.Equals(
                 value,
                 "--export-collector-card-preview",
                 StringComparison.OrdinalIgnoreCase));
+        var artworkOptionIndex = Array.FindIndex(
+            args,
+            value => string.Equals(
+                value,
+                "--export-collector-card-artwork-preview",
+                StringComparison.OrdinalIgnoreCase));
+        var artworkPreview = artworkOptionIndex >= 0;
+        var optionIndex = artworkPreview ? artworkOptionIndex : fallbackOptionIndex;
+
         if (optionIndex < 0)
         {
             return false;
@@ -179,7 +188,10 @@ public partial class App : System.Windows.Application
             }
 
             Directory.CreateDirectory(directory);
-            var card = new DiscordCollectorCardRenderer().RenderGoldFallbackPreview();
+            var renderer = new DiscordCollectorCardRenderer();
+            var card = artworkPreview
+                ? renderer.RenderArtworkShowcasePreview()
+                : renderer.RenderGoldFallbackPreview();
             File.WriteAllBytes(outputPath, card.Bytes);
         }
         catch (Exception exception) when (exception is ArgumentException or

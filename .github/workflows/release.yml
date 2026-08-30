@@ -74,6 +74,37 @@ jobs:
               $previewHeight -ne 675) {
             throw 'The Collector Card preview must be the real 1200x675 PNG output.'
           }
+          $artworkPreviewPath = Join-Path $PWD 'artifacts\AchievementRelay_CollectorCard_Artwork_Preview.png'
+          $artworkPreviewArguments = "--export-collector-card-artwork-preview `"$artworkPreviewPath`""
+          $artworkPreviewProcess = Start-Process `
+            -FilePath $appPath `
+            -ArgumentList $artworkPreviewArguments `
+            -Wait `
+            -PassThru
+          if ($artworkPreviewProcess.ExitCode -ne 0 -or
+              -not (Test-Path -LiteralPath $artworkPreviewPath -PathType Leaf)) {
+            throw 'The real Collector Card renderer did not produce its artwork showcase preview PNG.'
+          }
+          $artworkPreviewBytes = [System.IO.File]::ReadAllBytes($artworkPreviewPath)
+          $artworkPreviewSignature = if ($artworkPreviewBytes.Length -ge 8) {
+            [Convert]::ToHexString([byte[]] $artworkPreviewBytes[0..7])
+          }
+          $artworkPreviewChunk = if ($artworkPreviewBytes.Length -ge 24) {
+            [Text.Encoding]::ASCII.GetString($artworkPreviewBytes, 12, 4)
+          }
+          $artworkPreviewWidth = if ($artworkPreviewBytes.Length -ge 24) {
+            [Net.IPAddress]::NetworkToHostOrder([BitConverter]::ToInt32($artworkPreviewBytes, 16))
+          }
+          $artworkPreviewHeight = if ($artworkPreviewBytes.Length -ge 24) {
+            [Net.IPAddress]::NetworkToHostOrder([BitConverter]::ToInt32($artworkPreviewBytes, 20))
+          }
+          if ($artworkPreviewBytes.Length -le 10KB -or
+              $artworkPreviewSignature -cne '89504E470D0A1A0A' -or
+              $artworkPreviewChunk -cne 'IHDR' -or
+              $artworkPreviewWidth -ne 1200 -or
+              $artworkPreviewHeight -ne 675) {
+            throw 'The artwork-backed Collector Card preview must be the real 1200x675 PNG output.'
+          }
           $signalPreviewPath = Join-Path $PWD 'artifacts\AchievementRelay_SignalStrip_Preview.png'
           $signalPreviewArguments = "--export-signal-strip-preview `"$signalPreviewPath`""
           $signalPreviewProcess = Start-Process `
@@ -205,6 +236,9 @@ jobs:
             artifacts/AchievementRelay.Publisher.cer
             artifacts/AchievementRelay_Update.json
             artifacts/AchievementRelay_Update.sig
+            artifacts/AchievementRelay_CollectorCard_Preview.png
+            artifacts/AchievementRelay_CollectorCard_Artwork_Preview.png
+            artifacts/AchievementRelay_SignalStrip_Preview.png
           if-no-files-found: error
           retention-days: 2
           compression-level: 0

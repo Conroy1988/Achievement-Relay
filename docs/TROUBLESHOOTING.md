@@ -79,7 +79,7 @@ HTTP 401 or 404 normally means the webhook was deleted, rotated, or copied incor
 
 ## Collector Card uses the Relay fallback
 
-That is normal when the provider supplies no usable game/achievement artwork, the image cannot be fetched safely, or Steam exposes no local achievement icon. The black, red and metallic Relay composition is the complete supported fallback—not an image-loading error—and the achievement should still include its normal text fields.
+That is normal when the provider supplies no suitable wide ambient artwork or an image cannot be fetched safely. A usable achievement image can still appear in the card's large foreground bay even when the background uses the black, red and metallic Relay composition. Small or square icons are deliberately contained rather than stretched across the card. Steam can also expose no usable local achievement icon. These are supported fallback states—not delivery errors—and the achievement should still include its normal text fields.
 
 Use **Help & support → Send Discord test** to verify the fallback independently of Xbox, Steam and game artwork. If the post has no card at all, install the latest release and check Activity. Achievement delivery can deliberately fall back to the accessible text embed if the complete renderer cannot create a safe bounded attachment.
 
@@ -95,7 +95,9 @@ If a genuine live achievement reaches Discord but no strip appears, check Activi
 
 ## Xbox card does not say Xbox PC
 
-Achievement Relay uses a specific label only when the provider evidence is reliable. PC-only evidence can produce **Xbox PC**, console-only evidence can produce **Xbox Console**, and a legacy achievement response can produce **Xbox 360**. A Play Anywhere title that advertises both PC and console support, an unknown device token, or missing metadata remains **Xbox**. This generic label is intentional; supported-device lists alone do not prove which device produced one unlock.
+Achievement Relay uses a specific label only when OpenXBL supplies reliable per-achievement evidence. A legacy response or dedicated legacy route can produce **Xbox 360**. Otherwise singular `earnedPlatform`, `deviceType` and `device` values are considered together first and must agree, followed by singular `platform`. Windows values such as `WindowsOneCore`, `WindowsDesktop`, `Windows`, `Win32`, `Win64`, `PC`, `W8` and `Windows8` produce **Xbox PC**; recognized console values produce **Xbox Console**.
+
+Plural `platforms`/`devices` arrays and title-history device lists describe compatibility, not the device that earned one achievement. They therefore remain generic **Xbox**, as do unknown or conflicting singular values and missing metadata. Version 0.6 removes the earlier case where console compatibility could make a PC Game Pass achievement say **Xbox Console**. If a current post says only **Xbox**, OpenXBL did not provide recognized, consistent singular evidence; the app intentionally does not guess **Xbox PC** from the fact that it is running on a PC.
 
 ## Game Bar showed the unlock but Discord received nothing
 

@@ -573,26 +573,66 @@ $postComposerText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\Ach
 $deliveryServiceText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\AchievementDeliveryService.cs') -Raw
 $appServicesText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\AppServices.cs') -Raw
 $appSmokeTestsText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'tests\AchievementRelay.App.Tests\Program.cs') -Raw
+$coreTestsText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'tests\AchievementRelay.Core.Tests\Program.cs') -Raw
+$earnedPlatformReadIndex = $openXblParserText.IndexOf(
+    'var earnedPlatforms = new[]',
+    [StringComparison]::Ordinal)
+$xbox360HintIndex = $openXblParserText.IndexOf(
+    'if (string.Equals(hinted, "Xbox 360", StringComparison.Ordinal))',
+    [StringComparison]::Ordinal)
+$singularPlatformReadIndex = $openXblParserText.IndexOf(
+    'var platform = GetString(item, "platform")',
+    [StringComparison]::Ordinal)
 if (-not $rarityClassifierText.Contains('< 3 => RelayRarityTier.Platinum') -or
     -not $rarityClassifierText.Contains('< 10 => RelayRarityTier.Gold') -or
     -not $rarityClassifierText.Contains('< 25 => RelayRarityTier.Silver') -or
     -not $rarityClassifierText.Contains('RelayRarityTier.Unranked') -or
     -not $rarityClassifierText.Contains('double.IsFinite(percentage)') -or
     -not $rarityClassifierText.Contains('percentage is < 0 or > 100') -or
-    -not $platformClassifierText.Contains('return classifications.Count == 1 ? classifications.Single() : null') -or
+    -not $platformClassifierText.Contains('_ = availablePlatforms;') -or
     -not $platformClassifierText.Contains('return ClassifyToken(earnedPlatform)') -or
+    -not $platformClassifierText.Contains('"WINDOWSONECORE"') -or
+    -not $platformClassifierText.Contains('"W8"') -or
     -not $platformClassifierText.Contains('return "Xbox PC"') -or
     -not $platformClassifierText.Contains('return "Xbox Console"') -or
-    -not $platformClassifierText.Contains('return "Xbox 360"')) {
+    -not $platformClassifierText.Contains('return "Xbox 360"') -or
+    $xbox360HintIndex -lt 0 -or
+    $earnedPlatformReadIndex -lt 0 -or
+    $singularPlatformReadIndex -lt 0 -or
+    $xbox360HintIndex -ge $earnedPlatformReadIndex -or
+    $earnedPlatformReadIndex -ge $singularPlatformReadIndex -or
+    -not $openXblParserText.Contains('GetString(item, "earnedPlatform")') -or
+    -not $openXblParserText.Contains('GetString(item, "deviceType")') -or
+    -not $openXblParserText.Contains('GetString(item, "device")') -or
+    -not $openXblParserText.Contains('classifications.Any(value => !string.Equals(value, classification, StringComparison.Ordinal))') -or
+    -not $openXblParserText.Contains('return available.Count == 0 ? null : "Xbox";') -or
+    -not $coreTestsText.Contains('Documented Windows Game Pass device tokens were not classified as Xbox PC.') -or
+    -not $coreTestsText.Contains('"earnedPlatform": "WindowsOneCore"') -or
+    -not $coreTestsText.Contains('A generic XboxOne platform masked stronger WindowsOneCore earned-platform evidence.') -or
+    -not $coreTestsText.Contains('Plural compatibility metadata was incorrectly presented as an earned console device.') -or
+    -not $coreTestsText.Contains('Conflicting event-level earned-device aliases did not fail generic.') -or
+    -not $coreTestsText.Contains('The dedicated Xbox 360 route hint was overridden by a modern platform token.')) {
     throw 'Collector Card rarity tiers and Xbox platform labels must use validated, fail-generic evidence.'
 }
 if (-not $collectorCardRendererText.Contains('CardWidth = 1200') -or
     -not $collectorCardRendererText.Contains('CardHeight = 675') -or
+    -not $collectorCardRendererText.Contains('ArtworkShowcaseWidth = 400') -or
+    -not $collectorCardRendererText.Contains('ArtworkShowcaseHeight = 250') -or
+    -not $collectorCardRendererText.Contains('AchievementTitleMaximumFontSize = 68') -or
+    -not $collectorCardRendererText.Contains('AchievementTitleMinimumFontSize = 46') -or
+    -not $collectorCardRendererText.Contains('AchievementDescriptionFontSize = 32') -or
+    -not $collectorCardRendererText.Contains('RarityPercentageMaximumFontSize = 96') -or
     -not $collectorCardRendererText.Contains('achievement-relay-card.png') -or
     -not $collectorCardRendererText.Contains('MaximumCardBytes') -or
     -not $collectorCardRendererText.Contains('DrawFallbackPattern') -or
+    -not $collectorCardRendererText.Contains('DrawArtworkShowcase') -or
+    -not $collectorCardRendererText.Contains('DrawSoftFocusCover') -or
+    -not $collectorCardRendererText.Contains('IsWideShowcaseArtwork') -or
+    -not $collectorCardRendererText.Contains('RenderArtworkShowcasePreview') -or
     -not $collectorCardRendererText.Contains('DrawTierEmblem') -or
     -not $collectorCardRendererText.Contains('RelayRarityTier.Unranked') -or
+    -not $appStartupText.Contains('--export-collector-card-artwork-preview') -or
+    -not $appStartupText.Contains('renderer.RenderArtworkShowcasePreview()') -or
     -not $artworkClientText.Contains('AllowAutoRedirect = false') -or
     -not $artworkClientText.Contains('MaximumArtworkBytes') -or
     -not $artworkClientText.Contains('CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)') -or
@@ -621,6 +661,14 @@ if (-not $appServicesText.Contains('AchievementPostComposer = new DiscordAchieve
 }
 if (-not $appSmokeTestsText.Contains('Collector Card PNG contract') -or
     -not $appSmokeTestsText.Contains('Collector Card artwork composition') -or
+    -not $appSmokeTestsText.Contains('Collector Card icon-only artwork becomes a showcase') -or
+    -not $appSmokeTestsText.Contains('Collector Card tiny icons never become a backdrop') -or
+    -not $appSmokeTestsText.Contains('Collector Card typography remains readable at Discord size') -or
+    -not $appSmokeTestsText.Contains('ArtworkShowcaseWidth >= 400') -or
+    -not $appSmokeTestsText.Contains('AchievementTitleMinimumFontSize >= 46') -or
+    -not $appSmokeTestsText.Contains('RarityPercentageMaximumFontSize >= 90') -or
+    -not $appSmokeTestsText.Contains('A tiny hero asset was stretched into the full-card backdrop.') -or
+    -not $appSmokeTestsText.Contains('A tiny hero asset displaced a valid wide achievement image from the showcase.') -or
     -not $appSmokeTestsText.Contains('Collector Card long text safety') -or
     -not $appSmokeTestsText.Contains('Collector Card tier emblems are distinct') -or
     -not $appSmokeTestsText.Contains('BinaryPrimitives.ReadInt32BigEndian') -or
@@ -635,8 +683,6 @@ $overlayWindowText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\Ac
 $overlayPresentationText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\AchievementOverlayPresentation.cs') -Raw
 $overlayServiceText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\AchievementOverlayService.cs') -Raw
 $appManifestText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\app.manifest') -Raw
-$coreTestsText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'tests\AchievementRelay.Core.Tests\Program.cs') -Raw
-
 if (-not $appSettingsText.Contains('CurrentSchemaVersion = 4') -or
     -not $appSettingsText.Contains('public bool AchievementOverlayEnabled { get; init; } = true;') -or
     -not $settingsStoreText.Contains('SchemaVersion = AppSettings.CurrentSchemaVersion') -or
@@ -806,6 +852,9 @@ if ($steamworksPackageHash -ne '11e12d1b34d22a6c7ed6b5f70fd145f4794fc9b4c5fc9c5b
 }
 
 $releaseWorkflowText = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github\workflows\release.yml') -Raw
+$signedCandidateBlock = [regex]::Match(
+    $releaseWorkflowText,
+    '(?ms)^      - name: Retain signed release candidate.*?(?=^      - name: |\z)')
 if (-not $releaseWorkflowText.Contains("'.exe'") -or
     -not $releaseWorkflowText.Contains("'.json'") -or
     -not $releaseWorkflowText.Contains("'.sig'") -or
@@ -822,6 +871,12 @@ if (-not $releaseWorkflowText.Contains("'.exe'") -or
     -not $releaseWorkflowText.Contains('$previewProcess.ExitCode') -or
     -not $releaseWorkflowText.Contains('$previewWidth -ne 1200') -or
     -not $releaseWorkflowText.Contains('$previewHeight -ne 675') -or
+    -not $releaseWorkflowText.Contains('--export-collector-card-artwork-preview') -or
+    -not $releaseWorkflowText.Contains('AchievementRelay_CollectorCard_Artwork_Preview.png') -or
+    -not $releaseWorkflowText.Contains('$artworkPreviewProcess.ExitCode') -or
+    -not $releaseWorkflowText.Contains('$artworkPreviewBytes.Length -le 10KB') -or
+    -not $releaseWorkflowText.Contains('$artworkPreviewWidth -ne 1200') -or
+    -not $releaseWorkflowText.Contains('$artworkPreviewHeight -ne 675') -or
     -not $releaseWorkflowText.Contains('--export-signal-strip-preview') -or
     -not $releaseWorkflowText.Contains('AchievementRelay_SignalStrip_Preview.png') -or
     -not $releaseWorkflowText.Contains('$signalPreviewProcess.ExitCode') -or
@@ -831,8 +886,12 @@ if (-not $releaseWorkflowText.Contains("'.exe'") -or
     -not $releaseWorkflowText.Contains('tests\AchievementRelay.App.Tests') -or
     -not $releaseWorkflowText.Contains('publish_release:') -or
     -not $releaseWorkflowText.Contains('Retain signed release candidate') -or
+    -not $signedCandidateBlock.Success -or
+    -not $signedCandidateBlock.Value.Contains('artifacts/AchievementRelay_CollectorCard_Preview.png') -or
+    -not $signedCandidateBlock.Value.Contains('artifacts/AchievementRelay_CollectorCard_Artwork_Preview.png') -or
+    -not $signedCandidateBlock.Value.Contains('artifacts/AchievementRelay_SignalStrip_Preview.png') -or
     -not $releaseWorkflowText.Contains('RELEASE-NOTES-$version.md')) {
-    throw 'The release workflow must verify the Steam bridge and publish a persistently signed updater plus manifest.'
+    throw 'The release workflow must verify the Steam bridge and visual previews, retain them with the signed candidate, and publish a persistently signed updater plus manifest.'
 }
 
 $publisherCertificatePath = Join-Path $repositoryRoot 'release\AchievementRelay.Publisher.cer'
@@ -927,9 +986,13 @@ if ($officialUpdatePolicy.schemaVersion -ne 1 -or
     -not $steamRarityClientVersionText.Contains('ProductInfoHeaderValue("AchievementRelay", "0.6.0")') -or
     -not $releaseNotesText.Contains('# Achievement Relay v0.6.0') -or
     -not $releaseNotesText.Contains('Signal Strip overlay') -or
+    -not $releaseNotesText.Contains('Collector Card showcase') -or
+    -not $releaseNotesText.Contains('Xbox PC Game Pass') -or
     -not $releaseNotesText.Contains('AchievementRelay_0.6.0.0_x64.msix') -or
-    -not $changelogText.Contains('## [0.6.0] - 2026-08-30')) {
-    throw 'The v0.6.0 application, release notes and Steam bridge must retain the official v0.4.0 update baseline.'
+    -not $changelogText.Contains('## [0.6.0] - 2026-08-30') -or
+    -not $changelogText.Contains('Collector Card showcase') -or
+    -not $changelogText.Contains('Xbox PC Game Pass')) {
+    throw 'The v0.6.0 application, showcase/platform release notes and Steam bridge must retain the official v0.4.0 update baseline.'
 }
 
 $liveUpdatePolicy = Get-Content -LiteralPath (Join-Path $repositoryRoot 'release\live-update-test-policy.json') -Raw |
@@ -995,6 +1058,9 @@ if (-not $updatePolicyText.Contains('minimum supported version') -or
 }
 
 $ciWorkflowText = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github\workflows\ci.yml') -Raw
+$pullRequestArtifactBlock = [regex]::Match(
+    $ciWorkflowText,
+    '(?ms)^      - name: Retain pull-request installer for Windows verification.*?(?=^      - name: |\z)')
 if (-not $ciWorkflowText.Contains('0.5.0.${{ github.run_number }}') -or
     -not $ciWorkflowText.Contains('APPLICATION_VERSION: "0.6.0"') -or
     -not $ciWorkflowText.Contains('AchievementRelay-v0.6.0-r${{ github.run_number }}-windows-test') -or
@@ -1004,6 +1070,12 @@ if (-not $ciWorkflowText.Contains('0.5.0.${{ github.run_number }}') -or
     -not $ciWorkflowText.Contains('$previewProcess.ExitCode') -or
     -not $ciWorkflowText.Contains('$previewWidth -ne 1200') -or
     -not $ciWorkflowText.Contains('$previewHeight -ne 675') -or
+    -not $ciWorkflowText.Contains('--export-collector-card-artwork-preview') -or
+    -not $ciWorkflowText.Contains('artifacts/AchievementRelay_CollectorCard_Artwork_Preview.png') -or
+    -not $ciWorkflowText.Contains('$artworkPreviewProcess.ExitCode') -or
+    -not $ciWorkflowText.Contains('$artworkPreviewBytes.Length -le 10KB') -or
+    -not $ciWorkflowText.Contains('$artworkPreviewWidth -ne 1200') -or
+    -not $ciWorkflowText.Contains('$artworkPreviewHeight -ne 675') -or
     -not $ciWorkflowText.Contains('--export-signal-strip-preview') -or
     -not $ciWorkflowText.Contains('artifacts/AchievementRelay_SignalStrip_Preview.png') -or
     -not $ciWorkflowText.Contains('$signalPreviewProcess.ExitCode') -or
@@ -1012,12 +1084,16 @@ if (-not $ciWorkflowText.Contains('0.5.0.${{ github.run_number }}') -or
     -not $ciWorkflowText.Contains('$signalPreviewHeight -ne 76') -or
     -not $ciWorkflowText.Contains('Run app presentation smoke checks') -or
     -not $ciWorkflowText.Contains('tests\AchievementRelay.App.Tests') -or
+    -not $pullRequestArtifactBlock.Success -or
+    -not $pullRequestArtifactBlock.Value.Contains('artifacts/AchievementRelay_CollectorCard_Preview.png') -or
+    -not $pullRequestArtifactBlock.Value.Contains('artifacts/AchievementRelay_CollectorCard_Artwork_Preview.png') -or
+    -not $pullRequestArtifactBlock.Value.Contains('artifacts/AchievementRelay_SignalStrip_Preview.png') -or
     -not $ciWorkflowText.Contains('-ApplicationVersion $env:APPLICATION_VERSION') -or
     -not $ciWorkflowText.Contains('artifacts/AchievementRelay_Update.json') -or
     -not $ciWorkflowText.Contains('artifacts/AchievementRelay_Update.sig') -or
     -not $ciWorkflowText.Contains('AchievementRelay.SteamBridge.exe --self-test') -or
     -not $ciWorkflowText.Contains('"protocolVersion":1')) {
-    throw 'Pull-request installers must use a monotonically increasing MSIX test revision.'
+    throw 'Pull-request installers must use a monotonically increasing MSIX test revision and retain both Collector Card previews plus the Signal Strip preview.'
 }
 
 $liveUpdateWorkflowText = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github\workflows\live-update-test.yml') -Raw

@@ -14,6 +14,17 @@ No changes yet.
 - Added achievement artwork with the premium Relay fallback, the matching Bronze/Silver/Gold/Platinum/Unranked emblem, exact global unlock percentage, platform and Gamerscore to the local banner
 - Added a default-on **Achievement overlay** preference that existing and new installations can disable without affecting Discord delivery
 
+### Changed
+
+- Reworked the Discord Collector Card showcase with a 400×250 foreground bay, wide ambient game art when suitable, lighter whole-card washes and local dark readability panels
+- Increased the card's achievement title to a 46–68 px fitted range, its description to 32 px and its dominant rarity percentage to as much as 96 px so the important content remains legible at normal Discord display size
+- Kept small or square achievement icons contained in the foreground instead of stretching them across the card; a suitable wide achievement image can provide the ambient layer when a separate hero is unavailable
+
+### Fixed
+
+- Corrected Xbox PC Game Pass platform classification so recognized singular per-achievement Windows values such as `WindowsOneCore` produce **Xbox PC** instead of being overridden by console compatibility metadata
+- Stopped plural title/achievement availability arrays from manufacturing **Xbox PC** or **Xbox Console** claims; unknown or conflicting event-level values and availability-only evidence now fall back honestly to **Xbox**
+
 ### Interaction and accessibility
 
 - Made the overlay click-through, non-activating and silent so it cannot take mouse or keyboard control away from a game

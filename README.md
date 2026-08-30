@@ -37,13 +37,13 @@ Achievement Relay watches the Xbox account you connect and the Steam game runnin
 - Bronze, Silver, Gold, Platinum and Unranked use the same honest percentage rules as Discord Collector Cards.
 - Existing history, startup reconciliation and other unproven observations remain silent; the overlay cannot weaken the anti-backlog boundary.
 
-The established v0.5 presentation remains in place:
+v0.6 also upgrades the established Collector Card presentation:
 
-> **Collector Cards:** every achievement now arrives as a wide rarity card. Usable game or achievement artwork becomes part of the composition; otherwise the card uses a polished black, red and metallic Achievement Relay fallback instead of a blank image.
+> **Collector Cards:** every achievement arrives as a wide rarity card with a much larger foreground artwork showcase, suitable wide ambient art and local dark readability panels. Small or square icons stay contained instead of being stretched across the card; otherwise the composition uses the polished black, red and metallic Achievement Relay fallback.
 
-> **Rarity has a visual language:** validated global unlock percentages drive four distinct emblems—Bronze at 25% or more, Silver at 10–24.99%, Gold at 3–9.99%, and Platinum below 3%. Missing or invalid percentages use an honest neutral Unranked card.
+> **Readable at Discord size:** the achievement title, description and game are substantially larger, while the exact rarity percentage remains the visual anchor. Validated percentages still drive four distinct emblems—Bronze at 25% or more, Silver at 10–24.99%, Gold at 3–9.99%, and Platinum below 3%. Missing or invalid percentages use an honest neutral Unranked card.
 
-> **Clearer Xbox identity:** reliable Windows evidence is labelled **Xbox PC**, console-only evidence is labelled **Xbox Console**, and legacy achievements can be labelled **Xbox 360**. Mixed Play Anywhere or incomplete provider data remains simply **Xbox** rather than being guessed.
+> **Corrected Xbox PC identity:** a recognized, non-conflicting singular Windows value on the achievement—such as `WindowsOneCore`—labels a PC Game Pass unlock **Xbox PC** when OpenXBL supplies it, before title compatibility is considered. Direct console evidence can be labelled **Xbox Console**, and legacy achievements can be labelled **Xbox 360**. Conflicting event-level values, plural supported-platform lists and incomplete responses without a recognized singular value remain simply **Xbox** rather than being guessed.
 
 - Cards are rendered locally and delivered only to the configured Discord webhook.
 - Tier meaning is repeated through emblem shape, internal marks, written name and ordinary Discord text—not color alone.
@@ -63,7 +63,7 @@ The established v0.4 reliability work remains in place:
 - The CRNY **Relay Online** soundtrack at a fixed 10% volume with Play/Pause and a direct [SoundCloud link](https://soundcloud.com/daniel-conroy-224318319/crny-relay-online); fresh installs may play it, while updaters start muted until **Play music** is selected.
 - Local, keyless Steam monitoring alongside the existing Xbox relay, with strict anti-backlog rules for both sources.
 
-See the [v0.6.0 Signal Strip notes](docs/RELEASE-NOTES-0.6.0.md), [v0.5.0 Collector Card notes](docs/RELEASE-NOTES-0.5.0.md), [v0.4.3 startup-hotfix notes](docs/RELEASE-NOTES-0.4.3.md), [v0.4.2 relay-safety notes](docs/RELEASE-NOTES-0.4.2.md), [v0.4.1 accessibility notes](docs/RELEASE-NOTES-0.4.1.md), [v0.4.0 launch notes](docs/RELEASE-NOTES-0.4.0.md), and [changelog](CHANGELOG.md).
+See the [v0.6.0 release notes](docs/RELEASE-NOTES-0.6.0.md), [v0.5.0 Collector Card notes](docs/RELEASE-NOTES-0.5.0.md), [v0.4.3 startup-hotfix notes](docs/RELEASE-NOTES-0.4.3.md), [v0.4.2 relay-safety notes](docs/RELEASE-NOTES-0.4.2.md), [v0.4.1 accessibility notes](docs/RELEASE-NOTES-0.4.1.md), [v0.4.0 launch notes](docs/RELEASE-NOTES-0.4.0.md), and [changelog](CHANGELOG.md).
 
 > [!IMPORTANT]
 > **Moving from a pre-official 0.3.x updater test:** install v0.4.0 once from this repository's official release page. The 0.3.x test builds used an intentionally temporary signing identity whose private key was destroyed, so they cannot authenticate the new permanent release channel. Your encrypted connections, settings, baselines, pending deliveries, and preferences remain in place. Automatic verified updates take over from v0.4.0 onward.

@@ -23,6 +23,12 @@ public sealed class DiscordCollectorCardRenderer
 {
     public const int CardWidth = 1200;
     public const int CardHeight = 675;
+    public const int ArtworkShowcaseWidth = 400;
+    public const int ArtworkShowcaseHeight = 250;
+    public const float AchievementTitleMaximumFontSize = 68;
+    public const float AchievementTitleMinimumFontSize = 46;
+    public const float AchievementDescriptionFontSize = 32;
+    public const float RarityPercentageMaximumFontSize = 96;
     public const string CardFileName = "achievement-relay-card.png";
     public const string CardContentType = "image/png";
     private const int MaximumCardBytes = 7_500_000;
@@ -53,6 +59,29 @@ public sealed class DiscordCollectorCardRenderer
         new AppSettings { DisplayName = "Relay Player" },
         new AchievementCardArtwork(null, null));
 
+    /// <summary>
+    /// Creates a deterministic icon-only landscape preview matching the
+    /// artwork shape that exposed the postage-stamp v0.5 Discord layout.
+    /// </summary>
+    public DiscordCollectorCard RenderArtworkShowcasePreview() => Render(
+        new AchievementEvent
+        {
+            Id = "collector-card-artwork-preview",
+            Name = "All for One",
+            Description = "Maximized the rank of a Pal.",
+            GameName = "Palworld",
+            Gamerscore = 30,
+            IsRare = true,
+            RarityKnown = true,
+            RarityPercentage = 3.8,
+            PlayerName = "Relay Player",
+            SourceProvider = "OpenXBL",
+            Platform = "Xbox PC",
+            UnlockedAt = new DateTimeOffset(2026, 8, 30, 12, 0, 0, TimeSpan.Zero)
+        },
+        new AppSettings { DisplayName = "Relay Player", IncludeRawDetailsWhenUncertain = true },
+        new AchievementCardArtwork(null, CreatePreviewArtwork()));
+
     public DiscordCollectorCard Render(
         AchievementEvent achievement,
         AppSettings settings,
@@ -71,13 +100,19 @@ public sealed class DiscordCollectorCardRenderer
         using var achievementIcon = TryDecodeImage(artwork.AchievementIconBytes, 4_000_000);
         using var brand = TryDecodeImage(BrandImageBytes.Value, 4_000_000);
 
-        DrawBackground(graphics, hero, brand);
+        var ambientArtwork = IsWideShowcaseArtwork(hero)
+            ? hero
+            : IsWideShowcaseArtwork(achievementIcon)
+                ? achievementIcon
+                : null;
+        DrawBackground(graphics, ambientArtwork, brand);
         DrawChrome(graphics);
 
         var tier = RelayRarityClassifier.Classify(achievement.RarityPercentage);
         var palette = GetTierPalette(tier);
+        DrawContentPanels(graphics, palette);
         DrawHeader(graphics, achievement, palette);
-        DrawAchievementIcon(graphics, achievementIcon ?? brand, palette);
+        DrawArtworkShowcase(graphics, hero, achievementIcon, brand, palette);
         DrawAchievementDetails(graphics, achievement, settings, palette);
         DrawRarityPanel(graphics, achievement, tier, palette);
         DrawFooter(graphics);
@@ -108,7 +143,7 @@ public sealed class DiscordCollectorCardRenderer
         graphics.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
     }
 
-    private static void DrawBackground(Graphics graphics, Image? hero, Image? brand)
+    private static void DrawBackground(Graphics graphics, Image? artwork, Image? brand)
     {
         using (var baseGradient = new LinearGradientBrush(
                    new Rectangle(0, 0, CardWidth, CardHeight),
@@ -119,26 +154,26 @@ public sealed class DiscordCollectorCardRenderer
             graphics.FillRectangle(baseGradient, 0, 0, CardWidth, CardHeight);
         }
 
-        if (hero is not null)
+        if (artwork is not null)
         {
-            DrawImageCover(graphics, hero, new RectangleF(0, 0, CardWidth, CardHeight));
+            DrawSoftFocusCover(graphics, artwork, new RectangleF(0, 0, CardWidth, CardHeight));
 
             using var artWash = new LinearGradientBrush(
                 new Rectangle(0, 0, CardWidth, CardHeight),
-                Color.FromArgb(246, 5, 7, 8),
-                Color.FromArgb(92, 5, 7, 8),
+                Color.FromArgb(126, 5, 7, 8),
+                Color.FromArgb(76, 5, 7, 8),
                 LinearGradientMode.Horizontal)
             {
                 InterpolationColors = new ColorBlend
                 {
                     Colors =
                     [
-                        Color.FromArgb(250, 5, 7, 8),
-                        Color.FromArgb(230, 5, 7, 8),
-                        Color.FromArgb(118, 5, 7, 8),
-                        Color.FromArgb(156, 17, 5, 8)
+                        Color.FromArgb(126, 5, 7, 8),
+                        Color.FromArgb(92, 5, 7, 8),
+                        Color.FromArgb(68, 5, 7, 8),
+                        Color.FromArgb(142, 17, 5, 8)
                     ],
-                    Positions = [0f, 0.33f, 0.72f, 1f]
+                    Positions = [0f, 0.3f, 0.7f, 1f]
                 }
             };
             graphics.FillRectangle(artWash, 0, 0, CardWidth, CardHeight);
@@ -149,11 +184,11 @@ public sealed class DiscordCollectorCardRenderer
         }
 
         using var bottomWash = new LinearGradientBrush(
-            new Rectangle(0, 350, CardWidth, 325),
+            new Rectangle(0, 410, CardWidth, 265),
             Color.FromArgb(0, 3, 4, 5),
-            Color.FromArgb(238, 3, 4, 5),
+            Color.FromArgb(188, 3, 4, 5),
             LinearGradientMode.Vertical);
-        graphics.FillRectangle(bottomWash, 0, 350, CardWidth, 325);
+        graphics.FillRectangle(bottomWash, 0, 410, CardWidth, 265);
     }
 
     private static void DrawFallbackPattern(Graphics graphics, Image? brand)
@@ -218,16 +253,30 @@ public sealed class DiscordCollectorCardRenderer
         graphics.FillRectangle(railBrush, 0, 0, 16, CardHeight);
     }
 
+    private static void DrawContentPanels(Graphics graphics, TierPalette palette)
+    {
+        var details = new RectangleF(458, 104, 410, 462);
+        using var detailsPath = CreateRoundedRectangle(details, 26);
+        using var detailsBrush = new LinearGradientBrush(
+            details,
+            Color.FromArgb(218, 7, 10, 12),
+            Color.FromArgb(232, 5, 7, 8),
+            LinearGradientMode.Vertical);
+        using var detailsBorder = new Pen(Color.FromArgb(105, palette.Mid), 1.5f);
+        graphics.FillPath(detailsBrush, detailsPath);
+        graphics.DrawPath(detailsBorder, detailsPath);
+    }
+
     private static void DrawHeader(Graphics graphics, AchievementEvent achievement, TierPalette palette)
     {
-        using var eyebrowFont = CreateFont(22, FontStyle.Bold);
+        using var eyebrowFont = CreateFont(25, FontStyle.Bold);
         using var eyebrowBrush = new SolidBrush(Color.FromArgb(255, 255, 112, 118));
         graphics.DrawString("ACHIEVEMENT UNLOCKED", eyebrowFont, eyebrowBrush, new PointF(58, 42));
 
         var platform = LimitText(ResolvePlatform(achievement), 42);
-        using var platformFont = CreateFont(18, FontStyle.Bold);
+        using var platformFont = CreateFont(24, FontStyle.Bold);
         var measured = graphics.MeasureString(platform.ToUpperInvariant(), platformFont);
-        var pill = new RectangleF(CardWidth - measured.Width - 104, 35, measured.Width + 52, 42);
+        var pill = new RectangleF(CardWidth - measured.Width - 104, 31, measured.Width + 52, 48);
         using var pillPath = CreateRoundedRectangle(pill, 18);
         using var pillBrush = new SolidBrush(Color.FromArgb(205, 8, 11, 13));
         using var pillBorder = new Pen(Color.FromArgb(210, palette.Light), 2f);
@@ -244,14 +293,19 @@ public sealed class DiscordCollectorCardRenderer
         graphics.DrawString(platform.ToUpperInvariant(), platformFont, platformBrush, pill, pillFormat);
     }
 
-    private static void DrawAchievementIcon(Graphics graphics, Image? icon, TierPalette palette)
+    private static void DrawArtworkShowcase(
+        Graphics graphics,
+        Image? hero,
+        Image? achievementIcon,
+        Image? brand,
+        TierPalette palette)
     {
-        var outer = new RectangleF(58, 171, 230, 230);
-        using var glowPath = CreateRoundedRectangle(new RectangleF(50, 163, 246, 246), 31);
+        var outer = new RectangleF(48, 136, ArtworkShowcaseWidth, ArtworkShowcaseHeight);
+        using var glowPath = CreateRoundedRectangle(RectangleF.Inflate(outer, 8, 8), 31);
         using var glowBrush = new SolidBrush(Color.FromArgb(38, palette.Light));
         graphics.FillPath(glowBrush, glowPath);
 
-        using var framePath = CreateRoundedRectangle(outer, 26);
+        using var framePath = CreateRoundedRectangle(outer, 24);
         using var frameBrush = new LinearGradientBrush(
             outer,
             Color.FromArgb(245, 26, 29, 31),
@@ -261,18 +315,58 @@ public sealed class DiscordCollectorCardRenderer
 
         var state = graphics.Save();
         graphics.SetClip(framePath);
-        if (icon is not null)
+        var primaryArtwork = IsWideShowcaseArtwork(hero)
+            ? hero
+            : IsWideShowcaseArtwork(achievementIcon)
+                ? achievementIcon
+                : hero ?? achievementIcon;
+        if (primaryArtwork is not null)
         {
-            DrawImageContain(graphics, icon, new RectangleF(72, 185, 202, 202));
+            if (IsWideShowcaseArtwork(primaryArtwork))
+            {
+                DrawImageCoverWithOpacity(graphics, primaryArtwork, outer, 0.42f);
+                using var ambientWash = new SolidBrush(Color.FromArgb(42, 4, 6, 7));
+                graphics.FillRectangle(ambientWash, outer);
+            }
+
+            DrawImageContain(
+                graphics,
+                primaryArtwork,
+                new RectangleF(60, 148, ArtworkShowcaseWidth - 24, ArtworkShowcaseHeight - 24),
+                MaximumSafeUpscale(primaryArtwork));
+        }
+        else if (brand is not null)
+        {
+            DrawImageContain(graphics, brand, new RectangleF(122, 151, 252, 220), 1f);
         }
         else
         {
-            DrawFallbackTrophy(graphics, new RectangleF(89, 201, 168, 168), palette);
+            DrawFallbackTrophy(graphics, new RectangleF(148, 158, 200, 200), palette);
         }
 
         graphics.Restore(state);
         using var framePen = new Pen(Color.FromArgb(230, palette.Light), 4f);
         graphics.DrawPath(framePen, framePath);
+
+        if (hero is null || achievementIcon is null || ReferenceEquals(primaryArtwork, achievementIcon))
+        {
+            return;
+        }
+
+        var iconFrame = new RectangleF(66, 248, 122, 122);
+        using var iconPath = CreateRoundedRectangle(iconFrame, 20);
+        using var iconBackground = new SolidBrush(Color.FromArgb(238, 7, 9, 10));
+        using var iconBorder = new Pen(Color.FromArgb(245, palette.Light), 3f);
+        graphics.FillPath(iconBackground, iconPath);
+        var iconState = graphics.Save();
+        graphics.SetClip(iconPath);
+        DrawImageContain(
+            graphics,
+            achievementIcon,
+            new RectangleF(74, 256, 106, 106),
+            1f);
+        graphics.Restore(iconState);
+        graphics.DrawPath(iconBorder, iconPath);
     }
 
     private static void DrawAchievementDetails(
@@ -282,21 +376,21 @@ public sealed class DiscordCollectorCardRenderer
         TierPalette palette)
     {
         var gameName = Sanitize(achievement.GameName, "Unknown game").ToUpperInvariant();
-        using var gameFont = CreateFont(22, FontStyle.Bold);
+        using var gameFont = CreateFont(30, FontStyle.Bold);
         using var gameBrush = new SolidBrush(Color.FromArgb(255, palette.Light));
         using var gameFormat = CreateSingleLineFormat();
-        graphics.DrawString(gameName, gameFont, gameBrush, new RectangleF(326, 133, 536, 38), gameFormat);
+        graphics.DrawString(gameName, gameFont, gameBrush, new RectangleF(486, 126, 354, 44), gameFormat);
 
         DrawFittedTitle(
             graphics,
             Sanitize(achievement.Name, "Achievement unlocked"),
-            new RectangleF(322, 174, 555, 124),
+            new RectangleF(482, 174, 362, 150),
             Color.FromArgb(255, 248, 245, 239));
 
         if (settings.IncludeRawDetailsWhenUncertain && !string.IsNullOrWhiteSpace(achievement.Description))
         {
-            using var descriptionFont = CreateFont(21, FontStyle.Regular, condensed: false);
-            using var descriptionBrush = new SolidBrush(Color.FromArgb(255, 196, 201, 203));
+            using var descriptionFont = CreateFont(AchievementDescriptionFontSize, FontStyle.Regular, condensed: false);
+            using var descriptionBrush = new SolidBrush(Color.FromArgb(255, 211, 216, 218));
             using var descriptionFormat = new StringFormat
             {
                 Trimming = StringTrimming.EllipsisWord,
@@ -306,22 +400,22 @@ public sealed class DiscordCollectorCardRenderer
                 Sanitize(achievement.Description, string.Empty),
                 descriptionFont,
                 descriptionBrush,
-                new RectangleF(326, 304, 532, 71),
+                new RectangleF(486, 337, 354, 174),
                 descriptionFormat);
         }
 
         var player = string.IsNullOrWhiteSpace(settings.DisplayName)
             ? achievement.PlayerName
             : settings.DisplayName;
-        var chipX = 326f;
+        var chipX = 48f;
         if (!string.IsNullOrWhiteSpace(player))
         {
-            chipX += DrawChip(graphics, chipX, 399, $"PLAYER  {Sanitize(player, "Player")}", palette) + 12;
+            chipX += DrawChip(graphics, chipX, 420, $"PLAYER  {Sanitize(player, "Player")}", palette) + 12;
         }
 
         if (achievement.Gamerscore is { } gamerscore)
         {
-            DrawChip(graphics, chipX, 399, $"+{gamerscore}G", palette);
+            DrawChip(graphics, chipX, 420, $"+{gamerscore}G", palette);
         }
     }
 
@@ -331,7 +425,7 @@ public sealed class DiscordCollectorCardRenderer
         RelayRarityTier tier,
         TierPalette palette)
     {
-        var panel = new RectangleF(894, 112, 252, 445);
+        var panel = new RectangleF(886, 96, 266, 470);
         using var panelPath = CreateRoundedRectangle(panel, 26);
         using var panelBrush = new LinearGradientBrush(
             panel,
@@ -342,39 +436,39 @@ public sealed class DiscordCollectorCardRenderer
         graphics.FillPath(panelBrush, panelPath);
         graphics.DrawPath(panelPen, panelPath);
 
-        DrawTierEmblem(graphics, new RectangleF(944, 140, 152, 152), tier, palette);
+        DrawTierEmblem(graphics, new RectangleF(949, 126, 140, 140), tier, palette);
 
         var percentage = RelayRarityClassifier.FormatPercentage(achievement.RarityPercentage);
         DrawCenteredFittedText(
             graphics,
             percentage,
-            new RectangleF(910, 307, 220, 82),
-            63,
-            38,
+            new RectangleF(903, 278, 232, 108),
+            RarityPercentageMaximumFontSize,
+            58,
             Color.FromArgb(255, palette.Light));
 
         var population = string.Equals(achievement.SourceProvider, "Steam", StringComparison.OrdinalIgnoreCase)
             ? "OF STEAM PLAYERS"
             : "OF PLAYERS";
-        using var populationFont = CreateFont(17, FontStyle.Bold);
+        using var populationFont = CreateFont(20, FontStyle.Bold);
         using var mutedBrush = new SolidBrush(Color.FromArgb(255, 180, 187, 190));
         using var centeredFormat = CreateCenteredFormat();
-        graphics.DrawString(population, populationFont, mutedBrush, new RectangleF(910, 388, 220, 28), centeredFormat);
+        graphics.DrawString(population, populationFont, mutedBrush, new RectangleF(903, 385, 232, 30), centeredFormat);
 
         DrawCenteredFittedText(
             graphics,
             $"RELAY {RelayRarityClassifier.DisplayName(tier).ToUpperInvariant()} TIER",
-            new RectangleF(910, 435, 220, 38),
-            23,
-            15,
+            new RectangleF(903, 432, 232, 44),
+            28,
+            18,
             Color.FromArgb(255, palette.Light));
 
-        using var descriptionFont = CreateFont(16, FontStyle.Regular, condensed: false);
+        using var descriptionFont = CreateFont(19, FontStyle.Regular, condensed: false);
         graphics.DrawString(
             RelayRarityClassifier.Description(tier),
             descriptionFont,
             mutedBrush,
-            new RectangleF(910, 478, 220, 27),
+            new RectangleF(903, 486, 232, 30),
             centeredFormat);
     }
 
@@ -499,10 +593,10 @@ public sealed class DiscordCollectorCardRenderer
         string text,
         TierPalette palette)
     {
-        using var font = CreateFont(16, FontStyle.Bold);
+        using var font = CreateFont(21, FontStyle.Bold);
         var size = graphics.MeasureString(text, font);
-        var width = Math.Min(310, size.Width + 30);
-        var bounds = new RectangleF(x, y, width, 38);
+        var width = Math.Min(250, size.Width + 34);
+        var bounds = new RectangleF(x, y, width, 46);
         using var path = CreateRoundedRectangle(bounds, 12);
         using var background = new SolidBrush(Color.FromArgb(210, 12, 15, 17));
         using var border = new Pen(Color.FromArgb(145, palette.Mid), 1.5f);
@@ -515,7 +609,14 @@ public sealed class DiscordCollectorCardRenderer
     }
 
     private static void DrawFittedTitle(Graphics graphics, string text, RectangleF bounds, Color color) =>
-        DrawFittedText(graphics, text, bounds, 49, 31, color, centered: false);
+        DrawFittedText(
+            graphics,
+            text,
+            bounds,
+            AchievementTitleMaximumFontSize,
+            AchievementTitleMinimumFontSize,
+            color,
+            centered: false);
 
     private static void DrawCenteredFittedText(
         Graphics graphics,
@@ -690,26 +791,79 @@ public sealed class DiscordCollectorCardRenderer
 
     private static void DrawImageCover(Graphics graphics, Image image, RectangleF destination)
     {
-        var sourceRatio = image.Width / (float)image.Height;
-        var destinationRatio = destination.Width / destination.Height;
-        RectangleF source;
-        if (sourceRatio > destinationRatio)
-        {
-            var width = image.Height * destinationRatio;
-            source = new RectangleF((image.Width - width) / 2f, 0, width, image.Height);
-        }
-        else
-        {
-            var height = image.Width / destinationRatio;
-            source = new RectangleF(0, (image.Height - height) / 2f, image.Width, height);
-        }
-
+        var source = CalculateCoverSource(image, destination);
         graphics.DrawImage(image, destination, source, GraphicsUnit.Pixel);
     }
 
-    private static void DrawImageContain(Graphics graphics, Image image, RectangleF destination)
+    private static void DrawSoftFocusCover(Graphics graphics, Image image, RectangleF destination)
+    {
+        const int reductionFactor = 5;
+        var reducedWidth = Math.Max(1, (int)Math.Ceiling(destination.Width / reductionFactor));
+        var reducedHeight = Math.Max(1, (int)Math.Ceiling(destination.Height / reductionFactor));
+        using var reduced = new Bitmap(reducedWidth, reducedHeight, PixelFormat.Format32bppArgb);
+        using (var reducedGraphics = Graphics.FromImage(reduced))
+        {
+            reducedGraphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+            reducedGraphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+            reducedGraphics.CompositingQuality = CompositingQuality.HighQuality;
+            DrawImageCover(
+                reducedGraphics,
+                image,
+                new RectangleF(0, 0, reducedWidth, reducedHeight));
+        }
+
+        graphics.DrawImage(reduced, destination);
+    }
+
+    private static void DrawImageCoverWithOpacity(
+        Graphics graphics,
+        Image image,
+        RectangleF destination,
+        float opacity)
+    {
+        var source = CalculateCoverSource(image, destination);
+        using var attributes = new ImageAttributes();
+        attributes.SetColorMatrix(new ColorMatrix
+        {
+            Matrix00 = 1f,
+            Matrix11 = 1f,
+            Matrix22 = 1f,
+            Matrix33 = Math.Clamp(opacity, 0f, 1f),
+            Matrix44 = 1f
+        });
+        graphics.DrawImage(
+            image,
+            Rectangle.Round(destination),
+            source.X,
+            source.Y,
+            source.Width,
+            source.Height,
+            GraphicsUnit.Pixel,
+            attributes);
+    }
+
+    private static RectangleF CalculateCoverSource(Image image, RectangleF destination)
+    {
+        var sourceRatio = image.Width / (float)image.Height;
+        var destinationRatio = destination.Width / destination.Height;
+        if (sourceRatio > destinationRatio)
+        {
+            var width = image.Height * destinationRatio;
+            return new RectangleF((image.Width - width) / 2f, 0, width, image.Height);
+        }
+
+        var height = image.Width / destinationRatio;
+        return new RectangleF(0, (image.Height - height) / 2f, image.Width, height);
+    }
+
+    private static void DrawImageContain(
+        Graphics graphics,
+        Image image,
+        RectangleF destination,
+        float maximumUpscale = 1f)
     {
         var scale = Math.Min(destination.Width / image.Width, destination.Height / image.Height);
+        scale = Math.Min(scale, Math.Max(1f, maximumUpscale));
         var width = image.Width * scale;
         var height = image.Height * scale;
         var target = new RectangleF(
@@ -719,6 +873,20 @@ public sealed class DiscordCollectorCardRenderer
             height);
         graphics.DrawImage(image, target);
     }
+
+    private static bool IsWideShowcaseArtwork(Image? image)
+    {
+        if (image is null || image.Width < 320 || image.Height < 160)
+        {
+            return false;
+        }
+
+        var ratio = image.Width / (float)image.Height;
+        return ratio is >= 1.25f and <= 3.2f;
+    }
+
+    private static float MaximumSafeUpscale(Image image) =>
+        Math.Min(image.Width, image.Height) >= 192 ? 1.35f : 1f;
 
     private static void DrawImageWithOpacity(
         Graphics graphics,
@@ -799,6 +967,57 @@ public sealed class DiscordCollectorCardRenderer
         {
             return null;
         }
+    }
+
+    private static byte[] CreatePreviewArtwork()
+    {
+        using var preview = new Bitmap(960, 540, PixelFormat.Format32bppArgb);
+        preview.SetResolution(96, 96);
+        using var graphics = Graphics.FromImage(preview);
+        ConfigureGraphics(graphics);
+        using (var sky = new LinearGradientBrush(
+                   new Rectangle(0, 0, preview.Width, preview.Height),
+                   Color.FromArgb(21, 74, 126),
+                   Color.FromArgb(229, 102, 47),
+                   LinearGradientMode.ForwardDiagonal))
+        {
+            graphics.FillRectangle(sky, 0, 0, preview.Width, preview.Height);
+        }
+
+        using (var sun = new SolidBrush(Color.FromArgb(235, 255, 224, 126)))
+        {
+            graphics.FillEllipse(sun, 668, 68, 166, 166);
+        }
+
+        using (var distant = new SolidBrush(Color.FromArgb(220, 45, 82, 104)))
+        {
+            graphics.FillPolygon(distant,
+            [
+                new PointF(0, 390),
+                new PointF(180, 190),
+                new PointF(330, 338),
+                new PointF(500, 145),
+                new PointF(710, 390)
+            ]);
+        }
+
+        using (var foreground = new SolidBrush(Color.FromArgb(245, 11, 31, 40)))
+        {
+            graphics.FillPolygon(foreground,
+            [
+                new PointF(0, 430),
+                new PointF(230, 292),
+                new PointF(448, 422),
+                new PointF(700, 250),
+                new PointF(960, 392),
+                new PointF(960, 540),
+                new PointF(0, 540)
+            ]);
+        }
+
+        using var output = new MemoryStream();
+        preview.Save(output, ImageFormat.Png);
+        return output.ToArray();
     }
 
     private static Font CreateFont(float size, FontStyle style, bool condensed = true) =>

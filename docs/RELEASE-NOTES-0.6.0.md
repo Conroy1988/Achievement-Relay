@@ -1,6 +1,6 @@
 # Achievement Relay v0.6.0
 
-v0.6.0 adds the compact **Signal Strip**: a polished local achievement banner that celebrates a genuine live unlock without taking control away from the game.
+v0.6.0 adds the compact **Signal Strip**, rebuilds the Discord Collector Card around recognisable provider artwork and readable achievement text, and corrects the platform evidence rules that could mislabel an Xbox PC Game Pass unlock as Xbox Console.
 
 ## Signal Strip overlay
 
@@ -14,6 +14,18 @@ Each newly proven Xbox or Steam achievement can now appear in a slim banner at t
 - the Gamerscore reward when supplied by the provider.
 
 The strip slides into view, holds long enough to read and retracts cleanly. Consecutive achievements enter a bounded first-in, first-out queue and are shown one at a time instead of stacking over gameplay.
+
+## Collector Card showcase and readability
+
+The 1200×675 Discord card now treats the game-provided image as a showcase rather than a thumbnail:
+
+- a 400×250 foreground artwork bay gives wide achievement images substantially more visible space;
+- suitable wide game or achievement artwork can form a softened ambient background, while small or square icons remain contained and are never stretched across the card;
+- lighter whole-card washes preserve more of the artwork, with dark treatment concentrated behind text and the rarity panel;
+- the achievement title now fits between 46 and 68 px, the description uses 32 px type and the rarity percentage can reach 96 px; and
+- the rarity percentage remains the dominant fact, with the game, achievement, description, platform and reward arranged around it at a size intended to survive Discord's normal downscaling.
+
+The complete black, red and metallic Relay design remains available when there is no usable ambient artwork. Artwork is still optional presentation data: a missing, unsuitable or malformed image cannot block a proven achievement or weaken delivery safety.
 
 ## Passive by design
 
@@ -38,7 +50,11 @@ The local strip uses the same validation and presentation language as v0.5.0 Col
 | **Platinum** | Under 3% |
 | **Unranked** | Percentage unavailable |
 
-A missing or invalid percentage remains **Unranked** rather than becoming a false `0%` or Platinum result. Xbox PC, Xbox Console and Xbox 360 labels appear only when the existing provider evidence proves them; ambiguous Xbox titles stay labelled **Xbox**.
+A missing or invalid percentage remains **Unranked** rather than becoming a false `0%` or Platinum result.
+
+Xbox platform labels now follow the strongest per-achievement evidence in a fixed order. Legacy Xbox 360 response shape and route remain authoritative. Otherwise singular `earnedPlatform`, `deviceType` or `device` values are considered together before singular `platform`, and those event-level aliases must agree. Recognized Windows values—including `WindowsOneCore`, `WindowsDesktop`, `Windows`, `Win32`, `Win64`, `PC`, `W8` and `Windows8`—produce **Xbox PC**; recognized console values produce **Xbox Console**.
+
+Plural `platforms`/`devices` arrays and title-history compatibility lists describe where a game is available, not necessarily where one achievement was earned. They therefore never manufacture a PC or console claim. If OpenXBL supplies only those arrays, supplies unknown or conflicting singular values, or provides no usable device evidence, the post says **Xbox**. This removes the false **Xbox Console** inference and shows **Xbox PC** when a PC Game Pass response actually carries recognized, non-conflicting singular Windows evidence, without pretending that every provider response can always identify the device.
 
 ## Preserved safety and privacy
 

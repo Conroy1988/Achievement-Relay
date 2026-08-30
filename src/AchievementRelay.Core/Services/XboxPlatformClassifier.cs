@@ -17,27 +17,14 @@ public static class XboxPlatformClassifier
             return ClassifyToken(earnedPlatform);
         }
 
-        var devices = NormalizeDevices(availablePlatforms);
-        if (devices.Length == 0)
-        {
-            return null;
-        }
-
-        var classifications = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var device in devices)
-        {
-            var classification = ClassifyToken(device);
-            if (classification is null)
-            {
-                // Mixed known/unknown title metadata is ambiguous. Do not
-                // discard the unknown value and accidentally claim a device.
-                return null;
-            }
-
-            classifications.Add(classification);
-        }
-
-        return classifications.Count == 1 ? classifications.Single() : null;
+        // Title-history, catalog and plural platform/device arrays describe
+        // where a title is available or configured. They do not prove which
+        // device earned one achievement. In particular, a PC Game Pass build
+        // can share console-oriented title metadata. Retain these bounded
+        // hints for diagnostics and future enrichment, but never turn them
+        // into a specific user-facing earned-platform claim.
+        _ = availablePlatforms;
+        return null;
     }
 
     public static string ForDelivery(
@@ -113,7 +100,8 @@ public static class XboxPlatformClassifier
         }
 
         if (normalized is "PC" or "XBOXPC" or "WINDOWS" or "WIN32" or "WIN64" or
-            "WINDOWSDESKTOP" or "WINDOWS10" or "WINDOWS11")
+            "WINDOWSDESKTOP" or "WINDOWS8" or "WINDOWS10" or "WINDOWS11" or
+            "WINDOWSONECORE" or "W8")
         {
             return "Xbox PC";
         }
@@ -124,7 +112,7 @@ public static class XboxPlatformClassifier
         }
 
         if (normalized is "XBOXCONSOLE" or "XBOXONE" or "XBOXONEX" or "XBOXONES" or
-            "XBOXSERIES" or "XBOXSERIESXS" or "SCARLETT" or "DURANGO")
+            "XBOXSERIES" or "XBOXSERIESXS" or "SCARLETT" or "DURANGO" or "D")
         {
             return "Xbox Console";
         }

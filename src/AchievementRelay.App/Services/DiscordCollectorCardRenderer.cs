@@ -2,6 +2,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Drawing.Text;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 using AchievementRelay.Core.Models;
@@ -703,14 +704,7 @@ public sealed class DiscordCollectorCardRenderer
             source = new RectangleF(0, (image.Height - height) / 2f, image.Width, height);
         }
 
-        graphics.DrawImage(
-            image,
-            destination,
-            source.X,
-            source.Y,
-            source.Width,
-            source.Height,
-            GraphicsUnit.Pixel);
+        graphics.DrawImage(image, destination, source, GraphicsUnit.Pixel);
     }
 
     private static void DrawImageContain(Graphics graphics, Image image, RectangleF destination)

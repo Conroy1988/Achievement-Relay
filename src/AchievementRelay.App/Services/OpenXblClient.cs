@@ -508,7 +508,7 @@ public sealed class OpenXblClient : IDisposable
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, relativePath);
             request.Headers.TryAddWithoutValidation("X-Authorization", apiKey);
-            request.Headers.UserAgent.Add(new ProductInfoHeaderValue("AchievementRelay", "0.5.0"));
+            request.Headers.UserAgent.Add(new ProductInfoHeaderValue("AchievementRelay", "0.6.0"));
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             if (!string.IsNullOrWhiteSpace(CultureInfo.CurrentUICulture.Name))
             {

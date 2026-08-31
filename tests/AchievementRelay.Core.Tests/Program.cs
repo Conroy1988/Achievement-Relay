@@ -8,6 +8,8 @@ using AchievementRelay.Core.Services;
 
 var tests = new (string Name, Action Run)[]
 {
+    ("Legacy settings enable the achievement overlay without resetting preferences", LegacySettingsEnableAchievementOverlay),
+    ("Achievement overlay opt-out survives the settings JSON round trip", AchievementOverlayOptOutSurvivesJsonRoundTrip),
     ("OpenXBL API keys are normalized without weakening validation", ValidatesOpenXblApiKeys),
     ("OpenXBL account profile is parsed case-insensitively", ParsesOpenXblAccount),
     ("OpenXBL object profiles and display-name fallbacks are supported", ParsesOpenXblObjectAccount),
@@ -99,6 +101,59 @@ foreach (var test in tests)
 
 Console.WriteLine($"{tests.Length - failures.Count}/{tests.Length} checks passed.");
 return failures.Count == 0 ? 0 : 1;
+
+static void LegacySettingsEnableAchievementOverlay()
+{
+    var settings = JsonSerializer.Deserialize<AppSettings>("""
+        {
+          "schemaVersion": 3,
+          "protectedWebhookUrl": "protected-webhook",
+          "protectedOpenXblApiKey": "protected-xbox-key",
+          "xboxUserId": "123456789",
+          "xboxGamertag": "RelayPlayer",
+          "displayName": "Display Player",
+          "startWithWindows": false,
+          "startMinimized": false,
+          "postRareOnly": true,
+          "steamEnabled": false,
+          "includeRawDetailsWhenUncertain": false,
+          "setupCompleted": true,
+          "discordUsername": "Relay Bot",
+          "pollIntervalSeconds": 120
+        }
+        """, new JsonSerializerOptions(JsonSerializerDefaults.Web)) ??
+        throw new InvalidOperationException("Legacy settings JSON did not deserialize.");
+
+    Assert(settings.AchievementOverlayEnabled, "A legacy installation did not receive the default-on achievement overlay.");
+    Assert(settings.ProtectedWebhookUrl == "protected-webhook", "The encrypted Discord setting was reset.");
+    Assert(settings.ProtectedOpenXblApiKey == "protected-xbox-key", "The encrypted Xbox setting was reset.");
+    Assert(settings.XboxUserId == "123456789" && settings.XboxGamertag == "RelayPlayer", "The Xbox identity was reset.");
+    Assert(settings.DisplayName == "Display Player" && settings.DiscordUsername == "Relay Bot", "Saved display preferences were reset.");
+    Assert(!settings.StartWithWindows && !settings.StartMinimized, "Saved Windows startup preferences were reset.");
+    Assert(settings.PostRareOnly && !settings.IncludeRawDetailsWhenUncertain, "Saved post preferences were reset.");
+    Assert(!settings.SteamEnabled && settings.SetupCompleted, "Saved provider/setup preferences were reset.");
+    Assert(settings.PollIntervalSeconds == 120, "The saved polling interval was reset.");
+}
+
+static void AchievementOverlayOptOutSurvivesJsonRoundTrip()
+{
+    var source = new AppSettings
+    {
+        ProtectedWebhookUrl = "protected-webhook",
+        AchievementOverlayEnabled = false,
+        SteamEnabled = false,
+        SetupCompleted = true
+    };
+    var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+    var serialized = JsonSerializer.Serialize(source, options);
+    var restored = JsonSerializer.Deserialize<AppSettings>(serialized, options) ??
+        throw new InvalidOperationException("Current settings JSON did not deserialize.");
+
+    Assert(restored.SchemaVersion == AppSettings.CurrentSchemaVersion, "The current settings schema version did not survive serialization.");
+    Assert(!restored.AchievementOverlayEnabled, "An explicit achievement-overlay opt-out was reset.");
+    Assert(restored.ProtectedWebhookUrl == "protected-webhook", "The encrypted Discord setting did not survive serialization.");
+    Assert(!restored.SteamEnabled && restored.SetupCompleted, "Unrelated settings did not survive serialization.");
+}
 
 static void ParsesUpdateManifest()
 {
@@ -755,17 +810,21 @@ static void ClassifiesXboxPlatforms()
         XboxPlatformClassifier.Classify("WindowsDesktop", new[] { "XboxOne", "Scarlett" }) == "Xbox PC",
         "Direct Windows unlock evidence did not override title-level console compatibility.");
     Assert(
-        XboxPlatformClassifier.Classify(null, new[] { "WindowsDesktop", "Win64" }) == "Xbox PC",
-        "PC-only title evidence was not classified as Xbox PC.");
+        XboxPlatformClassifier.Classify("WindowsOneCore") == "Xbox PC" &&
+        XboxPlatformClassifier.Classify("W8") == "Xbox PC",
+        "Documented Windows Game Pass device tokens were not classified as Xbox PC.");
     Assert(
-        XboxPlatformClassifier.Classify(null, new[] { "XboxOne", "Scarlett" }) == "Xbox Console",
-        "Console-only title evidence was not classified as Xbox Console.");
+        XboxPlatformClassifier.Classify("XboxOne") == "Xbox Console" &&
+        XboxPlatformClassifier.Classify("D") == "Xbox Console",
+        "Direct console-earned platform evidence was not classified as Xbox Console.");
     Assert(
         XboxPlatformClassifier.Classify("Xenon") == "Xbox 360",
         "Direct Xbox 360 evidence was not classified as Xbox 360.");
     Assert(
+        XboxPlatformClassifier.Classify(null, new[] { "WindowsDesktop", "Win64" }) is null &&
+        XboxPlatformClassifier.Classify(null, new[] { "XboxOne", "Scarlett" }) is null &&
         XboxPlatformClassifier.Classify(null, new[] { "WindowsDesktop", "Scarlett" }) is null,
-        "A Play Anywhere title was guessed as one device without direct unlock evidence.");
+        "Title availability metadata was mistaken for the device that earned an achievement.");
     Assert(
         XboxPlatformClassifier.Classify(null, new[] { "CloudGaming" }) is null,
         "An unknown Xbox device token was presented as a specific platform.");
@@ -776,6 +835,8 @@ static void ClassifiesXboxPlatforms()
         XboxPlatformClassifier.Classify(null, new[] { "WindowsDesktop", "CloudGaming" }) is null,
         "Unknown title evidence was discarded to force a specific PC label.");
     Assert(
+        XboxPlatformClassifier.ForDelivery(null, new[] { "WindowsDesktop", "Win64" }) == "Xbox" &&
+        XboxPlatformClassifier.ForDelivery(null, new[] { "XboxOne", "Scarlett" }) == "Xbox" &&
         XboxPlatformClassifier.ForDelivery(null, new[] { "WindowsDesktop", "Scarlett" }) == "Xbox" &&
         XboxPlatformClassifier.ForDelivery(null, new[] { "CloudGaming" }) == "Xbox" &&
         XboxPlatformClassifier.ForDelivery("Xbox", new[] { "WindowsDesktop" }) == "Xbox",
@@ -784,6 +845,50 @@ static void ClassifiesXboxPlatforms()
     const string providerEvidence = """
         {
           "achievements": [
+            {
+              "id": "game-pass-pc",
+              "name": "Game Pass PC",
+              "progressState": "Achieved",
+              "platform": "XboxOne",
+              "earnedPlatform": "WindowsOneCore",
+              "titleAssociations": [{ "id": "1842701288", "name": "Palworld", "platforms": ["Durango"] }]
+            },
+            {
+              "id": "plural-console-only",
+              "name": "Plural Console Only",
+              "progressState": "Achieved",
+              "platforms": ["Durango", "XboxOne"]
+            },
+            {
+              "id": "device-type-only",
+              "name": "Device Type Only",
+              "progressState": "Achieved",
+              "earnedPlatform": "",
+              "deviceType": "WindowsOneCore",
+              "platform": "XboxOne"
+            },
+            {
+              "id": "device-only-console",
+              "name": "Device Only Console",
+              "progressState": "Achieved",
+              "device": "D"
+            },
+            {
+              "id": "conflicting-earned-aliases",
+              "name": "Conflicting Earned Aliases",
+              "progressState": "Achieved",
+              "earnedPlatform": "WindowsOneCore",
+              "deviceType": "D",
+              "platform": "WindowsOneCore"
+            },
+            {
+              "id": "unknown-earned-alias",
+              "name": "Unknown Earned Alias",
+              "progressState": "Achieved",
+              "earnedPlatform": "CloudGaming",
+              "deviceType": "WindowsOneCore",
+              "platform": "WindowsOneCore"
+            },
             { "id": "unknown-direct", "name": "Unknown Direct", "progressState": "Achieved", "platform": "CloudGaming" },
             { "id": "missing-direct", "name": "Missing Direct", "progressState": "Achieved" }
           ]
@@ -791,10 +896,32 @@ static void ClassifiesXboxPlatforms()
         """;
     var parsed = OpenXblResponseParser.ParseAchievements(providerEvidence, "account-a")
         .ToDictionary(achievement => achievement.Name, StringComparer.Ordinal);
+    Assert(parsed["Game Pass PC"].Platform == "Xbox PC",
+        "A generic XboxOne platform masked stronger WindowsOneCore earned-platform evidence.");
+    Assert(parsed["Plural Console Only"].Platform == "Xbox",
+        "Plural compatibility metadata was incorrectly presented as an earned console device.");
+    Assert(parsed["Device Type Only"].Platform == "Xbox PC",
+        "An empty earnedPlatform value masked recognized deviceType evidence.");
+    Assert(parsed["Device Only Console"].Platform == "Xbox Console",
+        "Recognized singular device evidence was not classified.");
+    Assert(parsed["Conflicting Earned Aliases"].Platform == "Xbox",
+        "Conflicting event-level earned-device aliases did not fail generic.");
+    Assert(parsed["Unknown Earned Alias"].Platform == "Xbox",
+        "An unknown earned-device alias was discarded to force a specific platform.");
     Assert(parsed["Unknown Direct"].Platform == "Xbox",
         "Present-but-unknown event platform evidence was not retained as a generic Xbox sentinel.");
     Assert(parsed["Missing Direct"].Platform is null,
         "Missing event platform evidence was confused with an explicit unknown provider value.");
+
+    const string routedLegacyEvidence = """
+        { "achievements": [{ "id": "legacy-route", "name": "Legacy Route", "progressState": "Achieved", "platform": "WindowsOneCore" }] }
+        """;
+    var routedLegacy = OpenXblResponseParser.ParseAchievements(
+        routedLegacyEvidence,
+        "account-a",
+        platformHint: "Xbox 360").Single();
+    Assert(routedLegacy.Platform == "Xbox 360",
+        "The dedicated Xbox 360 route hint was overridden by a modern platform token.");
 }
 
 static void ParsesUnlockedAchievements()

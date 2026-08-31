@@ -81,7 +81,7 @@ This policy deliberately prefers a missed unprovable or offline event over a his
 - The exact global unlock percentage is displayed prominently and classified as Bronze at 25% or more, Silver at 10–24.99%, Gold at 3–9.99%, or Platinum below 3%.
 - If the public rarity request fails or omits the achievement, rarity is unknown. **Rare only** never discards an unknown-rarity unlock.
 - Missing or invalid rarity uses the neutral Unranked Collector Card and never becomes a false `0%` or Platinum result.
-- Artwork is read locally only for a newly observed helper transition, limited to 512×512 RGBA, converted to PNG by the platform-neutral core, and incorporated into the finished Collector Card. Artwork failure selects the complete Relay fallback and cannot lose the event.
+- Achievement artwork is read locally only for a newly observed helper transition, limited to 512×512 RGBA, converted to PNG by the platform-neutral core, and placed in the card's 400×250 foreground showcase without distortion. A suitable wide public Steam library hero is preferred for the ambient layer; suitable wide achievement art can supply softened ambience when no separate hero is available, while small or square icons remain contained and are never stretched across the card. Artwork failure selects the complete Relay fallback and cannot lose the event.
 - Helper artwork bytes cross the JSON protocol as an explicitly tested Base64 string, matching the main app's `System.Text.Json` byte-array contract; the raw decoded byte count remains the snapshot budget.
 - Steam's unlock time is display metadata only and is used when valid. It never authorizes delivery. If absent or unusable, the local observation time is shown and the Discord footer labels it as detected/estimated.
 - Steam has no Xbox-style Gamerscore, so the field is omitted.
@@ -130,7 +130,7 @@ Core checks prove:
 - event IDs are deterministic and account/App-ID scoped;
 - RGBA artwork produces a valid PNG container;
 - all Relay tier boundaries and neutral Unranked behavior are deterministic;
-- the no-artwork path renders a complete fallback rather than a blank surface; and
+- wide artwork receives a materially larger foreground showcase and bounded ambient treatment, while tiny/square icons remain contained and the no-artwork path renders a complete fallback rather than a blank surface; and
 - Discord includes Steam platform/player/rarity/card metadata, retains accessible text, and suppresses mentions.
 
 Repository checks additionally enforce the dependency hash, explicit local-user stats bootstrap, bounded startup watchdog, helper files, package wiring, Steam-only installer path, truthful UI phases, and anti-backlog source invariants. CI builds the .NET Framework helper, executes a JSON protocol self-test that proves successful, empty-player, and timed-out stats-request gates, builds both MSIX architectures, and retains the signed test installer.
@@ -142,7 +142,7 @@ Before a production release, test on x64 and Windows on Arm where hardware is av
 1. Fresh Steam-only install with Discord configured and OpenXBL blank.
 2. Upgrade from 0.2 with the tray app already running.
 3. Existing game with many historical achievements: Home remains **Preparing** until baseline activity appears, then changes to **Monitoring** while Discord stays silent.
-4. New achievement after baseline: exactly one Discord post with correct game, player, time, percentage/tier when available, and a complete Collector Card with either the Steam icon or branded fallback.
+4. New achievement after baseline: exactly one Discord post with correct game, player, time and percentage/tier when available. Inspect the Collector Card unexpanded at normal Discord desktop and mobile size: its achievement/game/description and dominant rarity value remain readable, suitable artwork is recognisable in the large foreground showcase, and icon-only/no-art cases retain contained art or the complete branded fallback.
 5. Restart app/game: no duplicate.
 6. Unlock while Discord is unreachable, restore network, and verify one retry post.
 7. Close Achievement Relay, earn an unlock in a previously baselined game, reopen/launch the game, and verify it is silently baselined rather than posted as a backlog item.

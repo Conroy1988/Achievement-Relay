@@ -37,6 +37,8 @@ Steam monitoring needs no credential. A narrow out-of-process helper reads local
 
 Collector Card inputs remain untrusted presentation data. Provider percentages must be finite and within 0–100; text is normalized and bounded before layout. Optional remote artwork is accepted only through a bounded HTTPS fetch with redirect, response-size, content and decoded-dimension controls. The fetch carries no OpenXBL key or Discord webhook. Rendering occurs only after an event has independently passed the live-unlock rules, and a card failure cannot authorize an event or disable text-only delivery.
 
+The local Signal Strip consumes the already-bounded eligible-event presentation data and never captures screen or input content. Its non-activating, click-through window is presentation-only: overlay failure, closure or opt-out cannot mark a provider event processed, acknowledge Discord delivery, or weaken retry and deduplication state.
+
 The finished card is sent as one bounded Discord attachment. Its filename is constant rather than provider-controlled, the JSON still disables mention parsing, and the achievement's important facts remain ordinary embed text. Card or artwork bytes are not written to the application log.
 
 OpenXBL, Valve/Steam, and Discord are independent third parties. A compromise or behavioral change at a provider is outside Achievement Relay's security boundary; users can revoke the Xbox key, disable Steam monitoring, or remove the webhook at any time.

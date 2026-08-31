@@ -15,6 +15,7 @@ public sealed class AchievementDeliveryService(
     EventLedger eventLedger,
     DiscordWebhookClient webhookClient,
     DiscordAchievementPostComposer postComposer,
+    AchievementOverlayService overlayService,
     ActivityLog activityLog) : IDisposable
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -38,6 +39,7 @@ public sealed class AchievementDeliveryService(
             if (settings.PostRareOnly && achievement.RarityKnown && !achievement.IsRare)
             {
                 await eventLedger.MarkProcessedAsync(achievement.Id, cancellationToken);
+                TryQueueOverlay(achievement, settings, achievement.ImageBytes);
                 activityLog.Info($"Skipped common {achievement.SourceProvider} achievement because Rare Only is enabled: {achievement.Name}.");
                 return AchievementDeliveryResult.Handled;
             }
@@ -59,6 +61,7 @@ public sealed class AchievementDeliveryService(
             }
 
             await eventLedger.MarkProcessedAsync(achievement.Id, cancellationToken);
+            TryQueueOverlay(achievement, settings, post.AchievementIconBytes);
             activityLog.Success($"Posted {achievement.Name} from {achievement.SourceProvider} to Discord.");
             return AchievementDeliveryResult.Posted;
         }
@@ -69,6 +72,22 @@ public sealed class AchievementDeliveryService(
     }
 
     public void Dispose() => _gate.Dispose();
+
+    private void TryQueueOverlay(
+        AchievementEvent achievement,
+        AppSettings settings,
+        byte[]? achievementIconBytes)
+    {
+        try
+        {
+            overlayService.Enqueue(achievement, settings, achievementIconBytes);
+        }
+        catch (Exception)
+        {
+            activityLog.Warning(
+                $"The Signal Strip could not queue {achievement.Name}; Discord delivery was not affected.");
+        }
+    }
 
     private async Task<RelayResult> SendWithRetryAsync(
         Uri webhookUri,

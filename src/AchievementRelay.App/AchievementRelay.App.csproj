@@ -9,11 +9,13 @@
     <Platforms>AnyCPU;x64;arm64</Platforms>
     <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
     <ApplicationIcon>Assets\AchievementRelay.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <AssemblyName>AchievementRelay.App</AssemblyName>
     <RootNamespace>AchievementRelay.App</RootNamespace>
-    <Version>0.5.0</Version>
-    <FileVersion>0.5.0.0</FileVersion>
-    <AssemblyVersion>0.5.0.0</AssemblyVersion>
+    <Version>0.6.0</Version>
+    <FileVersion>0.6.0.0</FileVersion>
+    <AssemblyVersion>0.6.0.0</AssemblyVersion>
     <Description>Automatically relay new Xbox and Steam achievements to Discord.</Description>
     <UpdatePublisherCertificateSha256 Condition="'$(UpdatePublisherCertificateSha256)' == ''"></UpdatePublisherCertificateSha256>
     <AchievementRelayPackageVersion Condition="'$(AchievementRelayPackageVersion)' == ''">$(FileVersion)</AchievementRelayPackageVersion>

@@ -733,13 +733,43 @@ public static class OpenXblResponseParser
             return "Xbox 360";
         }
 
-        var direct = GetString(item, "platform", "earnedPlatform", "deviceType", "device");
-        if (!string.IsNullOrWhiteSpace(direct))
+        var hinted = XboxPlatformClassifier.Classify(platformHint);
+        if (string.Equals(hinted, "Xbox 360", StringComparison.Ordinal))
         {
-            return XboxPlatformClassifier.Classify(direct) ?? "Xbox";
+            return hinted;
         }
 
-        var hinted = XboxPlatformClassifier.Classify(platformHint);
+        // Some OpenXBL shapes expose both a generic title platform and the
+        // stronger device on which the achievement was earned. Always read
+        // the explicit earned/device fields first so a title-level XboxOne
+        // value cannot mask Windows PC evidence such as WindowsOneCore.
+        var earnedPlatforms = new[]
+        {
+            GetString(item, "earnedPlatform"),
+            GetString(item, "deviceType"),
+            GetString(item, "device")
+        }.Where(value => !string.IsNullOrWhiteSpace(value)).ToArray();
+        if (earnedPlatforms.Length > 0)
+        {
+            var classifications = earnedPlatforms
+                .Select(value => XboxPlatformClassifier.Classify(value))
+                .ToArray();
+            var classification = classifications[0];
+            return classification is null ||
+                   classifications.Any(value => !string.Equals(value, classification, StringComparison.Ordinal))
+                ? "Xbox"
+                : classification;
+        }
+
+        // Microsoft Achievement v2 defines singular platform as the platform
+        // earned on. Plural platforms/devices below are only compatibility
+        // metadata and must never manufacture a Console or PC claim.
+        var platform = GetString(item, "platform");
+        if (!string.IsNullOrWhiteSpace(platform))
+        {
+            return XboxPlatformClassifier.Classify(platform) ?? "Xbox";
+        }
+
         if (hinted is not null)
         {
             return hinted;
@@ -755,9 +785,7 @@ public static class OpenXblResponseParser
             }
         }
 
-        return available.Count == 0
-            ? null
-            : XboxPlatformClassifier.Classify(null, available) ?? "Xbox";
+        return available.Count == 0 ? null : "Xbox";
     }
 
     private static void AddStringValues(

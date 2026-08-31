@@ -68,7 +68,7 @@ function Get-ThemeColor {
 
 $manifestPath = Join-Path $repositoryRoot 'src\AchievementRelay.Package\AppxManifest.xml'
 $manifestText = Get-Content -LiteralPath $manifestPath -Raw
-$manifestText = $manifestText.Replace('__VERSION__', '0.5.0.0').Replace('__ARCHITECTURE__', 'x64')
+$manifestText = $manifestText.Replace('__VERSION__', '0.6.0.0').Replace('__ARCHITECTURE__', 'x64')
 [xml] $manifest = $manifestText
 
 $namespaceManager = [System.Xml.XmlNamespaceManager]::new($manifest.NameTable)
@@ -119,6 +119,7 @@ $requiredFiles = @(
     'docs\RELEASE-NOTES-0.4.2.md',
     'docs\RELEASE-NOTES-0.4.3.md',
     'docs\RELEASE-NOTES-0.5.0.md',
+    'docs\RELEASE-NOTES-0.6.0.md',
     'docs\ACCESSIBILITY.md',
     'docs\images\achievement-relay-banner.png',
     'docs\images\achievement-relay-interface.png',
@@ -144,6 +145,11 @@ $requiredFiles = @(
     'src\AchievementRelay.App\Services\AchievementArtworkClient.cs',
     'src\AchievementRelay.App\Services\DiscordAchievementPostComposer.cs',
     'src\AchievementRelay.App\Services\DiscordCollectorCardRenderer.cs',
+    'src\AchievementRelay.App\AchievementOverlayWindow.xaml',
+    'src\AchievementRelay.App\AchievementOverlayWindow.xaml.cs',
+    'src\AchievementRelay.App\Services\AchievementOverlayPresentation.cs',
+    'src\AchievementRelay.App\Services\AchievementOverlayService.cs',
+    'src\AchievementRelay.App\app.manifest',
     'src\AchievementRelay.Core\Services\UpdateManifestSignatureVerifier.cs',
     'src\AchievementRelay.App\Assets\AchievementRelay.ico',
     'assets\brand\achievement-relay-icon-source.png',
@@ -317,6 +323,16 @@ if (-not $mainWindowText.Contains('SteamMonitorCoordinator.StatusChanged') -or
     -not $mainWindowXaml.Contains('SettingsSteamEnabledCheckBox') -or
     -not $mainWindowXaml.Contains('x:Name="SteamStatusText"')) {
     throw 'Steam setup, settings, refresh and live dashboard status controls are incomplete.'
+}
+if (-not $mainWindowXaml.Contains('x:Name="SettingsAchievementOverlayEnabledCheckBox"') -or
+    -not $mainWindowXaml.Contains('Content="Show the Signal Strip when an achievement unlocks"') -or
+    -not $mainWindowXaml.Contains('Content="Preview Signal Strip"') -or
+    -not $mainWindowXaml.Contains('Click="PreviewAchievementOverlay_Click"') -or
+    -not $mainWindowText.Contains('SettingsAchievementOverlayEnabledCheckBox.IsChecked = _settings.AchievementOverlayEnabled;') -or
+    -not $mainWindowText.Contains('AchievementOverlayEnabled = SettingsAchievementOverlayEnabledCheckBox.IsChecked == true') -or
+    -not $mainWindowText.Contains('_services.AchievementOverlayService.Clear();') -or
+    -not $mainWindowText.Contains('_services.AchievementOverlayService.Preview(CreateSampleAchievement())')) {
+    throw 'Settings must expose, populate, save, clear and safely preview the Signal Strip preference.'
 }
 if (-not $mainWindowXaml.Contains('x:Name="HomePrimaryActionButton"') -or
     -not $mainWindowXaml.Contains('x:Name="SetupSteps"') -or
@@ -557,26 +573,66 @@ $postComposerText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\Ach
 $deliveryServiceText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\AchievementDeliveryService.cs') -Raw
 $appServicesText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\AppServices.cs') -Raw
 $appSmokeTestsText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'tests\AchievementRelay.App.Tests\Program.cs') -Raw
+$coreTestsText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'tests\AchievementRelay.Core.Tests\Program.cs') -Raw
+$earnedPlatformReadIndex = $openXblParserText.IndexOf(
+    'var earnedPlatforms = new[]',
+    [StringComparison]::Ordinal)
+$xbox360HintIndex = $openXblParserText.IndexOf(
+    'if (string.Equals(hinted, "Xbox 360", StringComparison.Ordinal))',
+    [StringComparison]::Ordinal)
+$singularPlatformReadIndex = $openXblParserText.IndexOf(
+    'var platform = GetString(item, "platform")',
+    [StringComparison]::Ordinal)
 if (-not $rarityClassifierText.Contains('< 3 => RelayRarityTier.Platinum') -or
     -not $rarityClassifierText.Contains('< 10 => RelayRarityTier.Gold') -or
     -not $rarityClassifierText.Contains('< 25 => RelayRarityTier.Silver') -or
     -not $rarityClassifierText.Contains('RelayRarityTier.Unranked') -or
     -not $rarityClassifierText.Contains('double.IsFinite(percentage)') -or
     -not $rarityClassifierText.Contains('percentage is < 0 or > 100') -or
-    -not $platformClassifierText.Contains('return classifications.Count == 1 ? classifications.Single() : null') -or
+    -not $platformClassifierText.Contains('_ = availablePlatforms;') -or
     -not $platformClassifierText.Contains('return ClassifyToken(earnedPlatform)') -or
+    -not $platformClassifierText.Contains('"WINDOWSONECORE"') -or
+    -not $platformClassifierText.Contains('"W8"') -or
     -not $platformClassifierText.Contains('return "Xbox PC"') -or
     -not $platformClassifierText.Contains('return "Xbox Console"') -or
-    -not $platformClassifierText.Contains('return "Xbox 360"')) {
+    -not $platformClassifierText.Contains('return "Xbox 360"') -or
+    $xbox360HintIndex -lt 0 -or
+    $earnedPlatformReadIndex -lt 0 -or
+    $singularPlatformReadIndex -lt 0 -or
+    $xbox360HintIndex -ge $earnedPlatformReadIndex -or
+    $earnedPlatformReadIndex -ge $singularPlatformReadIndex -or
+    -not $openXblParserText.Contains('GetString(item, "earnedPlatform")') -or
+    -not $openXblParserText.Contains('GetString(item, "deviceType")') -or
+    -not $openXblParserText.Contains('GetString(item, "device")') -or
+    -not $openXblParserText.Contains('classifications.Any(value => !string.Equals(value, classification, StringComparison.Ordinal))') -or
+    -not $openXblParserText.Contains('return available.Count == 0 ? null : "Xbox";') -or
+    -not $coreTestsText.Contains('Documented Windows Game Pass device tokens were not classified as Xbox PC.') -or
+    -not $coreTestsText.Contains('"earnedPlatform": "WindowsOneCore"') -or
+    -not $coreTestsText.Contains('A generic XboxOne platform masked stronger WindowsOneCore earned-platform evidence.') -or
+    -not $coreTestsText.Contains('Plural compatibility metadata was incorrectly presented as an earned console device.') -or
+    -not $coreTestsText.Contains('Conflicting event-level earned-device aliases did not fail generic.') -or
+    -not $coreTestsText.Contains('The dedicated Xbox 360 route hint was overridden by a modern platform token.')) {
     throw 'Collector Card rarity tiers and Xbox platform labels must use validated, fail-generic evidence.'
 }
 if (-not $collectorCardRendererText.Contains('CardWidth = 1200') -or
     -not $collectorCardRendererText.Contains('CardHeight = 675') -or
+    -not $collectorCardRendererText.Contains('ArtworkShowcaseWidth = 400') -or
+    -not $collectorCardRendererText.Contains('ArtworkShowcaseHeight = 250') -or
+    -not $collectorCardRendererText.Contains('AchievementTitleMaximumFontSize = 68') -or
+    -not $collectorCardRendererText.Contains('AchievementTitleMinimumFontSize = 46') -or
+    -not $collectorCardRendererText.Contains('AchievementDescriptionFontSize = 32') -or
+    -not $collectorCardRendererText.Contains('RarityPercentageMaximumFontSize = 96') -or
     -not $collectorCardRendererText.Contains('achievement-relay-card.png') -or
     -not $collectorCardRendererText.Contains('MaximumCardBytes') -or
     -not $collectorCardRendererText.Contains('DrawFallbackPattern') -or
+    -not $collectorCardRendererText.Contains('DrawArtworkShowcase') -or
+    -not $collectorCardRendererText.Contains('DrawSoftFocusCover') -or
+    -not $collectorCardRendererText.Contains('IsWideShowcaseArtwork') -or
+    -not $collectorCardRendererText.Contains('RenderArtworkShowcasePreview') -or
     -not $collectorCardRendererText.Contains('DrawTierEmblem') -or
     -not $collectorCardRendererText.Contains('RelayRarityTier.Unranked') -or
+    -not $appStartupText.Contains('--export-collector-card-artwork-preview') -or
+    -not $appStartupText.Contains('renderer.RenderArtworkShowcasePreview()') -or
     -not $artworkClientText.Contains('AllowAutoRedirect = false') -or
     -not $artworkClientText.Contains('MaximumArtworkBytes') -or
     -not $artworkClientText.Contains('CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)') -or
@@ -605,11 +661,109 @@ if (-not $appServicesText.Contains('AchievementPostComposer = new DiscordAchieve
 }
 if (-not $appSmokeTestsText.Contains('Collector Card PNG contract') -or
     -not $appSmokeTestsText.Contains('Collector Card artwork composition') -or
+    -not $appSmokeTestsText.Contains('Collector Card icon-only artwork becomes a showcase') -or
+    -not $appSmokeTestsText.Contains('Collector Card tiny icons never become a backdrop') -or
+    -not $appSmokeTestsText.Contains('Collector Card typography remains readable at Discord size') -or
+    -not $appSmokeTestsText.Contains('ArtworkShowcaseWidth >= 400') -or
+    -not $appSmokeTestsText.Contains('AchievementTitleMinimumFontSize >= 46') -or
+    -not $appSmokeTestsText.Contains('RarityPercentageMaximumFontSize >= 90') -or
+    -not $appSmokeTestsText.Contains('A tiny hero asset was stretched into the full-card backdrop.') -or
+    -not $appSmokeTestsText.Contains('A tiny hero asset displaced a valid wide achievement image from the showcase.') -or
     -not $appSmokeTestsText.Contains('Collector Card long text safety') -or
     -not $appSmokeTestsText.Contains('Collector Card tier emblems are distinct') -or
     -not $appSmokeTestsText.Contains('BinaryPrimitives.ReadInt32BigEndian') -or
     -not $appSmokeTestsText.Contains('HashTierEmblem')) {
     throw 'Collector Card renderer smoke coverage must retain output, artwork, text-safety and distinct-tier checks.'
+}
+
+$appSettingsText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.Core\Models\AppSettings.cs') -Raw
+$settingsStoreText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\SettingsStore.cs') -Raw
+$overlayWindowXaml = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\AchievementOverlayWindow.xaml') -Raw
+$overlayWindowText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\AchievementOverlayWindow.xaml.cs') -Raw
+$overlayPresentationText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\AchievementOverlayPresentation.cs') -Raw
+$overlayServiceText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\AchievementOverlayService.cs') -Raw
+$appManifestText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\app.manifest') -Raw
+if (-not $appSettingsText.Contains('CurrentSchemaVersion = 4') -or
+    -not $appSettingsText.Contains('public bool AchievementOverlayEnabled { get; init; } = true;') -or
+    -not $settingsStoreText.Contains('SchemaVersion = AppSettings.CurrentSchemaVersion') -or
+    -not $settingsStoreText.Contains('schema 4 adds the default-on passive achievement overlay') -or
+    -not $coreTestsText.Contains('Legacy settings enable the achievement overlay without resetting preferences') -or
+    -not $coreTestsText.Contains('Achievement overlay opt-out survives the settings JSON round trip')) {
+    throw 'Settings schema 4 must enable the Signal Strip by default while preserving an explicit opt-out and all older preferences.'
+}
+
+$processedOverlayHooks = [regex]::Matches(
+    $deliveryServiceText,
+    'await eventLedger\.MarkProcessedAsync\(achievement\.Id, cancellationToken\);\s*TryQueueOverlay\(achievement, settings,')
+if ($processedOverlayHooks.Count -ne 2 -or
+    -not $appServicesText.Contains('AchievementOverlayService = new AchievementOverlayService(ActivityLog);') -or
+    -not $appServicesText.Contains('AchievementDeliveryService = new AchievementDeliveryService(') -or
+    -not $appServicesText.Contains('AchievementOverlayService,') -or
+    -not $deliveryServiceText.Contains('post.AchievementIconBytes') -or
+    -not $postComposerText.Contains('byte[]? AchievementIconBytes') -or
+    -not $postComposerText.Contains('achievementIconBytes = artwork.AchievementIconBytes;')) {
+    throw 'Xbox and Steam must share one post-processing overlay hook that reuses the Discord composer achievement icon only after durable event handling.'
+}
+
+if (-not $overlayWindowText.Contains('OverlayWidth = 520') -or
+    -not $overlayWindowText.Contains('OverlayHeight = 76') -or
+    -not $overlayWindowText.Contains('DisplayDuration = TimeSpan.FromSeconds(5)') -or
+    -not $overlayWindowText.Contains('ExtendedStyleNoActivate') -or
+    -not $overlayWindowText.Contains('ExtendedStyleTransparent') -or
+    -not $overlayWindowText.Contains('HitTestTransparent') -or
+    -not $overlayWindowText.Contains('MouseActivateNoActivate') -or
+    -not $overlayWindowText.Contains('extendedStyle |= ExtendedStyleToolWindow | ExtendedStyleTransparent | ExtendedStyleNoActivate;') -or
+    -not $overlayWindowText.Contains('return new IntPtr(MouseActivateNoActivate);') -or
+    -not $overlayWindowText.Contains('return new IntPtr(HitTestTransparent);') -or
+    -not $overlayWindowText.Contains('WindowMessageDpiChanged') -or
+    -not $overlayWindowText.Contains('WindowMessageSettingChange') -or
+    -not $overlayWindowText.Contains('MonitorFromWindow(referenceWindow, MonitorDefaultToNearest)') -or
+    -not $overlayWindowText.Contains('GetDpiForWindow(_windowHandle)') -or
+    -not $overlayWindowText.Contains('SystemParameters.StaticPropertyChanged += OnSystemParameterChanged;') -or
+    -not $overlayWindowText.Contains('SystemParameters.StaticPropertyChanged -= OnSystemParameterChanged;') -or
+    -not $overlayWindowXaml.Contains('Width="520"') -or
+    -not $overlayWindowXaml.Contains('Height="76"') -or
+    -not $overlayWindowXaml.Contains('ShowActivated="False"') -or
+    -not $overlayWindowXaml.Contains('ShowInTaskbar="False"') -or
+    -not $overlayWindowXaml.Contains('Focusable="False"') -or
+    -not $overlayWindowXaml.Contains('IsHitTestVisible="False"') -or
+    -not $overlayWindowXaml.Contains('AutomationProperties.LiveSetting="Polite"') -or
+    -not $overlayWindowText.Contains('AchievementOverlayAutomationPeer') -or
+    -not $overlayWindowText.Contains('GetChildrenCore() => null') -or
+    -not $appProjectText.Contains('<ApplicationManifest>app.manifest</ApplicationManifest>') -or
+    -not $appProjectText.Contains('<ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>') -or
+    -not $appStartupText.Contains('static App()') -or
+    -not $appStartupText.Contains('System.Windows.Forms.Application.SetHighDpiMode(') -or
+    -not $appStartupText.Contains('System.Windows.Forms.HighDpiMode.PerMonitorV2') -or
+    $appManifestText.Contains('<dpiAware') -or
+    $appManifestText.Contains('<dpiAwareness') -or
+    -not $overlayServiceText.Contains('MaximumQueuedNotifications = 8') -or
+    -not $overlayServiceText.Contains('_queuedCount >= MaximumQueuedNotifications') -or
+    -not $overlayServiceText.Contains('public void Clear()') -or
+    -not $overlayServiceText.Contains('_activePresentationCancellation?.Cancel();') -or
+    -not $overlayServiceText.Contains('ConcurrentQueue<QueuedOverlay>') -or
+    -not $overlayPresentationText.Contains('RelayRarityClassifier.Classify') -or
+    -not $overlayPresentationText.Contains('achievement.ImageBytes')) {
+    throw 'The Signal Strip must remain a 520x76, five-second, passive, click-through, DPI-aware and bounded presentation with local artwork fallback.'
+}
+
+$overlayAudioPattern = '(?i)\b(?:MediaElement|MediaPlayer|SoundPlayer|PlaySound|NAudio|winmm|System\.Media)\b'
+if ($overlayWindowXaml -match $overlayAudioPattern -or
+    $overlayWindowText -match $overlayAudioPattern -or
+    $overlayPresentationText -match $overlayAudioPattern -or
+    $overlayServiceText -match $overlayAudioPattern) {
+    throw 'The in-game Signal Strip must remain silent and must not initialize an audio backend.'
+}
+
+if (-not $appStartupText.Contains('--export-signal-strip-preview') -or
+    -not $appStartupText.Contains('AchievementOverlayWindow.RenderPreview') -or
+    -not $appSmokeTestsText.Contains('Signal Strip presentation preserves rarity and platform facts') -or
+    -not $appSmokeTestsText.Contains('Signal Strip presentation bounds hostile provider text') -or
+    -not $appSmokeTestsText.Contains('Signal Strip window is passive') -or
+    -not $appSmokeTestsText.Contains('Signal Strip real preview is 520 by 76 with distinct tiers') -or
+    -not $appSmokeTestsText.Contains('AssertPngDimensions(preview, 520, 76, minimumBytes: 2_000') -or
+    -not $appSmokeTestsText.Contains('AchievementOverlayService.MaximumQueuedNotifications == 8')) {
+    throw 'Signal Strip tests must retain facts, hostile-text bounds, passive-window behavior, queue bounds and a real 520x76 renderer contract.'
 }
 $steamMutationPattern = '(?m)\b(?:achievement|new\s+Achievement\s*\([^)]*\))\s*\.\s*(?:Trigger|Clear)\s*\(|\bSteamUserStats\s*\.\s*(?:StoreStats|ResetAll)\s*\('
 if (-not $steamDeltaText.Contains('Merely appearing unlocked is always history') -or
@@ -698,6 +852,9 @@ if ($steamworksPackageHash -ne '11e12d1b34d22a6c7ed6b5f70fd145f4794fc9b4c5fc9c5b
 }
 
 $releaseWorkflowText = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github\workflows\release.yml') -Raw
+$signedCandidateBlock = [regex]::Match(
+    $releaseWorkflowText,
+    '(?ms)^      - name: Retain signed release candidate.*?(?=^      - name: |\z)')
 if (-not $releaseWorkflowText.Contains("'.exe'") -or
     -not $releaseWorkflowText.Contains("'.json'") -or
     -not $releaseWorkflowText.Contains("'.sig'") -or
@@ -707,18 +864,34 @@ if (-not $releaseWorkflowText.Contains("'.exe'") -or
     -not $releaseWorkflowText.Contains('Cert:\LocalMachine\TrustedPeople') -or
     -not $releaseWorkflowText.Contains('http://timestamp.digicert.com') -or
     -not $releaseWorkflowText.Contains('AchievementRelay.Publisher.cer') -or
-    -not $releaseWorkflowText.Contains('default: v0.5.0') -or
+    -not $releaseWorkflowText.Contains('default: v0.6.0') -or
     -not $releaseWorkflowText.Contains('--export-collector-card-preview') -or
     -not $releaseWorkflowText.Contains('AchievementRelay_CollectorCard_Preview.png') -or
     -not $releaseWorkflowText.Contains('Start-Process') -or
     -not $releaseWorkflowText.Contains('$previewProcess.ExitCode') -or
     -not $releaseWorkflowText.Contains('$previewWidth -ne 1200') -or
     -not $releaseWorkflowText.Contains('$previewHeight -ne 675') -or
+    -not $releaseWorkflowText.Contains('--export-collector-card-artwork-preview') -or
+    -not $releaseWorkflowText.Contains('AchievementRelay_CollectorCard_Artwork_Preview.png') -or
+    -not $releaseWorkflowText.Contains('$artworkPreviewProcess.ExitCode') -or
+    -not $releaseWorkflowText.Contains('$artworkPreviewBytes.Length -le 10KB') -or
+    -not $releaseWorkflowText.Contains('$artworkPreviewWidth -ne 1200') -or
+    -not $releaseWorkflowText.Contains('$artworkPreviewHeight -ne 675') -or
+    -not $releaseWorkflowText.Contains('--export-signal-strip-preview') -or
+    -not $releaseWorkflowText.Contains('AchievementRelay_SignalStrip_Preview.png') -or
+    -not $releaseWorkflowText.Contains('$signalPreviewProcess.ExitCode') -or
+    -not $releaseWorkflowText.Contains('$signalPreviewBytes.Length -le 2KB') -or
+    -not $releaseWorkflowText.Contains('$signalPreviewWidth -ne 520') -or
+    -not $releaseWorkflowText.Contains('$signalPreviewHeight -ne 76') -or
     -not $releaseWorkflowText.Contains('tests\AchievementRelay.App.Tests') -or
     -not $releaseWorkflowText.Contains('publish_release:') -or
     -not $releaseWorkflowText.Contains('Retain signed release candidate') -or
+    -not $signedCandidateBlock.Success -or
+    -not $signedCandidateBlock.Value.Contains('artifacts/AchievementRelay_CollectorCard_Preview.png') -or
+    -not $signedCandidateBlock.Value.Contains('artifacts/AchievementRelay_CollectorCard_Artwork_Preview.png') -or
+    -not $signedCandidateBlock.Value.Contains('artifacts/AchievementRelay_SignalStrip_Preview.png') -or
     -not $releaseWorkflowText.Contains('RELEASE-NOTES-$version.md')) {
-    throw 'The release workflow must verify the Steam bridge and publish a persistently signed updater plus manifest.'
+    throw 'The release workflow must verify the Steam bridge and visual previews, retain them with the signed candidate, and publish a persistently signed updater plus manifest.'
 }
 
 $publisherCertificatePath = Join-Path $repositoryRoot 'release\AchievementRelay.Publisher.cer'
@@ -790,26 +963,36 @@ $buildInstallerText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'scrip
 $discordClientVersionText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\DiscordWebhookClient.cs') -Raw
 $openXblClientVersionText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\OpenXblClient.cs') -Raw
 $steamRarityClientVersionText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\SteamRarityClient.cs') -Raw
+$releaseNotesText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'docs\RELEASE-NOTES-0.6.0.md') -Raw
+$changelogText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'CHANGELOG.md') -Raw
 if ($officialUpdatePolicy.schemaVersion -ne 1 -or
     $officialUpdatePolicy.minimumSupportedVersion -cne '0.4.0' -or
     @($officialUpdatePolicy.additionalPublisherCertificateSha256).Count -ne 0 -or
-    -not $appProjectText.Contains('<Version>0.5.0</Version>') -or
-    -not $appProjectText.Contains('<FileVersion>0.5.0.0</FileVersion>') -or
-    -not $appProjectText.Contains('<AssemblyVersion>0.5.0.0</AssemblyVersion>') -or
-    -not $bridgeProjectText.Contains('<Version>0.5.0</Version>') -or
-    -not $bridgeProjectText.Contains('<FileVersion>0.5.0.0</FileVersion>') -or
-    -not $bridgeProjectText.Contains('<AssemblyVersion>0.5.0.0</AssemblyVersion>') -or
-    -not $installerText.Contains('#define AppVersion "0.5.0"') -or
-    -not $buildReleaseText.Contains("[string] `$Version = '0.5.0.0'") -or
-    -not $buildMsixText.Contains("[string] `$Version = '0.5.0.0'") -or
-    -not $buildInstallerText.Contains("[string] `$Version = '0.5.0'") -or
-    -not $buildInstallerText.Contains("[string] `$MsixVersion = '0.5.0.0'") -or
-    -not $mainWindowXaml.Contains('Text="Version 0.5.0"') -or
-    -not $mainWindowText.Contains('?? "0.5.0"') -or
-    -not $discordClientVersionText.Contains('ProductInfoHeaderValue("AchievementRelay", "0.5.0")') -or
-    -not $openXblClientVersionText.Contains('ProductInfoHeaderValue("AchievementRelay", "0.5.0")') -or
-    -not $steamRarityClientVersionText.Contains('ProductInfoHeaderValue("AchievementRelay", "0.5.0")')) {
-    throw 'The v0.5.0 application and Steam bridge must retain the official v0.4.0 update baseline.'
+    -not $appProjectText.Contains('<Version>0.6.0</Version>') -or
+    -not $appProjectText.Contains('<FileVersion>0.6.0.0</FileVersion>') -or
+    -not $appProjectText.Contains('<AssemblyVersion>0.6.0.0</AssemblyVersion>') -or
+    -not $bridgeProjectText.Contains('<Version>0.6.0</Version>') -or
+    -not $bridgeProjectText.Contains('<FileVersion>0.6.0.0</FileVersion>') -or
+    -not $bridgeProjectText.Contains('<AssemblyVersion>0.6.0.0</AssemblyVersion>') -or
+    -not $installerText.Contains('#define AppVersion "0.6.0"') -or
+    -not $buildReleaseText.Contains("[string] `$Version = '0.6.0.0'") -or
+    -not $buildMsixText.Contains("[string] `$Version = '0.6.0.0'") -or
+    -not $buildInstallerText.Contains("[string] `$Version = '0.6.0'") -or
+    -not $buildInstallerText.Contains("[string] `$MsixVersion = '0.6.0.0'") -or
+    -not $mainWindowXaml.Contains('Text="Version 0.6.0"') -or
+    -not $mainWindowText.Contains('?? "0.6.0"') -or
+    -not $discordClientVersionText.Contains('ProductInfoHeaderValue("AchievementRelay", "0.6.0")') -or
+    -not $openXblClientVersionText.Contains('ProductInfoHeaderValue("AchievementRelay", "0.6.0")') -or
+    -not $steamRarityClientVersionText.Contains('ProductInfoHeaderValue("AchievementRelay", "0.6.0")') -or
+    -not $releaseNotesText.Contains('# Achievement Relay v0.6.0') -or
+    -not $releaseNotesText.Contains('Signal Strip overlay') -or
+    -not $releaseNotesText.Contains('Collector Card showcase') -or
+    -not $releaseNotesText.Contains('Xbox PC Game Pass') -or
+    -not $releaseNotesText.Contains('AchievementRelay_0.6.0.0_x64.msix') -or
+    -not $changelogText.Contains('## [0.6.0] - 2026-08-30') -or
+    -not $changelogText.Contains('Collector Card showcase') -or
+    -not $changelogText.Contains('Xbox PC Game Pass')) {
+    throw 'The v0.6.0 application, showcase/platform release notes and Steam bridge must retain the official v0.4.0 update baseline.'
 }
 
 $liveUpdatePolicy = Get-Content -LiteralPath (Join-Path $repositoryRoot 'release\live-update-test-policy.json') -Raw |
@@ -875,28 +1058,48 @@ if (-not $updatePolicyText.Contains('minimum supported version') -or
 }
 
 $ciWorkflowText = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github\workflows\ci.yml') -Raw
-if (-not $ciWorkflowText.Contains('0.4.3.${{ github.run_number }}') -or
-    -not $ciWorkflowText.Contains('APPLICATION_VERSION: "0.5.0"') -or
-    -not $ciWorkflowText.Contains('AchievementRelay-v0.5.0-r${{ github.run_number }}-windows-test') -or
+$pullRequestArtifactBlock = [regex]::Match(
+    $ciWorkflowText,
+    '(?ms)^      - name: Retain pull-request installer for Windows verification.*?(?=^      - name: |\z)')
+if (-not $ciWorkflowText.Contains('0.5.0.${{ github.run_number }}') -or
+    -not $ciWorkflowText.Contains('APPLICATION_VERSION: "0.6.0"') -or
+    -not $ciWorkflowText.Contains('AchievementRelay-v0.6.0-r${{ github.run_number }}-windows-test') -or
     -not $ciWorkflowText.Contains('--export-collector-card-preview') -or
     -not $ciWorkflowText.Contains('artifacts/AchievementRelay_CollectorCard_Preview.png') -or
     -not $ciWorkflowText.Contains('Start-Process') -or
     -not $ciWorkflowText.Contains('$previewProcess.ExitCode') -or
     -not $ciWorkflowText.Contains('$previewWidth -ne 1200') -or
     -not $ciWorkflowText.Contains('$previewHeight -ne 675') -or
+    -not $ciWorkflowText.Contains('--export-collector-card-artwork-preview') -or
+    -not $ciWorkflowText.Contains('artifacts/AchievementRelay_CollectorCard_Artwork_Preview.png') -or
+    -not $ciWorkflowText.Contains('$artworkPreviewProcess.ExitCode') -or
+    -not $ciWorkflowText.Contains('$artworkPreviewBytes.Length -le 10KB') -or
+    -not $ciWorkflowText.Contains('$artworkPreviewWidth -ne 1200') -or
+    -not $ciWorkflowText.Contains('$artworkPreviewHeight -ne 675') -or
+    -not $ciWorkflowText.Contains('--export-signal-strip-preview') -or
+    -not $ciWorkflowText.Contains('artifacts/AchievementRelay_SignalStrip_Preview.png') -or
+    -not $ciWorkflowText.Contains('$signalPreviewProcess.ExitCode') -or
+    -not $ciWorkflowText.Contains('$signalPreviewBytes.Length -le 2KB') -or
+    -not $ciWorkflowText.Contains('$signalPreviewWidth -ne 520') -or
+    -not $ciWorkflowText.Contains('$signalPreviewHeight -ne 76') -or
+    -not $ciWorkflowText.Contains('Run app presentation smoke checks') -or
     -not $ciWorkflowText.Contains('tests\AchievementRelay.App.Tests') -or
+    -not $pullRequestArtifactBlock.Success -or
+    -not $pullRequestArtifactBlock.Value.Contains('artifacts/AchievementRelay_CollectorCard_Preview.png') -or
+    -not $pullRequestArtifactBlock.Value.Contains('artifacts/AchievementRelay_CollectorCard_Artwork_Preview.png') -or
+    -not $pullRequestArtifactBlock.Value.Contains('artifacts/AchievementRelay_SignalStrip_Preview.png') -or
     -not $ciWorkflowText.Contains('-ApplicationVersion $env:APPLICATION_VERSION') -or
     -not $ciWorkflowText.Contains('artifacts/AchievementRelay_Update.json') -or
     -not $ciWorkflowText.Contains('artifacts/AchievementRelay_Update.sig') -or
     -not $ciWorkflowText.Contains('AchievementRelay.SteamBridge.exe --self-test') -or
     -not $ciWorkflowText.Contains('"protocolVersion":1')) {
-    throw 'Pull-request installers must use a monotonically increasing MSIX test revision.'
+    throw 'Pull-request installers must use a monotonically increasing MSIX test revision and retain both Collector Card previews plus the Signal Strip preview.'
 }
 
 $liveUpdateWorkflowText = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github\workflows\live-update-test.yml') -Raw
 if (-not $liveUpdateWorkflowText.Contains('tests\AchievementRelay.Core.Tests') -or
     -not $liveUpdateWorkflowText.Contains('tests\AchievementRelay.App.Tests')) {
-    throw 'Controlled live-update validation must run both Core contracts and Collector Card renderer smoke checks.'
+    throw 'Controlled live-update validation must run both Core contracts and app presentation smoke checks.'
 }
 
 Write-Host 'Repository structure and package manifest checks passed.' -ForegroundColor Green

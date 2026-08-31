@@ -11,7 +11,7 @@ Relay new Xbox and local Steam achievements to Discord from one secure Windows t
 [![Community & Support](https://img.shields.io/badge/Discord-Community%20%26%20Support-5865F2?logo=discord&logoColor=white)](https://discord.gg/3ZdXhYjgDm)
 [![Support on Ko-fi](https://img.shields.io/badge/Ko--fi-Support-D72B32?logo=ko-fi&logoColor=white)](https://ko-fi.com/D4P124RWI9)
 
-[**Download for Windows**](https://github.com/Conroy1988/Achievement-Relay/releases/latest/download/AchievementRelay_Setup.exe) · [Getting started](GETTING_STARTED.md) · [Release notes](docs/RELEASE-NOTES-0.5.0.md) · [Accessibility](docs/ACCESSIBILITY.md) · [Community & Support](https://discord.gg/3ZdXhYjgDm)
+[**Download for Windows**](https://github.com/Conroy1988/Achievement-Relay/releases/latest/download/AchievementRelay_Setup.exe) · [Getting started](GETTING_STARTED.md) · [Release notes](docs/RELEASE-NOTES-0.6.0.md) · [Accessibility](docs/ACCESSIBILITY.md) · [Community & Support](https://discord.gg/3ZdXhYjgDm)
 
 ![Achievement Relay command-red interface](docs/images/achievement-relay-interface.png)
 
@@ -21,18 +21,29 @@ Achievement Relay watches the Xbox account you connect and the Steam game runnin
 
 - **Xbox:** checks your account through your own [OpenXBL](https://xbl.io) API key and relays unlocks proven during the current live monitoring session.
 - **Steam:** reads the signed-in local Steam client's achievement state through an isolated, read-only bridge. No Steam Web API key, Steam64 ID, or Steam password is required.
+- **On screen:** celebrates each proven live unlock with a compact, silent Signal Strip at the top of the active display without taking focus from the game.
 - **Discord:** sends a full-width Collector Card with game, platform, rarity tier, global unlock percentage and artwork, while retaining the important facts as accessible text.
 - **Safe by default:** first observations become silent baselines, so installing or upgrading cannot dump years of old achievements into Discord.
 - **Private:** the Discord webhook and optional OpenXBL key are encrypted for the current Windows account with DPAPI. There is no analytics service, advertising, cloud database, or developer-operated relay server.
 - **Quiet:** runs in the notification area, supports Windows startup, retains failed live deliveries for retry, and includes redacted diagnostics.
 
-## What's new in v0.5
+## What's new in v0.6
 
-> **Collector Cards:** every achievement now arrives as a wide rarity card. Usable game or achievement artwork becomes part of the composition; otherwise the card uses a polished black, red and metallic Achievement Relay fallback instead of a blank image.
+> **Signal Strip overlay:** newly proven live achievements now appear in a compact top-centre banner for five seconds. It uses the achievement artwork or Relay fallback, the matching rarity emblem and percentage, platform, and Gamerscore without interrupting play.
 
-> **Rarity has a visual language:** validated global unlock percentages drive four distinct emblems—Bronze at 25% or more, Silver at 10–24.99%, Gold at 3–9.99%, and Platinum below 3%. Missing or invalid percentages use an honest neutral Unranked card.
+> **Passive by design:** the overlay is click-through, never takes keyboard focus, makes no sound, and serialises consecutive achievements through a bounded queue rather than stacking banners across the game.
 
-> **Clearer Xbox identity:** reliable Windows evidence is labelled **Xbox PC**, console-only evidence is labelled **Xbox Console**, and legacy achievements can be labelled **Xbox 360**. Mixed Play Anywhere or incomplete provider data remains simply **Xbox** rather than being guessed.
+- The overlay is enabled by default for new and upgraded installations and can be disabled at any time in **Settings**.
+- Bronze, Silver, Gold, Platinum and Unranked use the same honest percentage rules as Discord Collector Cards.
+- Existing history, startup reconciliation and other unproven observations remain silent; the overlay cannot weaken the anti-backlog boundary.
+
+v0.6 also upgrades the established Collector Card presentation:
+
+> **Collector Cards:** every achievement arrives as a wide rarity card with a much larger foreground artwork showcase, suitable wide ambient art and local dark readability panels. Small or square icons stay contained instead of being stretched across the card; otherwise the composition uses the polished black, red and metallic Achievement Relay fallback.
+
+> **Readable at Discord size:** the achievement title, description and game are substantially larger, while the exact rarity percentage remains the visual anchor. Validated percentages still drive four distinct emblems—Bronze at 25% or more, Silver at 10–24.99%, Gold at 3–9.99%, and Platinum below 3%. Missing or invalid percentages use an honest neutral Unranked card.
+
+> **Corrected Xbox PC identity:** a recognized, non-conflicting singular Windows value on the achievement—such as `WindowsOneCore`—labels a PC Game Pass unlock **Xbox PC** when OpenXBL supplies it, before title compatibility is considered. Direct console evidence can be labelled **Xbox Console**, and legacy achievements can be labelled **Xbox 360**. Conflicting event-level values, plural supported-platform lists and incomplete responses without a recognized singular value remain simply **Xbox** rather than being guessed.
 
 - Cards are rendered locally and delivered only to the configured Discord webhook.
 - Tier meaning is repeated through emblem shape, internal marks, written name and ordinary Discord text—not color alone.
@@ -52,7 +63,7 @@ The established v0.4 reliability work remains in place:
 - The CRNY **Relay Online** soundtrack at a fixed 10% volume with Play/Pause and a direct [SoundCloud link](https://soundcloud.com/daniel-conroy-224318319/crny-relay-online); fresh installs may play it, while updaters start muted until **Play music** is selected.
 - Local, keyless Steam monitoring alongside the existing Xbox relay, with strict anti-backlog rules for both sources.
 
-See the [v0.5.0 Collector Card notes](docs/RELEASE-NOTES-0.5.0.md), [v0.4.3 startup-hotfix notes](docs/RELEASE-NOTES-0.4.3.md), [v0.4.2 relay-safety notes](docs/RELEASE-NOTES-0.4.2.md), [v0.4.1 accessibility notes](docs/RELEASE-NOTES-0.4.1.md), [v0.4.0 launch notes](docs/RELEASE-NOTES-0.4.0.md), and [changelog](CHANGELOG.md).
+See the [v0.6.0 release notes](docs/RELEASE-NOTES-0.6.0.md), [v0.5.0 Collector Card notes](docs/RELEASE-NOTES-0.5.0.md), [v0.4.3 startup-hotfix notes](docs/RELEASE-NOTES-0.4.3.md), [v0.4.2 relay-safety notes](docs/RELEASE-NOTES-0.4.2.md), [v0.4.1 accessibility notes](docs/RELEASE-NOTES-0.4.1.md), [v0.4.0 launch notes](docs/RELEASE-NOTES-0.4.0.md), and [changelog](CHANGELOG.md).
 
 > [!IMPORTANT]
 > **Moving from a pre-official 0.3.x updater test:** install v0.4.0 once from this repository's official release page. The 0.3.x test builds used an intentionally temporary signing identity whose private key was destroyed, so they cannot authenticate the new permanent release channel. Your encrypted connections, settings, baselines, pending deliveries, and preferences remain in place. Automatic verified updates take over from v0.4.0 onward.
@@ -80,6 +91,7 @@ flowchart LR
     X["Xbox account"] --> O["OpenXBL API"]
     O --> R["Achievement Relay"]
     S["Local Steam client"] --> R
+    R --> V["Local Signal Strip"]
     R --> D["Your Discord webhook"]
 ```
 
@@ -126,7 +138,7 @@ dotnet build .\AchievementRelay.sln --configuration Release
 dotnet run --project .\tests\AchievementRelay.Core.Tests --configuration Release
 dotnet run --project .\tests\AchievementRelay.App.Tests --configuration Release
 .\scripts\Test-Repository.ps1
-.\scripts\Build-Release.ps1 -Version 0.5.0.0
+.\scripts\Build-Release.ps1 -Version 0.6.0.0
 ```
 
 Maintainer instructions are in [Release Process](docs/RELEASING.md). Detailed reliability and provider research is available in [OpenXBL reliability](docs/OPENXBL-RELIABILITY.md) and [Steam integration](docs/STEAM-INTEGRATION.md).

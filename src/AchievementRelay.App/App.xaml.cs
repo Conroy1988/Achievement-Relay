@@ -3,6 +3,7 @@ using System.Threading;
 using System.Windows;
 using System.Runtime.InteropServices;
 using AchievementRelay.App.Services;
+using AchievementRelay.Core.Models;
 using AchievementRelay.Core.Services;
 
 namespace AchievementRelay.App;
@@ -15,11 +16,26 @@ public partial class App : System.Windows.Application
     private AppServices? _services;
     private MainWindow? _mainWindow;
 
+    static App()
+    {
+        // WPF generates this process's entry point, so the WinForms desktop
+        // bootstrapper is not invoked automatically. Set PMv2 before the App
+        // instance (and therefore any HWND) can be created.
+        _ = System.Windows.Forms.Application.SetHighDpiMode(
+            System.Windows.Forms.HighDpiMode.PerMonitorV2);
+    }
+
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
         if (TryExportCollectorCardPreview(e.Args, out var previewExitCode))
+        {
+            Shutdown(previewExitCode);
+            return;
+        }
+
+        if (TryExportSignalStripPreview(e.Args, out previewExitCode))
         {
             Shutdown(previewExitCode);
             return;
@@ -135,11 +151,71 @@ public partial class App : System.Windows.Application
     private static bool TryExportCollectorCardPreview(string[] args, out int exitCode)
     {
         exitCode = 0;
-        var optionIndex = Array.FindIndex(
+        var fallbackOptionIndex = Array.FindIndex(
             args,
             value => string.Equals(
                 value,
                 "--export-collector-card-preview",
+                StringComparison.OrdinalIgnoreCase));
+        var artworkOptionIndex = Array.FindIndex(
+            args,
+            value => string.Equals(
+                value,
+                "--export-collector-card-artwork-preview",
+                StringComparison.OrdinalIgnoreCase));
+        var artworkPreview = artworkOptionIndex >= 0;
+        var optionIndex = artworkPreview ? artworkOptionIndex : fallbackOptionIndex;
+
+        if (optionIndex < 0)
+        {
+            return false;
+        }
+
+        if (optionIndex + 1 >= args.Length || string.IsNullOrWhiteSpace(args[optionIndex + 1]))
+        {
+            exitCode = 2;
+            return true;
+        }
+
+        try
+        {
+            var outputPath = Path.GetFullPath(args[optionIndex + 1]);
+            var directory = Path.GetDirectoryName(outputPath);
+            if (string.IsNullOrWhiteSpace(directory))
+            {
+                exitCode = 2;
+                return true;
+            }
+
+            Directory.CreateDirectory(directory);
+            var renderer = new DiscordCollectorCardRenderer();
+            var card = artworkPreview
+                ? renderer.RenderArtworkShowcasePreview()
+                : renderer.RenderGoldFallbackPreview();
+            File.WriteAllBytes(outputPath, card.Bytes);
+        }
+        catch (Exception exception) when (exception is ArgumentException or
+                                          ExternalException or
+                                          IOException or
+                                          InvalidOperationException or
+                                          NotSupportedException or
+                                          OutOfMemoryException or
+                                          PlatformNotSupportedException)
+        {
+            exitCode = 2;
+        }
+
+        return true;
+    }
+
+    private static bool TryExportSignalStripPreview(string[] args, out int exitCode)
+    {
+        exitCode = 0;
+        var optionIndex = Array.FindIndex(
+            args,
+            value => string.Equals(
+                value,
+                "--export-signal-strip-preview",
                 StringComparison.OrdinalIgnoreCase));
         if (optionIndex < 0)
         {
@@ -163,8 +239,24 @@ public partial class App : System.Windows.Application
             }
 
             Directory.CreateDirectory(directory);
-            var card = new DiscordCollectorCardRenderer().RenderGoldFallbackPreview();
-            File.WriteAllBytes(outputPath, card.Bytes);
+            var achievement = new AchievementEvent
+            {
+                Id = "signal-strip-preview",
+                Name = "Ravenous",
+                Description = "Unlock a rare achievement during live monitoring.",
+                GameName = "Palworld",
+                Gamerscore = 30,
+                IsRare = true,
+                RarityKnown = true,
+                RarityPercentage = 4.7,
+                PlayerName = "Relay Player",
+                SourceProvider = "OpenXBL",
+                Platform = "Xbox PC",
+                UnlockedAt = new DateTimeOffset(2026, 8, 30, 12, 0, 0, TimeSpan.Zero)
+            };
+            var presentation = AchievementOverlayPresentation.Create(achievement);
+            var preview = AchievementOverlayWindow.RenderPreview(presentation);
+            File.WriteAllBytes(outputPath, preview);
         }
         catch (Exception exception) when (exception is ArgumentException or
                                           ExternalException or

@@ -136,9 +136,10 @@ public sealed class InstallerSetupImporter(
             XboxUserId = hasApiKey ? string.Empty : currentSettings.XboxUserId,
             XboxGamertag = hasApiKey ? string.Empty : currentSettings.XboxGamertag,
             ProtectedWebhookUrl = secretProtector.Protect(webhookUri.ToString()),
-            // New and migrated settings default to Steam on, while an explicit
-            // schema-3 user choice to disable it survives a repair/upgrade.
+            // Explicit provider and presentation choices survive a repair or
+            // upgrade; defaults are supplied only when their fields are absent.
             SteamEnabled = currentSettings.SteamEnabled,
+            AchievementOverlayEnabled = currentSettings.AchievementOverlayEnabled,
             SetupCompleted = false
         };
 

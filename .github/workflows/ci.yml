@@ -1,12 +1,15 @@
 name: CI
 
+
 on:
   push:
-    branches: ['**']
+    branches: [main]
   pull_request:
+
 
 permissions:
   contents: read
+
 
 jobs:
   build-and-check:
@@ -16,20 +19,25 @@ jobs:
       TEST_MSIX_VERSION: "0.5.0.${{ github.run_number }}"
       APPLICATION_VERSION: "0.6.0"
 
+
     steps:
       - name: Check out source
         uses: actions/checkout@v6
+
 
       - name: Install .NET 10
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
 
+
       - name: Restore
         run: dotnet restore .\AchievementRelay.sln
 
+
       - name: Build
         run: dotnet build .\AchievementRelay.sln --configuration Release --no-restore
+
 
       - name: Render Collector Card preview
         shell: pwsh
@@ -98,7 +106,6 @@ jobs:
               $artworkPreviewHeight -ne 675) {
             throw 'The artwork-backed Collector Card preview must be the real 1200x675 PNG output.'
           }
-
       - name: Render Signal Strip preview
         shell: pwsh
         run: |
@@ -135,12 +142,13 @@ jobs:
               $signalPreviewHeight -ne 76) {
             throw 'The Signal Strip preview must be the real 520x76 PNG output.'
           }
-
       - name: Run core contract checks
         run: dotnet run --project .\tests\AchievementRelay.Core.Tests --configuration Release --no-build
 
+
       - name: Run app presentation smoke checks
         run: dotnet run --project .\tests\AchievementRelay.App.Tests --configuration Release --no-build
+
 
       - name: Exercise Steam bridge protocol
         shell: pwsh
@@ -149,14 +157,15 @@ jobs:
           if ($LASTEXITCODE -ne 0 -or $output -notmatch '"protocolVersion":1' -or $output -notmatch '"status":"self-test"' -or $output -notmatch '"message":"ok"') {
             throw "Steam bridge self-test failed: $output"
           }
-
       - name: Validate repository and MSIX manifest
         shell: pwsh
         run: .\scripts\Test-Repository.ps1
 
+
       - name: Create signed Windows test installer
         shell: pwsh
         run: .\scripts\Build-Release.ps1 -Version $env:TEST_MSIX_VERSION -ApplicationVersion $env:APPLICATION_VERSION
+
 
       - name: Retain pull-request installer for Windows verification
         if: github.event_name == 'pull_request'
@@ -175,5 +184,5 @@ jobs:
             artifacts/AchievementRelay_CollectorCard_Artwork_Preview.png
             artifacts/AchievementRelay_SignalStrip_Preview.png
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 1
           compression-level: 0

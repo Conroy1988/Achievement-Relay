@@ -6,14 +6,14 @@ public sealed class AppPaths
 {
     private const string PendingInstallerSetupFileName = "pending-installer-setup.json";
 
-    public AppPaths()
+    public AppPaths(string? isolatedDataDirectory = null)
     {
-        DataDirectory = Path.Combine(
+        DataDirectory = isolatedDataDirectory ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "AchievementRelay");
 
         var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        PendingInstallerSetupFile = string.IsNullOrWhiteSpace(userProfile)
+        PendingInstallerSetupFile = isolatedDataDirectory is not null || string.IsNullOrWhiteSpace(userProfile)
             ? Path.Combine(DataDirectory, PendingInstallerSetupFileName)
             : Path.Combine(userProfile, ".achievement-relay", PendingInstallerSetupFileName);
         LegacyPendingInstallerSetupFile = Path.Combine(DataDirectory, PendingInstallerSetupFileName);

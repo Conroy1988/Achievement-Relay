@@ -41,6 +41,12 @@ public partial class App : System.Windows.Application
             return;
         }
 
+        if (TryExportRedlinePreview(e.Args, out previewExitCode))
+        {
+            Shutdown(previewExitCode);
+            return;
+        }
+
         _singleInstanceMutex = new Mutex(initiallyOwned: true, SingleInstanceMutexName, out var createdNew);
         _ownsSingleInstanceMutex = createdNew;
         if (!createdNew)

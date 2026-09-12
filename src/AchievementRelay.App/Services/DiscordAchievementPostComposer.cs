@@ -11,7 +11,10 @@ public sealed record DiscordAchievementPost(
     string? AttachmentFileName,
     string? AttachmentContentType,
     bool UsesCollectorCard,
-    byte[]? AchievementIconBytes);
+    byte[]? AchievementIconBytes)
+{
+    public byte[]? HeroArtworkBytes { get; init; }
+}
 
 /// <summary>
 /// Builds the visual Discord post without making presentation enrichment a
@@ -50,7 +53,10 @@ public sealed class DiscordAchievementPostComposer(
                 card.FileName,
                 card.ContentType,
                 UsesCollectorCard: true,
-                achievementIconBytes);
+                achievementIconBytes)
+            {
+                HeroArtworkBytes = artwork.HeroImageBytes ?? artwork.AchievementIconBytes
+            };
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

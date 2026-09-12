@@ -53,13 +53,14 @@ public partial class MainWindow : Window
     private bool _requiredPolicyApplied;
     private volatile bool _automaticUpdatesEnabled;
 
-    public MainWindow(AppServices services, AppSettings settings)
+    public MainWindow(AppServices services, AppSettings settings, bool previewOnly = false)
     {
         InitializeComponent();
         _services = services;
         _settings = settings;
 
         DashboardActivityList.ItemsSource = _activity;
+        InitializeRedline();
         ActivityList.ItemsSource = _activity;
         _services.ActivityLog.EntryAdded += OnActivityEntryAdded;
         _services.RelayCoordinator.StatusChanged += OnRelayStatusChanged;
@@ -67,7 +68,7 @@ public partial class MainWindow : Window
         _services.UpdateService.StateChanged += OnUpdateStateChanged;
 
         PopulateControls();
-        InitializeTrayIcon();
+        if (!previewOnly) InitializeTrayIcon();
         ApplyUpdateState(_services.UpdateService.Snapshot);
         RefreshStatus();
         UpdateSetupProgress();
@@ -397,11 +398,11 @@ public partial class MainWindow : Window
         }
 
         SetStatus(RelayStatusText, "Ready", StatusTone.Success);
-        HomeTitleText.Text = "You’re ready to play";
+        HomeTitleText.Text = "Ready for your next unlock.";
         HomeSummaryText.Text = activeProviders.Count == 0
             ? "Achievement Relay is ready and waiting quietly."
             : $"{string.Join(" and ", activeProviders)} monitoring is active. New achievements will appear in Discord automatically.";
-        HomePrimaryActionButton.Content = "Send a test post";
+        HomePrimaryActionButton.Content = "Send Discord test";
         HomePrimaryActionButton.Tag = "test";
     }
 
@@ -438,6 +439,7 @@ public partial class MainWindow : Window
     {
         _isExiting = true;
         _services.ActivityLog.EntryAdded -= OnActivityEntryAdded;
+        _services.AchievementDeliveryService.AchievementPosted -= OnRedlineAchievementPosted;
         _services.RelayCoordinator.StatusChanged -= OnRelayStatusChanged;
         _services.SteamMonitorCoordinator.StatusChanged -= OnSteamStatusChanged;
         _services.UpdateService.StateChanged -= OnUpdateStateChanged;
@@ -550,6 +552,7 @@ public partial class MainWindow : Window
         SettingsRareOnlyCheckBox.IsChecked = _settings.PostRareOnly;
         SettingsRawDetailsCheckBox.IsChecked = _settings.IncludeRawDetailsWhenUncertain;
         SettingsAchievementOverlayEnabledCheckBox.IsChecked = _settings.AchievementOverlayEnabled;
+        RedlineOverlayToggle.IsChecked = _settings.AchievementOverlayEnabled;
         SettingsStartWithWindowsCheckBox.IsChecked = _settings.StartWithWindows;
         SettingsStartMinimizedCheckBox.IsChecked = _settings.StartMinimized;
 
@@ -588,7 +591,7 @@ public partial class MainWindow : Window
 
     private void NavigateTo(int index)
     {
-        MainTabs.SelectedIndex = Math.Clamp(index, 0, 4);
+        MainTabs.SelectedIndex = Math.Clamp(index, 0, 5);
         UpdateNavigationState();
     }
 
@@ -605,7 +608,8 @@ public partial class MainWindow : Window
             SetupNavButton,
             ActivityNavButton,
             SettingsNavButton,
-            HelpNavButton
+            HelpNavButton,
+            PresentationNavButton
         };
         for (var index = 0; index < buttons.Length; index++)
         {

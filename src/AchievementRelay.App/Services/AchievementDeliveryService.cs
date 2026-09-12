@@ -20,6 +20,9 @@ public sealed class AchievementDeliveryService(
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
 
+    // Observational only: failures in the desktop showcase must never retry a post.
+    public event Action<AchievementEvent, DiscordAchievementPost>? AchievementPosted;
+
     public async Task<AchievementDeliveryResult> DeliverAsync(
         AchievementEvent achievement,
         AppSettings settings,
@@ -63,6 +66,11 @@ public sealed class AchievementDeliveryService(
             await eventLedger.MarkProcessedAsync(achievement.Id, cancellationToken);
             TryQueueOverlay(achievement, settings, post.AchievementIconBytes);
             activityLog.Success($"Posted {achievement.Name} from {achievement.SourceProvider} to Discord.");
+            foreach (var observer in AchievementPosted?.GetInvocationList() ?? [])
+            {
+                try { ((Action<AchievementEvent, DiscordAchievementPost>)observer)(achievement, post); }
+                catch (Exception) { /* The delivery has already completed durably. */ }
+            }
             return AchievementDeliveryResult.Posted;
         }
         finally

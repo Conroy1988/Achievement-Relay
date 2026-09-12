@@ -4,9 +4,9 @@ namespace AchievementRelay.App;
 
 public sealed class AppServices : IDisposable
 {
-    public AppServices()
+    public AppServices(AppPaths? paths = null)
     {
-        Paths = new AppPaths();
+        Paths = paths ?? new AppPaths();
         ActivityLog = new ActivityLog(Paths);
         UpdateService = new AppUpdateService(Paths, ActivityLog);
         WebhookProtector = new SecureWebhookProtector();

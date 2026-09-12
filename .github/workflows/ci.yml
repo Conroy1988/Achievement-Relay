@@ -39,6 +39,17 @@ jobs:
         run: dotnet build .\AchievementRelay.sln --configuration Release --no-restore
 
 
+      - name: Render native Redline dashboard at desktop and compact sizes
+        shell: pwsh
+        run: |
+          $appPath = Join-Path $PWD 'src\AchievementRelay.App\bin\Release\net10.0-windows10.0.19041.0\AchievementRelay.App.exe'
+          $previewPath = Join-Path $PWD 'artifacts\AchievementRelay_Redline_Preview.png'
+          $process = Start-Process -FilePath $appPath -ArgumentList "--export-redline-preview `"$previewPath`"" -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw 'Redline native rendering failed.' }
+          foreach ($name in @('AchievementRelay_Redline_Preview.png', 'AchievementRelay_Redline_Preview_compact.png')) {
+            if ((Get-Item (Join-Path $PWD "artifacts\$name")).Length -lt 10KB) { throw "Missing or empty Redline screenshot: $name" }
+          }
+
       - name: Render Collector Card preview
         shell: pwsh
         run: |
@@ -183,6 +194,7 @@ jobs:
             artifacts/AchievementRelay_CollectorCard_Preview.png
             artifacts/AchievementRelay_CollectorCard_Artwork_Preview.png
             artifacts/AchievementRelay_SignalStrip_Preview.png
+            artifacts/AchievementRelay_Redline_Preview*.png
           if-no-files-found: error
           retention-days: 1
           compression-level: 0

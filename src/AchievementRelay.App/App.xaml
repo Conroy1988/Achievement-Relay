@@ -331,6 +331,26 @@
       <Setter Property="Foreground" Value="{StaticResource ControlBorderBrush}" />
       <Setter Property="Width" Value="14" />
       <Setter Property="MinWidth" Value="14" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ScrollBar">
+            <Grid Background="{TemplateBinding Background}">
+              <Track x:Name="PART_Track" Orientation="{TemplateBinding Orientation}" IsDirectionReversed="True">
+                <Track.DecreaseRepeatButton><RepeatButton x:Name="PageBefore" Command="ScrollBar.PageUpCommand" Focusable="False"><RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent"/></ControlTemplate></RepeatButton.Template></RepeatButton></Track.DecreaseRepeatButton>
+                <Track.Thumb><Thumb><Thumb.Template><ControlTemplate TargetType="Thumb"><Border Background="{StaticResource ControlBorderBrush}" CornerRadius="4" Margin="3"/></ControlTemplate></Thumb.Template></Thumb></Track.Thumb>
+                <Track.IncreaseRepeatButton><RepeatButton x:Name="PageAfter" Command="ScrollBar.PageDownCommand" Focusable="False"><RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent"/></ControlTemplate></RepeatButton.Template></RepeatButton></Track.IncreaseRepeatButton>
+              </Track>
+            </Grid>
+            <ControlTemplate.Triggers>
+              <Trigger Property="Orientation" Value="Horizontal">
+                <Setter TargetName="PART_Track" Property="IsDirectionReversed" Value="False"/>
+                <Setter TargetName="PageBefore" Property="Command" Value="ScrollBar.PageLeftCommand"/>
+                <Setter TargetName="PageAfter" Property="Command" Value="ScrollBar.PageRightCommand"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
       <Style.Triggers>
         <Trigger Property="Orientation" Value="Horizontal">
           <Setter Property="Width" Value="Auto" />

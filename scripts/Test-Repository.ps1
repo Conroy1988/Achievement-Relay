@@ -1061,7 +1061,7 @@ $ciWorkflowText = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github\w
 $pullRequestArtifactBlock = [regex]::Match(
     $ciWorkflowText,
     '(?ms)^      - name: Retain pull-request installer for Windows verification.*?(?=^      - name: |\z)')
-if (-not $ciWorkflowText.Contains('0.5.0.${{ github.run_number }}') -or
+if (-not $ciWorkflowText.Contains('0.6.0.${{ github.run_number }}') -or
     -not $ciWorkflowText.Contains('APPLICATION_VERSION: "0.7.0"') -or
     -not $ciWorkflowText.Contains('AchievementRelay-v0.7.0-r${{ github.run_number }}-windows-test') -or
     -not $ciWorkflowText.Contains('--export-collector-card-preview') -or

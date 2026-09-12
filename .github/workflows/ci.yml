@@ -16,7 +16,7 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 30
     env:
-      TEST_MSIX_VERSION: "0.5.0.${{ github.run_number }}"
+      TEST_MSIX_VERSION: "0.6.0.${{ github.run_number }}"
       APPLICATION_VERSION: "0.7.0"
 
 

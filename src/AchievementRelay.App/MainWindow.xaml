@@ -25,8 +25,8 @@
     <Grid Grid.ColumnSpan="2">
       <Grid.Background><LinearGradientBrush StartPoint="0,0" EndPoint="1,0.4"><GradientStop Color="#16090F"/><GradientStop Color="#08090B" Offset="0.5"/><GradientStop Color="#260510" Offset="1"/></LinearGradientBrush></Grid.Background>
       <Path Data="M 0,0 L 65,0 0,65 Z M 20,0 L 82,0 0,82 Z" Fill="#B90022" HorizontalAlignment="Left" Width="82" Stretch="Fill"/>
-      <StackPanel Orientation="Horizontal" Margin="55,12,20,12"><Image Source="Assets/AchievementRelay.png" Width="48" Height="48" Margin="0,0,16,0"/><StackPanel VerticalAlignment="Center"><TextBlock Text="ACHIEVEMENT RELAY" FontSize="23" FontWeight="Bold"/><TextBlock Text="X B O X  A N D  S T E A M  A C H I E V E M E N T S  T O  D I S C O R D" FontSize="9" Foreground="#B2B8BF"/></StackPanel></StackPanel>
-      <TextBlock Text="PLAY MORE. SHARE FURTHER." HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="#B9A8AF" FontSize="10" Margin="0,0,25,0"/>
+      <StackPanel Orientation="Horizontal" Margin="55,12,20,12"><Image Source="Assets/AchievementRelay.png" Width="48" Height="48" Margin="0,0,16,0"/><StackPanel VerticalAlignment="Center"><TextBlock Text="ACHIEVEMENT RELAY" Foreground="{StaticResource TextBrush}" FontSize="23" FontWeight="Bold"/><TextBlock Text="X B O X  A N D  S T E A M  A C H I E V E M E N T S  T O  D I S C O R D" FontSize="11" Foreground="#B2B8BF"/></StackPanel></StackPanel>
+      <TextBlock Text="PLAY MORE. SHARE FURTHER." HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="#B9A8AF" FontSize="11" Margin="0,0,25,0"/>
     </Grid>
     <Border Grid.Row="1" Grid.Column="0"
             Background="{StaticResource SidebarSurfaceBrush}"
@@ -160,11 +160,11 @@
                     <Grid.ColumnDefinitions><ColumnDefinition Width="3*"/><ColumnDefinition Width="2*"/></Grid.ColumnDefinitions>
                     <Border Background="#10171D" CornerRadius="5" ClipToBounds="True" Margin="0,0,16,0">
                       <Grid><Image x:Name="RedlineHeroImage" Source="Assets/RelayCommandDeck.png" Stretch="Uniform"/>
-                        <Border VerticalAlignment="Bottom" Padding="16,26,16,12"><Border.Background><LinearGradientBrush StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#00000000"/><GradientStop Color="#EE000000" Offset="1"/></LinearGradientBrush></Border.Background><TextBlock x:Name="RedlineGameText" Text="ACHIEVEMENT RELAY" FontSize="23" FontWeight="Bold"/></Border>
+                        <Border VerticalAlignment="Bottom" Padding="16,26,16,12"><Border.Background><LinearGradientBrush StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#00000000"/><GradientStop Color="#EE000000" Offset="1"/></LinearGradientBrush></Border.Background><TextBlock x:Name="RedlineGameText" Text="ACHIEVEMENT RELAY" Foreground="{StaticResource TextBrush}" FontSize="23" FontWeight="Bold"/></Border>
                       </Grid>
                     </Border>
                     <StackPanel Grid.Column="1" Margin="0,10,8,10" VerticalAlignment="Center">
-                      <Border Background="#460017" BorderBrush="#BC1830" BorderThickness="1" CornerRadius="4" Padding="8,4" HorizontalAlignment="Left"><TextBlock x:Name="RedlinePreviewLabel" Text="LOCAL PREVIEW" FontSize="10" Foreground="#FFBEC5"/></Border>
+                      <Border Background="#460017" BorderBrush="#BC1830" BorderThickness="1" CornerRadius="4" Padding="8,4" HorizontalAlignment="Left"><TextBlock x:Name="RedlinePreviewLabel" Text="LOCAL PREVIEW" FontSize="11" Foreground="#FFBEC5"/></Border>
                       <TextBlock x:Name="RedlineAchievementText" Text="Your next achievement." FontSize="25" FontWeight="SemiBold" Margin="0,14,0,6"/>
                       <TextBlock x:Name="RedlineDescriptionText" Text="Your game artwork and unlock details will appear here after a successful delivery." FontSize="14" Foreground="#CCD0D5"/>
                       <TextBlock x:Name="RedlinePlatformText" Text="Xbox + Steam" Margin="0,16,0,8" Foreground="#EAEDEF" FontSize="14"/>
@@ -183,7 +183,7 @@
                           <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="48"/><ColumnDefinition Width="*"/><ColumnDefinition Width="100"/></Grid.ColumnDefinitions>
                             <Image Source="{Binding Icon}" Width="40" Height="40" Stretch="Uniform"/>
                             <StackPanel Grid.Column="1" Margin="10,0"><TextBlock Text="{Binding Name}" FontSize="14" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/><TextBlock Text="{Binding Game}" FontSize="12" Foreground="{StaticResource MutedTextBrush}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/></StackPanel>
-                            <StackPanel Grid.Column="2"><TextBlock Text="{Binding Platform}" FontSize="11"/><TextBlock Text="✓ Delivered" Foreground="#79D58D" FontSize="11"/><TextBlock Text="{Binding Time}" FontSize="10" Foreground="{StaticResource MutedTextBrush}"/></StackPanel>
+                            <StackPanel Grid.Column="2"><TextBlock Text="{Binding Platform}" FontSize="11"/><TextBlock Text="✓ Delivered" Foreground="#79D58D" FontSize="11"/><TextBlock Text="{Binding Time}" FontSize="11" Foreground="{StaticResource MutedTextBrush}"/></StackPanel>
                           </Grid>
                         </Border>
                       </DataTemplate></ListBox.ItemTemplate>
@@ -207,7 +207,7 @@
                     <Button x:Name="HomePrimaryActionButton" Content="Send Discord test" Click="HomePrimaryAction_Click" Style="{StaticResource PrimaryButton}" MinHeight="48" Margin="0,0,0,8"/>
                     <TextBlock Text="A test sends a sample post to your configured Discord channel." FontSize="11" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,18"/>
                     <Border Style="{StaticResource RedlinePanel}" Padding="10">
-                      <StackPanel><TextBlock Text="LOCAL SIGNAL STRIP PREVIEW" FontSize="10" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,8"/><Border BorderBrush="#FF1638" BorderThickness="3,0,0,0" Padding="10,5"><DockPanel><Image Source="Assets/AchievementRelay.png" Width="38" Height="38" Margin="0,0,10,0"/><StackPanel><TextBlock Text="Achievement unlocked" FontSize="10" Foreground="{StaticResource MutedTextBrush}"/><TextBlock Text="{Binding Text, ElementName=RedlineAchievementText}" FontSize="13" FontWeight="SemiBold"/><TextBlock Text="{Binding Text, ElementName=RedlinePlatformText}" FontSize="10"/></StackPanel></DockPanel></Border></StackPanel>
+                      <StackPanel><TextBlock Text="LOCAL SIGNAL STRIP PREVIEW" FontSize="11" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,8"/><Border BorderBrush="#FF1638" BorderThickness="3,0,0,0" Padding="10,5"><DockPanel><Image Source="Assets/AchievementRelay.png" Width="38" Height="38" Margin="0,0,10,0"/><StackPanel><TextBlock Text="Achievement unlocked" FontSize="11" Foreground="{StaticResource MutedTextBrush}"/><TextBlock Text="{Binding Text, ElementName=RedlineAchievementText}" FontSize="13" FontWeight="SemiBold"/><TextBlock Text="{Binding Text, ElementName=RedlinePlatformText}" FontSize="11"/></StackPanel></DockPanel></Border></StackPanel>
                     </Border>
                     <Button Content="Presentation settings →" Click="ShowPresentation_Click" Margin="0,12,0,0" FontSize="12"/>
                   </StackPanel>

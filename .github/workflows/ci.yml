@@ -16,8 +16,8 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 30
     env:
-      TEST_MSIX_VERSION: "0.6.0.${{ github.run_number }}"
-      APPLICATION_VERSION: "0.7.0"
+      TEST_MSIX_VERSION: "0.7.0.${{ github.run_number }}"
+      APPLICATION_VERSION: "0.8.0"
 
 
     steps:
@@ -55,6 +55,23 @@ jobs:
         with:
           name: Redline-native-preview
           path: artifacts/AchievementRelay_Redline_Preview*.png
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Render animated unlock sequence and original chime
+        shell: pwsh
+        run: |
+          $appPath = Join-Path $PWD 'src\AchievementRelay.App\bin\Release\net10.0-windows10.0.19041.0\AchievementRelay.App.exe'
+          $previewPath = Join-Path $PWD 'artifacts\unlock-sequence'
+          $process = Start-Process -FilePath $appPath -ArgumentList "--export-unlock-sequence `"$previewPath`"" -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw 'Unlock sequence export failed.' }
+          if ((Get-ChildItem $previewPath -Filter '*.png').Count -ne 6) { throw 'Missing animation frames.' }
+
+      - name: Retain animated unlock preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: Signal-Strip-animation-and-chime
+          path: artifacts/unlock-sequence
           if-no-files-found: error
           retention-days: 1
 
@@ -190,7 +207,7 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
-          name: AchievementRelay-v0.7.0-r${{ github.run_number }}-windows-test
+          name: AchievementRelay-v0.8.0-r${{ github.run_number }}-windows-test
           path: |
             artifacts/AchievementRelay_Setup.exe
             artifacts/AchievementRelay_${{ env.TEST_MSIX_VERSION }}_x64.msix

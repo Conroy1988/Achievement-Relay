@@ -11,6 +11,8 @@ using AchievementRelay.Core.Models;
 
 var tests = new (string Name, Action Run)[]
 {
+    ("Unlock chime is bounded original PCM with clamped volume", UnlockChimeContract),
+    ("Unlock effects start and cleanly stop", UnlockEffectsContract),
     ("Collector Card PNG contract", CollectorCardPngContract),
     ("Collector Card branded fallback", CollectorCardBrandedFallback),
     ("Collector Card artwork composition", CollectorCardArtworkComposition),
@@ -49,6 +51,43 @@ if (failures.Count > 0)
 else
 {
     Console.WriteLine($"All {tests.Length} app presentation smoke tests passed.");
+}
+
+static void UnlockChimeContract()
+{
+    var muted = UnlockChime.CreateWave(0);
+    var normal = UnlockChime.CreateWave(15);
+    var loud = UnlockChime.CreateWave(100);
+    Assert(normal.Length == 44144, "Chime must be one second of mono 22050 Hz PCM.");
+    Assert(System.Text.Encoding.ASCII.GetString(normal, 0, 4) == "RIFF" &&
+           System.Text.Encoding.ASCII.GetString(normal, 8, 4) == "WAVE", "Invalid WAV container.");
+    Assert(BinaryPrimitives.ReadInt32LittleEndian(normal.AsSpan(24)) == 22050, "Wrong sample rate.");
+    Assert(muted.AsSpan(44).ToArray().All(value => value == 0), "Zero volume is not silent.");
+    Assert(UnlockChime.CreateWave(-50).SequenceEqual(muted), "Negative volume was not clamped.");
+    Assert(UnlockChime.CreateWave(500).SequenceEqual(loud), "Excess volume was not clamped.");
+    Assert(UnlockChime.CreateWave(15).SequenceEqual(normal), "Chime must be deterministic.");
+    var peak = 0;
+    for (var i = 44; i < normal.Length; i += 2)
+        peak = Math.Max(peak, Math.Abs((int)BinaryPrimitives.ReadInt16LittleEndian(normal.AsSpan(i))));
+    Assert(peak > 100 && peak < 5000, "Default chime should be audible but quiet, without clipping.");
+    Assert(BinaryPrimitives.ReadInt16LittleEndian(normal.AsSpan(normal.Length - 2)) == 0, "Chime must fade to silence.");
+}
+
+static void UnlockEffectsContract()
+{
+    RunSta(() =>
+    {
+        var window = new AchievementOverlayWindow(AchievementOverlayPresentation.Create(CreateAchievement(1)));
+        var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        typeof(AchievementOverlayWindow).GetMethod("StartUnlockEffects", flags)!.Invoke(window, null);
+        var pulse = (System.Windows.Media.ScaleTransform)window.FindName("ArtworkPulse");
+        Assert(pulse.HasAnimatedProperties, "Artwork pulse did not start.");
+        typeof(AchievementOverlayWindow).GetMethod("StopUnlockEffects", flags)!.Invoke(window, null);
+        Assert(!pulse.HasAnimatedProperties, "Artwork animation survived cleanup.");
+        Assert(((System.Windows.Shapes.Rectangle)window.FindName("UnlockSweep")).Opacity == 0, "Sweep survived cleanup.");
+        Assert(((System.Windows.Controls.TextBlock)window.FindName("PlatinumSparkle")).Opacity == 0, "Sparkle survived cleanup.");
+        return true;
+    });
 }
 
 static void SignalStripPresentationPreservesFacts()

@@ -45,18 +45,20 @@ public partial class AchievementOverlayWindow : Window
     private static readonly IntPtr TopmostWindow = new(-1);
 
     private readonly AchievementOverlayPresentation _presentation;
+    private readonly AppSettings _preferences;
     private readonly TaskCompletionSource _motionSuppressed =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
     private IntPtr _windowHandle;
     private IntPtr _foregroundWindow;
     private HwndSource? _source;
 
-    public AchievementOverlayWindow(AchievementOverlayPresentation presentation)
+    public AchievementOverlayWindow(AchievementOverlayPresentation presentation, AppSettings? preferences = null)
     {
         ArgumentNullException.ThrowIfNull(presentation);
 
         InitializeComponent();
         _presentation = presentation;
+        _preferences = preferences ?? new AppSettings();
         AutomationProperties.SetName(this, presentation.AccessibleAnnouncement);
         ApplyPresentation();
     }
@@ -65,14 +67,16 @@ public partial class AchievementOverlayWindow : Window
     {
         cancellationToken.ThrowIfCancellationRequested();
         _foregroundWindow = GetForegroundWindow();
-        var useMotion = SystemParameters.ClientAreaAnimation &&
+        var useFade = _preferences.AchievementOverlayAnimationEnabled && SystemParameters.ClientAreaAnimation &&
                         SystemParameters.UIEffects &&
                         !SystemParameters.HighContrast;
+        var useMotion = useFade && !_preferences.AchievementOverlayReducedMotion;
+        using var chime = new UnlockChime();
 
-        if (useMotion)
+        if (useFade)
         {
             Opacity = 0;
-            OverlayTranslate.Y = -OverlayHeight;
+            OverlayTranslate.Y = useMotion ? -OverlayHeight : 0;
         }
         else
         {
@@ -86,8 +90,10 @@ public partial class AchievementOverlayWindow : Window
             UpdateLayout();
             PositionOnForegroundMonitor();
             RaiseAccessibleAnnouncement();
+            if (_preferences.AchievementOverlaySoundEnabled) chime.Play(_preferences.AchievementOverlayVolume);
+            if (useMotion) StartUnlockEffects();
 
-            if (useMotion)
+            if (useFade)
             {
                 await Task.WhenAll(
                     AnimateAsync(this, OpacityProperty, 1, TimeSpan.FromMilliseconds(240), EasingMode.EaseOut, _motionSuppressed.Task),
@@ -96,15 +102,16 @@ public partial class AchievementOverlayWindow : Window
 
             await Task.Delay(DisplayDuration, cancellationToken);
 
-            if (useMotion)
+            if (useFade)
             {
                 await Task.WhenAll(
                     AnimateAsync(this, OpacityProperty, 0, TimeSpan.FromMilliseconds(180), EasingMode.EaseIn, _motionSuppressed.Task),
-                    AnimateAsync(OverlayTranslate, TranslateTransform.YProperty, -OverlayHeight, TimeSpan.FromMilliseconds(180), EasingMode.EaseIn, _motionSuppressed.Task));
+                    AnimateAsync(OverlayTranslate, TranslateTransform.YProperty, useMotion ? -OverlayHeight : 0, TimeSpan.FromMilliseconds(180), EasingMode.EaseIn, _motionSuppressed.Task));
             }
         }
         finally
         {
+            StopUnlockEffects();
             if (IsVisible || _source is not null)
             {
                 Close();
@@ -125,13 +132,19 @@ public partial class AchievementOverlayWindow : Window
         window.OverlayRoot.Arrange(new Rect(0, 0, OverlayWidth, OverlayHeight));
         window.OverlayRoot.UpdateLayout();
 
+        return window.CapturePreview();
+    }
+
+    public byte[] CapturePreview()
+    {
+
         var bitmap = new RenderTargetBitmap(
             OverlayWidth,
             OverlayHeight,
             96,
             96,
             PixelFormats.Pbgra32);
-        bitmap.Render(window.OverlayRoot);
+        bitmap.Render(OverlayRoot);
 
         var encoder = new PngBitmapEncoder();
         encoder.Frames.Add(BitmapFrame.Create(bitmap));
@@ -405,6 +418,7 @@ public partial class AchievementOverlayWindow : Window
                 SystemParameters.HighContrast)
             {
                 _motionSuppressed.TrySetResult();
+                StopUnlockEffects();
             }
         }
         catch (Exception)

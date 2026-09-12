@@ -28,6 +28,10 @@ public sealed record AppSettings
     /// upgraded installations; users can explicitly opt out in Settings.
     /// </summary>
     public bool AchievementOverlayEnabled { get; init; } = true;
+    public bool AchievementOverlayAnimationEnabled { get; init; } = true;
+    public bool AchievementOverlayReducedMotion { get; init; }
+    public bool AchievementOverlaySoundEnabled { get; init; } = true;
+    public int AchievementOverlayVolume { get; init; } = 15;
 
     /// <summary>
     /// Enables local, read-only Steam achievement monitoring. Steam does not

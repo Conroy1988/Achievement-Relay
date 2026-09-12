@@ -33,6 +33,7 @@ public partial class MainWindow
             await _services.SettingsStore.SaveAsync(persisted with { AchievementOverlayEnabled = enabled });
             _settings = _settings with { AchievementOverlayEnabled = enabled };
             SettingsAchievementOverlayEnabledCheckBox.IsChecked = enabled;
+            if (!enabled) _services.AchievementOverlayService.Clear();
             RefreshStatus();
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)

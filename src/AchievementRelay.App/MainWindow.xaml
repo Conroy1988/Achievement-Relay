@@ -621,13 +621,22 @@
                   <TextBlock Text="In-game achievement overlay" Style="{StaticResource SectionTitle}" />
                   <CheckBox x:Name="SettingsAchievementOverlayEnabledCheckBox"
                             Content="Show the Signal Strip when an achievement unlocks"
-                            AutomationProperties.HelpText="A silent five-second banner appears at the top centre without taking focus or blocking clicks." />
-                  <TextBlock Text="Silent five-second banner at the top centre. It never takes focus, blocks clicks, or plays sound. Supported over windowed and borderless games; true exclusive fullscreen can hide desktop overlays like this one."
+                            AutomationProperties.HelpText="A five-second banner appears at the top centre without taking focus or blocking clicks. Animation and sound are independently configurable." />
+                  <TextBlock Text="Five-second banner with an optional Redline unlock animation and chime. It never takes focus or blocks clicks. Supported over windowed and borderless games; true exclusive fullscreen can hide desktop overlays like this one."
                              Foreground="{StaticResource MutedTextBrush}"
                              FontSize="11"
                              TextWrapping="Wrap"
                              Margin="0,7,0,10" />
-                  <Button Content="Preview Signal Strip"
+                  <CheckBox x:Name="SettingsOverlayAnimationCheckBox" Content="Animate unlocks — crimson sweep, icon pulse and rarity shimmer"/>
+                  <CheckBox x:Name="SettingsOverlayReducedMotionCheckBox" Content="Reduced motion — simple fade only"/>
+                  <CheckBox x:Name="SettingsOverlaySoundCheckBox" Content="Play the original Relay unlock chime"/>
+                  <DockPanel Margin="0,8,0,12">
+                    <TextBlock Text="Chime volume" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                    <TextBlock DockPanel.Dock="Right" Width="50" Text="{Binding Value, ElementName=SettingsOverlayVolumeSlider, StringFormat={}{0:0}%}" VerticalAlignment="Center" Margin="12,0,0,0"/>
+                    <Slider x:Name="SettingsOverlayVolumeSlider" Minimum="0" Maximum="100" TickFrequency="1" IsSnapToTickEnabled="True" Value="15" AutomationProperties.Name="Unlock chime volume percent"/>
+                  </DockPanel>
+                  <TextBlock Text="Windows animation and high-contrast preferences are respected. Test unlock is local only and uses these controls without saving them." Foreground="{StaticResource MutedTextBrush}" FontSize="11" Margin="0,0,0,10"/>
+                  <Button Content="Test unlock — animation and sound"
                           Click="PreviewAchievementOverlay_Click"
                           HorizontalAlignment="Left" />
                 </StackPanel>
@@ -743,7 +752,7 @@
                 <Image Source="Assets/AchievementRelay.png" Width="56" Height="56" VerticalAlignment="Top" />
                 <StackPanel Grid.Column="1">
                   <TextBlock Text="Achievement Relay" FontSize="20" FontWeight="SemiBold" />
-                  <TextBlock x:Name="AboutVersionText" Text="Version 0.7.0" Foreground="{StaticResource AccentTextBrush}" FontWeight="SemiBold" Margin="0,2,0,9" />
+                  <TextBlock x:Name="AboutVersionText" Text="Version 0.8.0" Foreground="{StaticResource AccentTextBrush}" FontWeight="SemiBold" Margin="0,2,0,9" />
                   <TextBlock Text="Xbox and Steam achievements relayed to the Discord channel you choose. Secrets are encrypted locally; Steam monitoring is local and read-only." Foreground="{StaticResource MutedTextBrush}" FontSize="12" Margin="0,0,0,12" />
                   <WrapPanel>
                     <Button Content="Privacy" Click="OpenPrivacyPolicy_Click" Margin="0,0,8,8" />

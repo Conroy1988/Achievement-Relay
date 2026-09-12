@@ -8,6 +8,7 @@ using AchievementRelay.Core.Services;
 
 var tests = new (string Name, Action Run)[]
 {
+    ("Unlock animation and sound preferences migrate and round trip independently", UnlockPreferencesRoundTrip),
     ("Legacy settings enable the achievement overlay without resetting preferences", LegacySettingsEnableAchievementOverlay),
     ("Achievement overlay opt-out survives the settings JSON round trip", AchievementOverlayOptOutSurvivesJsonRoundTrip),
     ("OpenXBL API keys are normalized without weakening validation", ValidatesOpenXblApiKeys),
@@ -101,6 +102,15 @@ foreach (var test in tests)
 
 Console.WriteLine($"{tests.Length - failures.Count}/{tests.Length} checks passed.");
 return failures.Count == 0 ? 0 : 1;
+
+static void UnlockPreferencesRoundTrip()
+{
+    var legacy = JsonSerializer.Deserialize<AppSettings>("{}")!;
+    Assert(legacy.AchievementOverlayAnimationEnabled && legacy.AchievementOverlaySoundEnabled && legacy.AchievementOverlayVolume == 15, "Missing settings must use approved defaults.");
+    var preferences = legacy with { AchievementOverlayAnimationEnabled = false, AchievementOverlayReducedMotion = true, AchievementOverlaySoundEnabled = false, AchievementOverlayVolume = 0, AchievementOverlayEnabled = false };
+    var restored = JsonSerializer.Deserialize<AppSettings>(JsonSerializer.Serialize(preferences));
+    Assert(restored == preferences, "Overlay motion, sound and disabled preferences were not preserved independently.");
+}
 
 static void LegacySettingsEnableAchievementOverlay()
 {

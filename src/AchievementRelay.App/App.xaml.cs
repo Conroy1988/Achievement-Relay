@@ -29,6 +29,12 @@ public partial class App : System.Windows.Application
     {
         base.OnStartup(e);
 
+        if (e.Args.FirstOrDefault() == "--export-unlock-sequence")
+        {
+            Shutdown(await ExportUnlockSequenceAsync(e.Args));
+            return;
+        }
+
         if (TryExportCollectorCardPreview(e.Args, out var previewExitCode))
         {
             Shutdown(previewExitCode);

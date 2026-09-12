@@ -17,7 +17,7 @@ jobs:
     timeout-minutes: 30
     env:
       TEST_MSIX_VERSION: "0.5.0.${{ github.run_number }}"
-      APPLICATION_VERSION: "0.6.0"
+      APPLICATION_VERSION: "0.7.0"
 
 
     steps:
@@ -49,6 +49,14 @@ jobs:
           foreach ($name in @('AchievementRelay_Redline_Preview.png', 'AchievementRelay_Redline_Preview_compact.png')) {
             if ((Get-Item (Join-Path $PWD "artifacts\$name")).Length -lt 10KB) { throw "Missing or empty Redline screenshot: $name" }
           }
+
+      - name: Retain native dashboard screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: Redline-native-preview
+          path: artifacts/AchievementRelay_Redline_Preview*.png
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Render Collector Card preview
         shell: pwsh
@@ -182,7 +190,7 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
-          name: AchievementRelay-v0.6.0-r${{ github.run_number }}-windows-test
+          name: AchievementRelay-v0.7.0-r${{ github.run_number }}-windows-test
           path: |
             artifacts/AchievementRelay_Setup.exe
             artifacts/AchievementRelay_${{ env.TEST_MSIX_VERSION }}_x64.msix

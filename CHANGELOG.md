@@ -6,6 +6,20 @@ All notable changes to Achievement Relay are documented here. The project follow
 
 No changes yet.
 
+## [0.7.0] - 2026-09-12
+
+### Added
+
+- Redline dashboard with crimson framing, compact navigation, provider status and connection controls.
+- Selectable, eight-item session history and provider-artwork showcase for successfully delivered achievements.
+- Presentation page and a Home Signal Strip overlay preference switch.
+- Isolated native Windows dashboard screenshots at desktop and compact sizes in CI.
+
+### Preserved
+
+- Collector Card showcase, Xbox PC Game Pass evidence rules, durable deduplication and silent historical baselines.
+- Existing settings, provider state and the certificate-pinned v0.4.0 updater support floor.
+
 ## [0.6.0] - 2026-08-30
 
 ### Added
@@ -241,7 +255,8 @@ No changes yet.
 - x64/Arm64 MSIX packaging, installer scripts, development signing, CI, and tagged release workflow
 - User, privacy, security, troubleshooting, architecture, contributor, and release documentation
 
-[Unreleased]: https://github.com/Conroy1988/Achievement-Relay/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/Conroy1988/Achievement-Relay/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.7.0
 [0.6.0]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.6.0
 [0.5.0]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.5.0
 [0.4.3]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.4.3

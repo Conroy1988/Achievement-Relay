@@ -7,7 +7,7 @@
     <Color x:Key="BackgroundColor">#060709</Color>
     <Color x:Key="PanelColor">#0D1012</Color>
     <Color x:Key="PanelRaisedColor">#151A1D</Color>
-    <Color x:Key="BorderColor">#363C43</Color>
+    <Color x:Key="BorderColor">#626B6E</Color>
     <Color x:Key="ControlBorderColor">#7D8588</Color>
     <Color x:Key="TextColor">#F4F1EB</Color>
     <Color x:Key="MutedTextColor">#AEB4B7</Color>

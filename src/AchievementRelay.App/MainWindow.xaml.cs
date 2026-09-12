@@ -531,7 +531,7 @@ public partial class MainWindow : Window
 
     private void PopulateControls()
     {
-        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.7.0";
+        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.8.0";
         AboutVersionText.Text = $"Version {version}";
 
         var xboxConfigured = TryGetOpenXblApiKey(out _) && !string.IsNullOrWhiteSpace(_settings.XboxUserId);
@@ -552,6 +552,10 @@ public partial class MainWindow : Window
         SettingsRareOnlyCheckBox.IsChecked = _settings.PostRareOnly;
         SettingsRawDetailsCheckBox.IsChecked = _settings.IncludeRawDetailsWhenUncertain;
         SettingsAchievementOverlayEnabledCheckBox.IsChecked = _settings.AchievementOverlayEnabled;
+        SettingsOverlayAnimationCheckBox.IsChecked = _settings.AchievementOverlayAnimationEnabled;
+        SettingsOverlayReducedMotionCheckBox.IsChecked = _settings.AchievementOverlayReducedMotion;
+        SettingsOverlaySoundCheckBox.IsChecked = _settings.AchievementOverlaySoundEnabled;
+        SettingsOverlayVolumeSlider.Value = Math.Clamp(_settings.AchievementOverlayVolume, 0, 100);
         RedlineOverlayToggle.IsChecked = _settings.AchievementOverlayEnabled;
         SettingsStartWithWindowsCheckBox.IsChecked = _settings.StartWithWindows;
         SettingsStartMinimizedCheckBox.IsChecked = _settings.StartMinimized;
@@ -1127,7 +1131,14 @@ public partial class MainWindow : Window
 
     private void PreviewAchievementOverlay_Click(object sender, RoutedEventArgs e)
     {
-        if (!_services.AchievementOverlayService.Preview(CreateSampleAchievement()))
+        var preferences = MainTabs.SelectedIndex == 3 ? _settings with
+        {
+            AchievementOverlayAnimationEnabled = SettingsOverlayAnimationCheckBox.IsChecked == true,
+            AchievementOverlayReducedMotion = SettingsOverlayReducedMotionCheckBox.IsChecked == true,
+            AchievementOverlaySoundEnabled = SettingsOverlaySoundCheckBox.IsChecked == true,
+            AchievementOverlayVolume = (int)SettingsOverlayVolumeSlider.Value
+        } : _settings;
+        if (!_services.AchievementOverlayService.Preview(CreateSampleAchievement(), settings: preferences))
         {
             ShowMessage(
                 "The Signal Strip preview queue is busy. Wait for the current preview to finish and try again.",
@@ -1253,6 +1264,10 @@ public partial class MainWindow : Window
                 PostRareOnly = SettingsRareOnlyCheckBox.IsChecked == true,
                 IncludeRawDetailsWhenUncertain = SettingsRawDetailsCheckBox.IsChecked == true,
                 AchievementOverlayEnabled = SettingsAchievementOverlayEnabledCheckBox.IsChecked == true,
+                AchievementOverlayAnimationEnabled = SettingsOverlayAnimationCheckBox.IsChecked == true,
+                AchievementOverlayReducedMotion = SettingsOverlayReducedMotionCheckBox.IsChecked == true,
+                AchievementOverlaySoundEnabled = SettingsOverlaySoundCheckBox.IsChecked == true,
+                AchievementOverlayVolume = (int)SettingsOverlayVolumeSlider.Value,
                 StartWithWindows = startWithWindows,
                 StartMinimized = SettingsStartMinimizedCheckBox.IsChecked == true
             };
@@ -1262,10 +1277,8 @@ public partial class MainWindow : Window
             var hasProvider = xboxConfigured || _settings.SteamEnabled;
             _settings = _settings with { SetupCompleted = _settings.SetupCompleted && webhookConfigured && hasProvider };
             await _services.SettingsStore.SaveAsync(_settings);
-            if (!_settings.AchievementOverlayEnabled)
-            {
-                _services.AchievementOverlayService.Clear();
-            }
+            // Discard old preference snapshots, including active sound, after saving.
+            _services.AchievementOverlayService.Clear();
 
             var startupApplied = await _services.StartupService.SetEnabledAsync(startWithWindows);
             if (_services.UpdateService.IsUpdateRequired)

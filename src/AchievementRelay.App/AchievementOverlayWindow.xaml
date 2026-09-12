@@ -54,6 +54,7 @@
           </Grid.ColumnDefinitions>
 
           <Border x:Name="ArtworkFrame"
+                  RenderTransformOrigin="0.5,0.5"
                   Grid.Column="0"
                   Width="52"
                   Height="52"
@@ -65,6 +66,7 @@
                   BorderThickness="1"
                   CornerRadius="7"
                   ClipToBounds="True">
+            <Border.RenderTransform><ScaleTransform x:Name="ArtworkPulse"/></Border.RenderTransform>
             <Grid>
               <Image x:Name="AchievementArtwork"
                      Visibility="Collapsed"
@@ -164,5 +166,21 @@
         </Grid>
       </Grid>
     </Border>
+    <Grid Margin="4" ClipToBounds="True" IsHitTestVisible="False">
+      <Rectangle x:Name="UnlockSweep" Width="110" HorizontalAlignment="Left" Opacity="0">
+        <Rectangle.Fill><LinearGradientBrush StartPoint="0,0" EndPoint="1,0"><GradientStop Color="#00E9002D"/><GradientStop Color="#70FF173F" Offset="0.5"/><GradientStop Color="#00E9002D" Offset="1"/></LinearGradientBrush></Rectangle.Fill>
+        <Rectangle.RenderTransform><TranslateTransform x:Name="SweepPosition" X="-110"/></Rectangle.RenderTransform>
+      </Rectangle>
+      <Grid Width="124" HorizontalAlignment="Right" ClipToBounds="True">
+        <Rectangle x:Name="RarityShimmer" Width="28" HorizontalAlignment="Left" Opacity="0">
+          <Rectangle.Fill><LinearGradientBrush StartPoint="0,0" EndPoint="1,0"><GradientStop Color="#00FFFFFF"/><GradientStop Color="#80FFFFFF" Offset="0.5"/><GradientStop Color="#00FFFFFF" Offset="1"/></LinearGradientBrush></Rectangle.Fill>
+          <Rectangle.RenderTransform><TranslateTransform x:Name="ShimmerPosition" X="-28"/></Rectangle.RenderTransform>
+        </Rectangle>
+        <TextBlock x:Name="PlatinumSparkle" Text="✦" FontSize="18" Foreground="#DDF0FCFF" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,3,8,0" Opacity="0"/>
+      </Grid>
+      <Rectangle x:Name="CountdownLine" Height="2" VerticalAlignment="Bottom" Fill="#E9002D" Opacity="0" RenderTransformOrigin="0,0.5">
+        <Rectangle.RenderTransform><ScaleTransform x:Name="CountdownScale" ScaleX="1"/></Rectangle.RenderTransform>
+      </Rectangle>
+    </Grid>
   </Grid>
 </Window>

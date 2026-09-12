@@ -6,6 +6,20 @@ All notable changes to Achievement Relay are documented here. The project follow
 
 No changes yet.
 
+## [0.8.0] - 2026-09-12
+
+### Added
+
+- Animated Signal Strip overlay: crimson sweep, icon pulse, title reveal, rarity shimmer, Platinum sparkle and countdown line.
+- Original local unlock chime with independent sound and animation toggles, volume defaulting to 15%, and reduced-motion mode.
+- Local Test unlock using unsaved presentation controls; no Discord post is sent.
+- Preference migration, waveform and animation-cleanup regression checks.
+
+### Preserved
+
+- Collector Card showcase, Xbox PC Game Pass platform evidence and the v0.4.0 update floor.
+- Bounded one-at-a-time notifications, click-through/no-focus behavior and silent historical baselines.
+
 ## [0.7.0] - 2026-09-12
 
 ### Added
@@ -255,7 +269,8 @@ No changes yet.
 - x64/Arm64 MSIX packaging, installer scripts, development signing, CI, and tagged release workflow
 - User, privacy, security, troubleshooting, architecture, contributor, and release documentation
 
-[Unreleased]: https://github.com/Conroy1988/Achievement-Relay/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/Conroy1988/Achievement-Relay/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.8.0
 [0.7.0]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.7.0
 [0.6.0]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.6.0
 [0.5.0]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.5.0

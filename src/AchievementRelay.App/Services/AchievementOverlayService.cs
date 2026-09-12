@@ -41,15 +41,15 @@ public sealed class AchievementOverlayService : IDisposable
 
         return EnqueueCore(
             achievement.Id,
-            AchievementOverlayPresentation.Create(achievement, achievementIconBytes));
+            AchievementOverlayPresentation.Create(achievement, achievementIconBytes), settings);
     }
 
-    public bool Preview(AchievementEvent achievement, byte[]? achievementIconBytes = null)
+    public bool Preview(AchievementEvent achievement, byte[]? achievementIconBytes = null, AppSettings? settings = null)
     {
         ArgumentNullException.ThrowIfNull(achievement);
         return EnqueueCore(
             string.Concat("preview:", Guid.NewGuid().ToString("N")),
-            AchievementOverlayPresentation.Create(achievement, achievementIconBytes));
+            AchievementOverlayPresentation.Create(achievement, achievementIconBytes), settings ?? new AppSettings());
     }
 
     public void Clear()
@@ -89,7 +89,7 @@ public sealed class AchievementOverlayService : IDisposable
         }
     }
 
-    private bool EnqueueCore(string eventId, AchievementOverlayPresentation presentation)
+    private bool EnqueueCore(string eventId, AchievementOverlayPresentation presentation, AppSettings settings)
     {
         lock (_gate)
         {
@@ -114,7 +114,15 @@ public sealed class AchievementOverlayService : IDisposable
             }
 
             _pendingEventIds.Add(eventId);
-            _queue.Enqueue(new QueuedOverlay(eventId, presentation));
+            // Retain presentation preferences only, never connection credentials in the queue.
+            var preferences = new AppSettings
+            {
+                AchievementOverlayAnimationEnabled = settings.AchievementOverlayAnimationEnabled,
+                AchievementOverlayReducedMotion = settings.AchievementOverlayReducedMotion,
+                AchievementOverlaySoundEnabled = settings.AchievementOverlaySoundEnabled,
+                AchievementOverlayVolume = Math.Clamp(settings.AchievementOverlayVolume, 0, 100)
+            };
+            _queue.Enqueue(new QueuedOverlay(eventId, presentation, preferences));
             _queuedCount++;
             return ScheduleDrainLocked();
         }
@@ -164,7 +172,7 @@ public sealed class AchievementOverlayService : IDisposable
                         _activePresentationCancellation = presentationCancellation;
                     }
 
-                    var window = new AchievementOverlayWindow(queued.Presentation);
+                    var window = new AchievementOverlayWindow(queued.Presentation, queued.Preferences);
                     await window.ShowForAsync(presentationCancellation.Token);
                 }
                 catch (OperationCanceledException) when (presentationCancellation?.IsCancellationRequested == true)
@@ -231,5 +239,6 @@ public sealed class AchievementOverlayService : IDisposable
 
     private sealed record QueuedOverlay(
         string EventId,
-        AchievementOverlayPresentation Presentation);
+        AchievementOverlayPresentation Presentation,
+        AppSettings Preferences);
 }

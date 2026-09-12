@@ -68,7 +68,7 @@ function Get-ThemeColor {
 
 $manifestPath = Join-Path $repositoryRoot 'src\AchievementRelay.Package\AppxManifest.xml'
 $manifestText = Get-Content -LiteralPath $manifestPath -Raw
-$manifestText = $manifestText.Replace('__VERSION__', '0.8.0.0').Replace('__ARCHITECTURE__', 'x64')
+$manifestText = $manifestText.Replace('__VERSION__', '0.8.1.0').Replace('__ARCHITECTURE__', 'x64')
 [xml] $manifest = $manifestText
 
 $namespaceManager = [System.Xml.XmlNamespaceManager]::new($manifest.NameTable)
@@ -119,7 +119,7 @@ $requiredFiles = @(
     'docs\RELEASE-NOTES-0.4.2.md',
     'docs\RELEASE-NOTES-0.4.3.md',
     'docs\RELEASE-NOTES-0.5.0.md',
-    'docs\RELEASE-NOTES-0.8.0.md',
+    'docs\RELEASE-NOTES-0.8.1.md',
     'docs\ACCESSIBILITY.md',
     'docs\images\achievement-relay-banner.png',
     'docs\images\achievement-relay-interface.png',
@@ -750,11 +750,21 @@ if (-not $overlayWindowText.Contains('OverlayWidth = 520') -or
 $chimeText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\UnlockChime.cs') -Raw
 if (-not $overlayWindowText.Contains('using var chime = new UnlockChime();') -or
     -not $overlayWindowText.Contains('if (_preferences.AchievementOverlaySoundEnabled)') -or
-    -not $overlayWindowText.Contains('!_preferences.AchievementOverlayReducedMotion') -or
+    -not $overlayWindowText.Contains('OverlayMotionPolicy.Resolve(') -or
     -not $chimeText.Contains('Math.Clamp(volume, 0, 100)') -or
     -not $chimeText.Contains('_player?.Stop();') -or
-    -not $overlayServiceText.Contains('await window.ShowForAsync(presentationCancellation.Token);')) {
+    -not $overlayServiceText.Contains('var showing = window.ShowForAsync(presentationCancellation.Token);') -or
+    -not $overlayServiceText.Contains('await showing;') -or
+    -not $overlayServiceText.Contains('AchievementOverlayFollowWindowsMotion = settings.AchievementOverlayFollowWindowsMotion')) {
     throw 'The Signal Strip must gate, bound, serialize and dispose its optional local chime and respect reduced motion.'
+}
+
+$unlockPreviewText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\App.UnlockPreview.cs') -Raw
+if ($unlockPreviewText.Contains('StartPreviewEffects') -or
+    -not $unlockPreviewText.Contains('test.RaiseEvent(') -or
+    -not $unlockPreviewText.Contains('countdown.HasAnimatedProperties') -or
+    -not $mainWindowText.Contains('AchievementOverlayFollowWindowsMotion = SettingsOverlayFollowWindowsCheckBox.IsChecked == true')) {
+    throw 'Unlock verification must exercise the actual Settings button and persisted motion policy without forced effects.'
 }
 
 if (-not $appStartupText.Contains('--export-signal-strip-preview') -or
@@ -866,7 +876,7 @@ if (-not $releaseWorkflowText.Contains("'.exe'") -or
     -not $releaseWorkflowText.Contains('Cert:\LocalMachine\TrustedPeople') -or
     -not $releaseWorkflowText.Contains('http://timestamp.digicert.com') -or
     -not $releaseWorkflowText.Contains('AchievementRelay.Publisher.cer') -or
-    -not $releaseWorkflowText.Contains('default: v0.8.0') -or
+    -not $releaseWorkflowText.Contains('default: v0.8.1') -or
     -not $releaseWorkflowText.Contains('--export-collector-card-preview') -or
     -not $releaseWorkflowText.Contains('AchievementRelay_CollectorCard_Preview.png') -or
     -not $releaseWorkflowText.Contains('Start-Process') -or
@@ -965,36 +975,36 @@ $buildInstallerText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'scrip
 $discordClientVersionText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\DiscordWebhookClient.cs') -Raw
 $openXblClientVersionText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\OpenXblClient.cs') -Raw
 $steamRarityClientVersionText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\AchievementRelay.App\Services\SteamRarityClient.cs') -Raw
-$releaseNotesText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'docs\RELEASE-NOTES-0.8.0.md') -Raw
+$releaseNotesText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'docs\RELEASE-NOTES-0.8.1.md') -Raw
 $changelogText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'CHANGELOG.md') -Raw
 if ($officialUpdatePolicy.schemaVersion -ne 1 -or
     $officialUpdatePolicy.minimumSupportedVersion -cne '0.4.0' -or
     @($officialUpdatePolicy.additionalPublisherCertificateSha256).Count -ne 0 -or
-    -not $appProjectText.Contains('<Version>0.8.0</Version>') -or
-    -not $appProjectText.Contains('<FileVersion>0.8.0.0</FileVersion>') -or
-    -not $appProjectText.Contains('<AssemblyVersion>0.8.0.0</AssemblyVersion>') -or
-    -not $bridgeProjectText.Contains('<Version>0.8.0</Version>') -or
-    -not $bridgeProjectText.Contains('<FileVersion>0.8.0.0</FileVersion>') -or
-    -not $bridgeProjectText.Contains('<AssemblyVersion>0.8.0.0</AssemblyVersion>') -or
-    -not $installerText.Contains('#define AppVersion "0.8.0"') -or
-    -not $buildReleaseText.Contains("[string] `$Version = '0.8.0.0'") -or
-    -not $buildMsixText.Contains("[string] `$Version = '0.8.0.0'") -or
-    -not $buildInstallerText.Contains("[string] `$Version = '0.8.0'") -or
-    -not $buildInstallerText.Contains("[string] `$MsixVersion = '0.8.0.0'") -or
-    -not $mainWindowXaml.Contains('Text="Version 0.8.0"') -or
-    -not $mainWindowText.Contains('?? "0.8.0"') -or
-    -not $discordClientVersionText.Contains('ProductInfoHeaderValue("AchievementRelay", "0.8.0")') -or
-    -not $openXblClientVersionText.Contains('ProductInfoHeaderValue("AchievementRelay", "0.8.0")') -or
-    -not $steamRarityClientVersionText.Contains('ProductInfoHeaderValue("AchievementRelay", "0.8.0")') -or
-    -not $releaseNotesText.Contains('# Achievement Relay v0.8.0') -or
+    -not $appProjectText.Contains('<Version>0.8.1</Version>') -or
+    -not $appProjectText.Contains('<FileVersion>0.8.1.0</FileVersion>') -or
+    -not $appProjectText.Contains('<AssemblyVersion>0.8.1.0</AssemblyVersion>') -or
+    -not $bridgeProjectText.Contains('<Version>0.8.1</Version>') -or
+    -not $bridgeProjectText.Contains('<FileVersion>0.8.1.0</FileVersion>') -or
+    -not $bridgeProjectText.Contains('<AssemblyVersion>0.8.1.0</AssemblyVersion>') -or
+    -not $installerText.Contains('#define AppVersion "0.8.1"') -or
+    -not $buildReleaseText.Contains("[string] `$Version = '0.8.1.0'") -or
+    -not $buildMsixText.Contains("[string] `$Version = '0.8.1.0'") -or
+    -not $buildInstallerText.Contains("[string] `$Version = '0.8.1'") -or
+    -not $buildInstallerText.Contains("[string] `$MsixVersion = '0.8.1.0'") -or
+    -not $mainWindowXaml.Contains('Text="Version 0.8.1"') -or
+    -not $mainWindowText.Contains('?? "0.8.1"') -or
+    -not $discordClientVersionText.Contains('ProductInfoHeaderValue("AchievementRelay", "0.8.1")') -or
+    -not $openXblClientVersionText.Contains('ProductInfoHeaderValue("AchievementRelay", "0.8.1")') -or
+    -not $steamRarityClientVersionText.Contains('ProductInfoHeaderValue("AchievementRelay", "0.8.1")') -or
+    -not $releaseNotesText.Contains('# Achievement Relay v0.8.1') -or
     -not $releaseNotesText.Contains('Signal Strip overlay') -or
     -not $releaseNotesText.Contains('Collector Card showcase') -or
     -not $releaseNotesText.Contains('Xbox PC Game Pass') -or
-    -not $releaseNotesText.Contains('AchievementRelay_0.8.0.0_x64.msix') -or
-    -not $changelogText.Contains('## [0.8.0] - 2026-09-12') -or
+    -not $releaseNotesText.Contains('AchievementRelay_0.8.1.0_x64.msix') -or
+    -not $changelogText.Contains('## [0.8.1] - 2026-09-12') -or
     -not $changelogText.Contains('Collector Card showcase') -or
     -not $changelogText.Contains('Xbox PC Game Pass')) {
-    throw 'The v0.8.0 application, showcase/platform release notes and Steam bridge must retain the official v0.4.0 update baseline.'
+    throw 'The v0.8.1 application, showcase/platform release notes and Steam bridge must retain the official v0.4.0 update baseline.'
 }
 
 $liveUpdatePolicy = Get-Content -LiteralPath (Join-Path $repositoryRoot 'release\live-update-test-policy.json') -Raw |
@@ -1063,9 +1073,9 @@ $ciWorkflowText = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github\w
 $pullRequestArtifactBlock = [regex]::Match(
     $ciWorkflowText,
     '(?ms)^      - name: Retain pull-request installer for Windows verification.*?(?=^      - name: |\z)')
-if (-not $ciWorkflowText.Contains('0.7.0.${{ github.run_number }}') -or
-    -not $ciWorkflowText.Contains('APPLICATION_VERSION: "0.8.0"') -or
-    -not $ciWorkflowText.Contains('AchievementRelay-v0.8.0-r${{ github.run_number }}-windows-test') -or
+if (-not $ciWorkflowText.Contains('0.8.0.${{ github.run_number }}') -or
+    -not $ciWorkflowText.Contains('APPLICATION_VERSION: "0.8.1"') -or
+    -not $ciWorkflowText.Contains('AchievementRelay-v0.8.1-r${{ github.run_number }}-windows-test') -or
     -not $ciWorkflowText.Contains('--export-collector-card-preview') -or
     -not $ciWorkflowText.Contains('artifacts/AchievementRelay_CollectorCard_Preview.png') -or
     -not $ciWorkflowText.Contains('Start-Process') -or

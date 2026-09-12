@@ -8,6 +8,7 @@ using AchievementRelay.Core.Services;
 
 var tests = new (string Name, Action Run)[]
 {
+    ("Relay motion controls are explicit across all Windows and accessibility modes", OverlayMotionControls),
     ("Unlock animation and sound preferences migrate and round trip independently", UnlockPreferencesRoundTrip),
     ("Legacy settings enable the achievement overlay without resetting preferences", LegacySettingsEnableAchievementOverlay),
     ("Achievement overlay opt-out survives the settings JSON round trip", AchievementOverlayOptOutSurvivesJsonRoundTrip),
@@ -106,10 +107,35 @@ return failures.Count == 0 ? 0 : 1;
 static void UnlockPreferencesRoundTrip()
 {
     var legacy = JsonSerializer.Deserialize<AppSettings>("{}")!;
+    Assert(!legacy.AchievementOverlayFollowWindowsMotion, "Windows motion following must be an explicit choice.");
     Assert(legacy.AchievementOverlayAnimationEnabled && legacy.AchievementOverlaySoundEnabled && legacy.AchievementOverlayVolume == 15, "Missing settings must use approved defaults.");
-    var preferences = legacy with { AchievementOverlayAnimationEnabled = false, AchievementOverlayReducedMotion = true, AchievementOverlaySoundEnabled = false, AchievementOverlayVolume = 0, AchievementOverlayEnabled = false };
+    var preferences = legacy with { AchievementOverlayAnimationEnabled = false, AchievementOverlayReducedMotion = true, AchievementOverlayFollowWindowsMotion = true, AchievementOverlaySoundEnabled = false, AchievementOverlayVolume = 0, AchievementOverlayEnabled = false };
     var restored = JsonSerializer.Deserialize<AppSettings>(JsonSerializer.Serialize(preferences));
     Assert(restored == preferences, "Overlay motion, sound and disabled preferences were not preserved independently.");
+}
+
+static void OverlayMotionControls()
+{
+    foreach (var animate in new[] { false, true })
+    foreach (var reduced in new[] { false, true })
+    foreach (var followWindows in new[] { false, true })
+    foreach (var windows in new[] { false, true })
+    foreach (var highContrast in new[] { false, true })
+    {
+        var settings = new AppSettings
+        {
+            AchievementOverlayAnimationEnabled = animate,
+            AchievementOverlayReducedMotion = reduced,
+            AchievementOverlayFollowWindowsMotion = followWindows
+        };
+        var expected = !animate || highContrast || (followWindows && !windows)
+            ? OverlayMotionMode.Static : reduced ? OverlayMotionMode.Fade : OverlayMotionMode.Full;
+        Assert(OverlayMotionPolicy.Resolve(settings, windows, highContrast) == expected,
+            $"Motion policy mismatch: animate={animate}, reduced={reduced}, follow={followWindows}, Windows={windows}, HC={highContrast}.");
+        var status = OverlayMotionPolicy.Describe(settings, windows, highContrast);
+        Assert(status.StartsWith(expected switch { OverlayMotionMode.Static => "Static", OverlayMotionMode.Fade => "Reduced motion", _ => "Full animation" }, StringComparison.Ordinal),
+            "Effective status must match the policy used by the overlay.");
+    }
 }
 
 static void LegacySettingsEnableAchievementOverlay()

@@ -30,6 +30,7 @@ public sealed record AppSettings
     public bool AchievementOverlayEnabled { get; init; } = true;
     public bool AchievementOverlayAnimationEnabled { get; init; } = true;
     public bool AchievementOverlayReducedMotion { get; init; }
+    public bool AchievementOverlayFollowWindowsMotion { get; init; }
     public bool AchievementOverlaySoundEnabled { get; init; } = true;
     public int AchievementOverlayVolume { get; init; } = 15;
 

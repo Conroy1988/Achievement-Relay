@@ -1,4 +1,7 @@
 using System.IO;
+using System.Windows;
+using CheckBox = System.Windows.Controls.CheckBox;
+using System.Windows.Media;
 using AchievementRelay.App.Services;
 using AchievementRelay.Core.Models;
 
@@ -9,22 +12,47 @@ public partial class App
     private static async Task<int> ExportUnlockSequenceAsync(string[] args)
     {
         if (args.Length != 2) return 2;
-        using var cancellation = new CancellationTokenSource();
-        Task? showing = null;
+        var temporaryData = Directory.CreateTempSubdirectory("relay-unlock-test-");
+        var services = new AppServices(new AppPaths(temporaryData.FullName));
+        MainWindow? main = null;
         try
         {
             var directory = Path.GetFullPath(args[1]);
             Directory.CreateDirectory(directory);
-            var sample = new AchievementEvent
+            main = new MainWindow(services, new AppSettings
             {
-                Id = "local-animation-preview", Name = "Against All Odds", Description = "A local animation preview.",
-                GameName = "Achievement Relay", SourceProvider = "Steam", Platform = "Steam",
-                RarityKnown = true, RarityPercentage = 1.2, UnlockedAt = DateTimeOffset.UtcNow
-            };
-            var window = new AchievementOverlayWindow(AchievementOverlayPresentation.Create(sample),
-                new AppSettings { AchievementOverlaySoundEnabled = false });
-            showing = window.ShowForAsync(cancellation.Token);
-            window.StartPreviewEffects();
+                AchievementOverlayAnimationEnabled = false,
+                AchievementOverlaySoundEnabled = false
+            }, previewOnly: true);
+            ((System.Windows.Controls.Button)main.FindName("SettingsNavButton")).RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+            var animate = (CheckBox)main.FindName("SettingsOverlayAnimationCheckBox");
+            var reduced = (CheckBox)main.FindName("SettingsOverlayReducedMotionCheckBox");
+            var followWindows = (CheckBox)main.FindName("SettingsOverlayFollowWindowsCheckBox");
+            var test = (System.Windows.Controls.Button)main.FindName("TestUnlockButton");
+            var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            async Task<AchievementOverlayWindow> ClickTestAsync()
+            {
+                var started = new TaskCompletionSource<AchievementOverlayWindow>(TaskCreationOptions.RunContinuationsAsynchronously);
+                closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                void Observe(AchievementOverlayWindow window)
+                {
+                    window.Closed += (_, _) => closed.TrySetResult();
+                    started.TrySetResult(window);
+                }
+                services.AchievementOverlayService.PresentationStarted += Observe;
+                try
+                {
+                    test.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+                    return await started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+                }
+                finally { services.AchievementOverlayService.PresentationStarted -= Observe; }
+            }
+            // Unsaved controls, real button handler, real queue and real ShowForAsync.
+            // No effect invocation or operating-system preference override is permitted here.
+            animate.IsChecked = true;
+            reduced.IsChecked = false;
+            followWindows.IsChecked = false;
+            var window = await ClickTestAsync();
             var elapsed = 0;
             foreach (var time in new[] { 100, 300, 700, 1000, 2500, 4700 })
             {
@@ -32,15 +60,39 @@ public partial class App
                 File.WriteAllBytes(Path.Combine(directory, $"unlock-{time:D4}.png"), window.CapturePreview());
                 elapsed = time;
             }
-            await showing;
+            var countdown = (ScaleTransform)window.FindName("CountdownScale");
+            if (!SystemParameters.HighContrast && (!countdown.HasAnimatedProperties || countdown.ScaleX >= .3))
+                throw new InvalidOperationException("Real Test unlock did not animate or drain its countdown.");
+            await closed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+            foreach (var mode in new[] { "static", "reduced" })
+            {
+                animate.IsChecked = mode != "static";
+                reduced.IsChecked = mode == "reduced";
+                window = await ClickTestAsync();
+                await Task.Delay(400);
+                if (((ScaleTransform)window.FindName("CountdownScale")).HasAnimatedProperties ||
+                    ((ScaleTransform)window.FindName("ArtworkPulse")).HasAnimatedProperties)
+                    throw new InvalidOperationException($"{mode} mode unexpectedly played decorative motion.");
+                File.WriteAllBytes(Path.Combine(directory, $"mode-{mode}.png"), window.CapturePreview());
+                services.AchievementOverlayService.Clear();
+                await closed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            }
+            if (File.Exists(services.Paths.SettingsFile))
+                throw new InvalidOperationException("Test unlock unexpectedly saved settings.");
+            File.WriteAllText(Path.Combine(directory, "motion-verification.txt"),
+                $"Real Settings button → Preview → queue → ShowForAsync verified.\nWindows animations: {SystemParameters.ClientAreaAnimation}\nHigh contrast: {SystemParameters.HighContrast}\nFull, static, reduced and unsaved preference behavior checked.\n");
             File.WriteAllBytes(Path.Combine(directory, "relay-unlock-15-percent.wav"), UnlockChime.CreateWave(15));
             return 0;
         }
         catch (Exception exception) { Console.Error.WriteLine(exception); return 1; }
         finally
         {
-            cancellation.Cancel();
-            if (showing is not null) { try { await showing; } catch (Exception) { } }
+            services.AchievementOverlayService.Clear();
+            main?.PrepareForExit();
+            main?.Close();
+            services.Dispose();
+            temporaryData.Delete(recursive: true);
         }
     }
 }

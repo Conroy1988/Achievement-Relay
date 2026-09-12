@@ -24,6 +24,7 @@ public partial class App
             var window = new AchievementOverlayWindow(AchievementOverlayPresentation.Create(sample),
                 new AppSettings { AchievementOverlaySoundEnabled = false });
             showing = window.ShowForAsync(cancellation.Token);
+            window.StartPreviewEffects();
             var elapsed = 0;
             foreach (var time in new[] { 100, 300, 700, 1000, 2500, 4700 })
             {

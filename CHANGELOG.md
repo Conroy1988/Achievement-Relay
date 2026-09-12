@@ -6,6 +6,15 @@ All notable changes to Achievement Relay are documented here. The project follow
 
 No changes yet.
 
+## [0.8.1] - 2026-09-12
+
+### Fixed
+
+- Animate unlocks now controls the Signal Strip directly instead of silently being overridden by Windows animation settings.
+- Added an explicit Follow Windows animation preference option and an effective-motion status. High contrast still suppresses decorative motion.
+- Windows verification now drives the actual Settings Test unlock button, queue and presentation, including unsaved controls, static and reduced-motion modes.
+- Preserved independent sound settings, existing connections and state, Collector Card showcase, Xbox PC Game Pass labels and the v0.4.0 update floor.
+
 ## [0.8.0] - 2026-09-12
 
 ### Added
@@ -269,7 +278,8 @@ No changes yet.
 - x64/Arm64 MSIX packaging, installer scripts, development signing, CI, and tagged release workflow
 - User, privacy, security, troubleshooting, architecture, contributor, and release documentation
 
-[Unreleased]: https://github.com/Conroy1988/Achievement-Relay/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/Conroy1988/Achievement-Relay/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.8.1
 [0.8.0]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.8.0
 [0.7.0]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.7.0
 [0.6.0]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.6.0

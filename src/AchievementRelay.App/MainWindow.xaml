@@ -627,16 +627,18 @@
                              FontSize="11"
                              TextWrapping="Wrap"
                              Margin="0,7,0,10" />
-                  <CheckBox x:Name="SettingsOverlayAnimationCheckBox" Content="Animate unlocks — crimson sweep, icon pulse and rarity shimmer"/>
-                  <CheckBox x:Name="SettingsOverlayReducedMotionCheckBox" Content="Reduced motion — simple fade only"/>
+                  <CheckBox x:Name="SettingsOverlayAnimationCheckBox" Content="Animate unlocks — crimson sweep, icon pulse and rarity shimmer" Click="OverlayMotionPreference_Click"/>
+                  <CheckBox x:Name="SettingsOverlayReducedMotionCheckBox" Content="Reduced motion — simple fade only" Click="OverlayMotionPreference_Click"/>
+                  <CheckBox x:Name="SettingsOverlayFollowWindowsCheckBox" Content="Follow Windows animation preference" Click="OverlayMotionPreference_Click"/>
+                  <TextBlock x:Name="OverlayMotionStatusText" Foreground="{StaticResource MutedTextBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,8" AutomationProperties.LiveSetting="Polite"/>
                   <CheckBox x:Name="SettingsOverlaySoundCheckBox" Content="Play the original Relay unlock chime"/>
                   <DockPanel Margin="0,8,0,12">
                     <TextBlock Text="Chime volume" VerticalAlignment="Center" Margin="0,0,12,0"/>
                     <TextBlock DockPanel.Dock="Right" Width="50" Text="{Binding Value, ElementName=SettingsOverlayVolumeSlider, StringFormat={}{0:0}%}" VerticalAlignment="Center" Margin="12,0,0,0"/>
                     <Slider x:Name="SettingsOverlayVolumeSlider" Minimum="0" Maximum="100" TickFrequency="1" IsSnapToTickEnabled="True" Value="15" AutomationProperties.Name="Unlock chime volume percent"/>
                   </DockPanel>
-                  <TextBlock Text="Windows animation and high-contrast preferences are respected. Test unlock is local only and uses these controls without saving them." Foreground="{StaticResource MutedTextBrush}" FontSize="11" Margin="0,0,0,10"/>
-                  <Button Content="Test unlock — animation and sound"
+                  <TextBlock Text="Relay uses your motion controls unless Follow Windows is selected. High-contrast mode always suppresses motion. Test unlock is local only and uses these controls without saving them." Foreground="{StaticResource MutedTextBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                  <Button x:Name="TestUnlockButton" Content="Test unlock — animation and sound"
                           Click="PreviewAchievementOverlay_Click"
                           HorizontalAlignment="Left" />
                 </StackPanel>
@@ -752,7 +754,7 @@
                 <Image Source="Assets/AchievementRelay.png" Width="56" Height="56" VerticalAlignment="Top" />
                 <StackPanel Grid.Column="1">
                   <TextBlock Text="Achievement Relay" FontSize="20" FontWeight="SemiBold" />
-                  <TextBlock x:Name="AboutVersionText" Text="Version 0.8.0" Foreground="{StaticResource AccentTextBrush}" FontWeight="SemiBold" Margin="0,2,0,9" />
+                  <TextBlock x:Name="AboutVersionText" Text="Version 0.8.1" Foreground="{StaticResource AccentTextBrush}" FontWeight="SemiBold" Margin="0,2,0,9" />
                   <TextBlock Text="Xbox and Steam achievements relayed to the Discord channel you choose. Secrets are encrypted locally; Steam monitoring is local and read-only." Foreground="{StaticResource MutedTextBrush}" FontSize="12" Margin="0,0,0,12" />
                   <WrapPanel>
                     <Button Content="Privacy" Click="OpenPrivacyPolicy_Click" Margin="0,0,8,8" />

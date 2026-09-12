@@ -7,10 +7,6 @@ namespace AchievementRelay.App;
 
 public partial class AchievementOverlayWindow
 {
-    // Explicit offline export only: CI disables Windows UI effects. Live notifications
-    // always go through ShowForAsync's user and operating-system preference gates.
-    internal void StartPreviewEffects() => StartUnlockEffects();
-
     private void StartUnlockEffects()
     {
         UnlockSweep.Opacity = 1;

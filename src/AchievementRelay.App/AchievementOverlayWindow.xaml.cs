@@ -10,6 +10,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using AchievementRelay.App.Services;
 using AchievementRelay.Core.Models;
+using AchievementRelay.Core.Services;
 using Color = System.Windows.Media.Color;
 using Size = System.Windows.Size;
 using SystemColors = System.Windows.SystemColors;
@@ -67,10 +68,9 @@ public partial class AchievementOverlayWindow : Window
     {
         cancellationToken.ThrowIfCancellationRequested();
         _foregroundWindow = GetForegroundWindow();
-        var useFade = _preferences.AchievementOverlayAnimationEnabled && SystemParameters.ClientAreaAnimation &&
-                        SystemParameters.UIEffects &&
-                        !SystemParameters.HighContrast;
-        var useMotion = useFade && !_preferences.AchievementOverlayReducedMotion;
+        var mode = OverlayMotionPolicy.Resolve(_preferences, SystemParameters.ClientAreaAnimation, SystemParameters.HighContrast);
+        var useFade = mode != OverlayMotionMode.Static;
+        var useMotion = mode == OverlayMotionMode.Full;
         using var chime = new UnlockChime();
 
         if (useFade)
@@ -413,9 +413,7 @@ public partial class AchievementOverlayWindow : Window
             // Artwork does not change with a Windows accessibility preference,
             // so avoid decoding provider bytes again from a static event.
             ApplyPresentation(refreshArtwork: false);
-            if (!SystemParameters.ClientAreaAnimation ||
-                !SystemParameters.UIEffects ||
-                SystemParameters.HighContrast)
+            if (OverlayMotionPolicy.Resolve(_preferences, SystemParameters.ClientAreaAnimation, SystemParameters.HighContrast) == OverlayMotionMode.Static)
             {
                 _motionSuppressed.TrySetResult();
                 StopUnlockEffects();

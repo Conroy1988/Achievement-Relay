@@ -19,6 +19,8 @@ public sealed class AchievementOverlayService : IDisposable
     private bool _queueLimitLogged;
     private bool _disposed;
     private int _queuedCount;
+    // Read-only observation for native integration verification; never changes preferences.
+    internal event Action<AchievementOverlayWindow>? PresentationStarted;
 
     public AchievementOverlayService(ActivityLog activityLog)
     {
@@ -119,6 +121,7 @@ public sealed class AchievementOverlayService : IDisposable
             {
                 AchievementOverlayAnimationEnabled = settings.AchievementOverlayAnimationEnabled,
                 AchievementOverlayReducedMotion = settings.AchievementOverlayReducedMotion,
+                AchievementOverlayFollowWindowsMotion = settings.AchievementOverlayFollowWindowsMotion,
                 AchievementOverlaySoundEnabled = settings.AchievementOverlaySoundEnabled,
                 AchievementOverlayVolume = Math.Clamp(settings.AchievementOverlayVolume, 0, 100)
             };
@@ -173,7 +176,9 @@ public sealed class AchievementOverlayService : IDisposable
                     }
 
                     var window = new AchievementOverlayWindow(queued.Presentation, queued.Preferences);
-                    await window.ShowForAsync(presentationCancellation.Token);
+                    var showing = window.ShowForAsync(presentationCancellation.Token);
+                    try { PresentationStarted?.Invoke(window); } catch (Exception) { }
+                    await showing;
                 }
                 catch (OperationCanceledException) when (presentationCancellation?.IsCancellationRequested == true)
                 {

@@ -49,7 +49,7 @@ The local Signal Strip is a brief, non-interactive visual complement to the dura
 
 - The strip does not activate, take keyboard focus or intercept pointer input from the game beneath it.
 - An optional original unlock chime defaults to 15% volume. Sound can be disabled independently; no information depends on hearing it, and the app never changes system volume.
-- Animation can be disabled or reduced to a simple fade in Settings. Windows animation/high-contrast preferences suppress decorative motion. There are no strobing or repeated flashing effects.
+- Animation can be disabled or reduced to a simple fade in Settings. “Follow Windows animation preference” optionally follows the Windows animation switch; Relay's own controls apply by default. High-contrast mode always suppresses decorative motion. Settings reports the effective mode. There are no strobing or repeated flashing effects.
 - Achievement and game names use bounded layouts, while rarity is communicated through the emblem silhouette, percentage and written tier treatment rather than colour alone.
 - Missing percentages use the explicit **Unranked** state instead of an ambiguous blank or false numeric value.
 - Consecutive unlocks are shown sequentially for five seconds each rather than stacked, flashing or rapidly replacing one another.

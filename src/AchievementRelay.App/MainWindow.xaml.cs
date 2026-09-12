@@ -66,6 +66,7 @@ public partial class MainWindow : Window
         _services.RelayCoordinator.StatusChanged += OnRelayStatusChanged;
         _services.SteamMonitorCoordinator.StatusChanged += OnSteamStatusChanged;
         _services.UpdateService.StateChanged += OnUpdateStateChanged;
+        SystemParameters.StaticPropertyChanged += OnOverlayMotionSystemChanged;
 
         PopulateControls();
         if (!previewOnly) InitializeTrayIcon();
@@ -443,6 +444,7 @@ public partial class MainWindow : Window
         _services.RelayCoordinator.StatusChanged -= OnRelayStatusChanged;
         _services.SteamMonitorCoordinator.StatusChanged -= OnSteamStatusChanged;
         _services.UpdateService.StateChanged -= OnUpdateStateChanged;
+        SystemParameters.StaticPropertyChanged -= OnOverlayMotionSystemChanged;
         if (_trayIcon is not null)
         {
             _trayIcon.Visible = false;
@@ -531,7 +533,7 @@ public partial class MainWindow : Window
 
     private void PopulateControls()
     {
-        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.8.0";
+        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.8.1";
         AboutVersionText.Text = $"Version {version}";
 
         var xboxConfigured = TryGetOpenXblApiKey(out _) && !string.IsNullOrWhiteSpace(_settings.XboxUserId);
@@ -554,8 +556,10 @@ public partial class MainWindow : Window
         SettingsAchievementOverlayEnabledCheckBox.IsChecked = _settings.AchievementOverlayEnabled;
         SettingsOverlayAnimationCheckBox.IsChecked = _settings.AchievementOverlayAnimationEnabled;
         SettingsOverlayReducedMotionCheckBox.IsChecked = _settings.AchievementOverlayReducedMotion;
+        SettingsOverlayFollowWindowsCheckBox.IsChecked = _settings.AchievementOverlayFollowWindowsMotion;
         SettingsOverlaySoundCheckBox.IsChecked = _settings.AchievementOverlaySoundEnabled;
         SettingsOverlayVolumeSlider.Value = Math.Clamp(_settings.AchievementOverlayVolume, 0, 100);
+        RefreshOverlayMotionStatus();
         RedlineOverlayToggle.IsChecked = _settings.AchievementOverlayEnabled;
         SettingsStartWithWindowsCheckBox.IsChecked = _settings.StartWithWindows;
         SettingsStartMinimizedCheckBox.IsChecked = _settings.StartMinimized;
@@ -1131,13 +1135,8 @@ public partial class MainWindow : Window
 
     private void PreviewAchievementOverlay_Click(object sender, RoutedEventArgs e)
     {
-        var preferences = MainTabs.SelectedIndex == 3 ? _settings with
-        {
-            AchievementOverlayAnimationEnabled = SettingsOverlayAnimationCheckBox.IsChecked == true,
-            AchievementOverlayReducedMotion = SettingsOverlayReducedMotionCheckBox.IsChecked == true,
-            AchievementOverlaySoundEnabled = SettingsOverlaySoundCheckBox.IsChecked == true,
-            AchievementOverlayVolume = (int)SettingsOverlayVolumeSlider.Value
-        } : _settings;
+        var preferences = MainTabs.SelectedIndex == 3 ? ReadOverlayPreferences() : _settings;
+        RefreshOverlayMotionStatus();
         if (!_services.AchievementOverlayService.Preview(CreateSampleAchievement(), settings: preferences))
         {
             ShowMessage(
@@ -1266,6 +1265,7 @@ public partial class MainWindow : Window
                 AchievementOverlayEnabled = SettingsAchievementOverlayEnabledCheckBox.IsChecked == true,
                 AchievementOverlayAnimationEnabled = SettingsOverlayAnimationCheckBox.IsChecked == true,
                 AchievementOverlayReducedMotion = SettingsOverlayReducedMotionCheckBox.IsChecked == true,
+                AchievementOverlayFollowWindowsMotion = SettingsOverlayFollowWindowsCheckBox.IsChecked == true,
                 AchievementOverlaySoundEnabled = SettingsOverlaySoundCheckBox.IsChecked == true,
                 AchievementOverlayVolume = (int)SettingsOverlayVolumeSlider.Value,
                 StartWithWindows = startWithWindows,

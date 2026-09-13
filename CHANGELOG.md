@@ -6,6 +6,18 @@ All notable changes to Achievement Relay are documented here. The project follow
 
 No changes yet.
 
+## [0.11.0] - 2026-09-13
+
+### Added
+
+- Optional Discord sign-in and encrypted account sync using Supabase Free.
+- Portable connection, presentation, sound and per-game settings, pins and bounded recent history across PCs, protected by a recovery key.
+- Account-owned delivery claims, revision conflict handling and safe historical imports. Device-specific setup remains local.
+
+### Verification
+
+- Automated checks passed; real Discord sign-in and two-device testing remain pending for this optional beta in the official release.
+
 ## [0.10.0] - 2026-09-13
 
 ### Added

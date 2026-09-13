@@ -26,7 +26,7 @@ A Windows profile is paired to one Relay account. Signing into another account i
 
 While signed in, devices request an atomic cloud claim before posting. Claims use an HMAC of the event identity and webhook destination; raw event IDs and webhook URLs are not stored in the claims table. Unavailable cloud coordination queues the post. A definite Discord 4xx rejection releases the claim for retry. Ambiguous sends keep the claim and require checking Discord rather than risking duplicate posts. No system can atomically commit both a Discord webhook and a database transaction; delivery is deliberately conservative.
 
-Claims are bounded to 10,000 per account through the supported RPC and are not automatically expired. Reaching capacity stops new coordinated posts. History never authorizes delivery and downloaded history cannot enter the delivery queue. The first beta needs live two-device verification before a release.
+Claims are bounded to 10,000 per account through the supported RPC and are not automatically expired. Reaching capacity stops new coordinated posts. History never authorizes delivery and downloaded history cannot enter the delivery queue. Account sync is an optional beta in v0.11.0; live two-device verification is pending.
 
 This deployment is Supabase **Free only**. No paid branches, upgrades or add-ons are required. Unchanged profiles are checked by revision without downloading the ciphertext again, and unchanged data is not uploaded. Platform quotas and project pauses can still interrupt cloud access; local data is retained.
 
@@ -34,5 +34,5 @@ This deployment is Supabase **Free only**. No paid branches, upgrades or add-ons
 
 Project: `vniujteastkitrmucebv` in London (`eu-west-2`). Apply `supabase/migrations/20260913204125_account_sync.sql` to an empty project. Discord's callback is `https://vniujteastkitrmucebv.supabase.co/auth/v1/callback`. Supabase's redirect allowlist must include exactly `http://127.0.0.1:43821/auth/callback`. The local port must be free when sign-in starts.
 
-Before release, verify real Discord sign-in and refresh, recovery on a second device, wrong-key rejection, two-user RLS isolation, concurrent changes, offline recovery, and duplicate-delivery claims with synthetic events and a dedicated test webhook. Never test by publishing old achievements to a real channel.
+For live verification, check real Discord sign-in and refresh, recovery on a second device, wrong-key rejection, two-user RLS isolation, concurrent changes, offline recovery, and duplicate-delivery claims with synthetic events and a dedicated test webhook. Never test by publishing old achievements to a real channel.
 

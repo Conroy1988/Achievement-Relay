@@ -54,6 +54,8 @@ public sealed record AchievementEvent
     /// provider thumbnail.
     /// </summary>
     public bool IsCollectorCard { get; init; }
+    public bool IsGameCompletion { get; init; }
+    public int? VerifiedAchievementTotal { get; init; }
 
     /// <summary>
     /// The unlock time reported by the source platform. Legacy Xbox responses

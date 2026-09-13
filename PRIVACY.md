@@ -54,6 +54,12 @@ Achievement Relay stores data under `%LOCALAPPDATA%\AchievementRelay`:
 
 The XUID, gamertag, Steam account ID, and Steam player name are not bearer credentials, but the copied support summary deliberately omits them. The app never intentionally writes the plaintext API key, webhook URL/token, Xbox/Steam password, Microsoft/Steam token, or Discord credentials to its log.
 
+## Companion history and optional shared delivery
+
+Companion keeps the latest 300 live unlocks observed on this PC in `companion-journal.json` under the app's local data directory. Entries contain achievement and game metadata, provider/player labels, observed timestamps, delivery status, session grouping and bounded small artwork bytes. They do not contain connection credentials. Existing history is not imported or posted. Gallery artwork inspection can fetch the selected unlock's public art from the same allowlisted provider hosts used for Collector Cards. Explicit session sharing posts the displayed recap to the configured Discord webhook with mentions disabled.
+
+Optional cross-PC coordination accesses only the Windows network folder entered by the user. Both PCs must use the same reachable share and webhook. Claim filenames are SHA-256 digests of the destination and event identity; file contents are delivery-state receipts, not webhook URLs or achievement descriptions. Receipts are retained to prevent duplicates. Cloud-sync folders are rejected because they cannot provide exclusive shared locking. Unknown send outcomes are held; confirming an already-visible Discord post is a separate explicit action. The application does not configure Windows shares or grant access permissions.
+
 ## Optional installer setup
 
 If the user selects **Connect Discord now; add OpenXBL optionally** in `AchievementRelay_Setup.exe`:

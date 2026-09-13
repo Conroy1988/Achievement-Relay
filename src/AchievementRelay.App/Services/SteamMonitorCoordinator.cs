@@ -729,6 +729,17 @@ public sealed class SteamMonitorCoordinator(
                 .Distinct(StringComparer.Ordinal)
                 .ToHashSet(StringComparer.Ordinal);
 
+            var completionApiName = previous?.CompletionAchievementApiName;
+            var completionTotal = previous?.CompletionAchievementTotal;
+            if (CompletionPolicy.IsVerifiedTransition(previous?.UnlockedAchievementApiNames.Count,
+                observations.Count(item => item.IsUnlocked), snapshot.TotalAchievements, delta.NewAchievements.Count > 0,
+                observations.Length == snapshot.TotalAchievements))
+            {
+                completionApiName = delta.NewAchievements.OrderBy(item => item.UnlockedAt ?? observedAt)
+                    .ThenBy(item => item.ApiName, StringComparer.Ordinal).Last().ApiName;
+                completionTotal = snapshot.TotalAchievements;
+            }
+
             async Task PersistStateAsync()
             {
                 games[appKey] = new SteamGameSyncState
@@ -736,6 +747,8 @@ public sealed class SteamMonitorCoordinator(
                     MonitoringStartedUtc = detectedAt,
                     LastObservedUtc = observedAt,
                     GameName = game.Name,
+                    CompletionAchievementApiName = completionApiName,
+                    CompletionAchievementTotal = completionTotal,
                     UnlockedAchievementApiNames = retainedIds,
                     PendingAchievementApiNames = pendingIds
                         .OrderBy(value => value, StringComparer.Ordinal)
@@ -832,6 +845,8 @@ public sealed class SteamMonitorCoordinator(
                     PlayerName = string.IsNullOrWhiteSpace(snapshot.PlayerName) ? null : snapshot.PlayerName.Trim(),
                     SourceProvider = "Steam",
                     Platform = "Steam",
+                    IsGameCompletion = observation.ApiName == completionApiName && completionTotal is > 0,
+                    VerifiedAchievementTotal = observation.ApiName == completionApiName ? completionTotal : null,
                     UnlockedAt = reportedTimeIsUsable ? observation.UnlockedAt : observedAt,
                     UnlockTimeEstimated = !reportedTimeIsUsable
                 };

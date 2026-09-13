@@ -1,5 +1,6 @@
 using System.IO;
 using System.Media;
+using AchievementRelay.Core.Models;
 
 namespace AchievementRelay.App.Services;
 
@@ -9,7 +10,7 @@ public sealed class UnlockChime : IDisposable
     private SoundPlayer? _player;
     private MemoryStream? _stream;
 
-    public static byte[] CreateWave(int volume)
+    public static byte[] CreateWave(int volume, RelayRarityTier tier = RelayRarityTier.Unranked)
     {
         const int rate = 22050;
         const int samples = rate;
@@ -31,19 +32,21 @@ public sealed class UnlockChime : IDisposable
                 return envelope * (Math.Sin(2 * Math.PI * hz * age) + .22 * Math.Sin(2 * Math.PI * hz * 2.01 * age));
             }
             var impact = .10 * Math.Sin(2 * Math.PI * 110 * t) * Math.Min(t / .008, 1) * Math.Exp(-t * 35);
-            var signal = .35 * Bell(t, .02, 659.25) + .40 * Bell(t, .18, 987.77) + impact;
+            var rare = tier is RelayRarityTier.Gold or RelayRarityTier.Platinum;
+            var signal = .35 * Bell(t, .02, rare ? 783.99 : 659.25) + .40 * Bell(t, .18, rare ? 1174.66 : 987.77) + impact;
+            if (tier == RelayRarityTier.Platinum) signal += .20 * Bell(t, .38, 1567.98);
             var tail = Math.Clamp((1 - t) / .08, 0, 1);
             writer.Write((short)(Math.Clamp(signal * gain * tail, -1, 1) * short.MaxValue));
         }
         return output.ToArray();
     }
 
-    public void Play(int volume)
+    public void Play(int volume, RelayRarityTier tier = RelayRarityTier.Unranked)
     {
         if (volume <= 0) return;
         try
         {
-            _stream = new MemoryStream(CreateWave(volume), writable: false);
+            _stream = new MemoryStream(CreateWave(volume, tier), writable: false);
             _player = new SoundPlayer(_stream);
             _player.Load();
             _player.Play();

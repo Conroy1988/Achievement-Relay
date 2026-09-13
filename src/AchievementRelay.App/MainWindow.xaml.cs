@@ -439,6 +439,7 @@ public partial class MainWindow : Window
     public void PrepareForExit()
     {
         _isExiting = true;
+        _companion?.Close();
         _services.ActivityLog.EntryAdded -= OnActivityEntryAdded;
         _services.AchievementDeliveryService.AchievementPosted -= OnRedlineAchievementPosted;
         _services.RelayCoordinator.StatusChanged -= OnRelayStatusChanged;
@@ -533,7 +534,7 @@ public partial class MainWindow : Window
 
     private void PopulateControls()
     {
-        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.8.1";
+        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.9.0";
         AboutVersionText.Text = $"Version {version}";
 
         var xboxConfigured = TryGetOpenXblApiKey(out _) && !string.IsNullOrWhiteSpace(_settings.XboxUserId);

@@ -38,6 +38,7 @@ public sealed record AppUpdateSnapshot
     public string Message { get; init; } = "Updates have not been checked yet.";
 
     public Uri? ReleasePage { get; init; }
+    public string ReleaseNotes { get; init; } = "";
 
     public DateTimeOffset? LastCheckedUtc { get; init; }
 
@@ -552,7 +553,8 @@ public sealed class AppUpdateService : IDisposable
                     LastCheckedUtc = DateTimeOffset.UtcNow,
                     ETag = etag,
                     LatestVersion = UpdatePolicy.FormatVersion(latestVersion),
-                    ReleasePageUrl = releasePage.ToString()
+                    ReleasePageUrl = releasePage.ToString(),
+                    ReleaseNotes = (release.Body ?? "")[..Math.Min(release.Body?.Length ?? 0, 6000)]
                 };
                 await SaveCacheAsync(currentState, cancellationToken);
                 return currentState;
@@ -618,6 +620,7 @@ public sealed class AppUpdateService : IDisposable
                 ETag = etag,
                 LatestVersion = manifest.Version,
                 ReleasePageUrl = releasePage.ToString(),
+                ReleaseNotes = (release.Body ?? "")[..Math.Min(release.Body?.Length ?? 0, 6000)],
                 InstallerDownloadUrl = installerUri.ToString(),
                 InstallerAssetSize = installerAsset.Size,
                 ManifestBase64 = Convert.ToBase64String(manifestBytes),
@@ -703,7 +706,8 @@ public sealed class AppUpdateService : IDisposable
                 LatestVersion = UpdatePolicy.FormatVersion(latest),
                 Message = "Achievement Relay is up to date.",
                 ReleasePage = releasePage,
-                LastCheckedUtc = cache!.LastCheckedUtc
+                LastCheckedUtc = cache!.LastCheckedUtc,
+                ReleaseNotes = cache.ReleaseNotes
             };
         }
 
@@ -734,7 +738,8 @@ public sealed class AppUpdateService : IDisposable
                 LatestVersion = validatedManifest.Version,
                 Message = "Achievement Relay is up to date.",
                 ReleasePage = releasePage,
-                LastCheckedUtc = cache!.LastCheckedUtc
+                LastCheckedUtc = cache!.LastCheckedUtc,
+                ReleaseNotes = cache.ReleaseNotes
             };
         }
         var required = decision.Requirement == UpdateRequirement.Required;
@@ -748,7 +753,8 @@ public sealed class AppUpdateService : IDisposable
                 ? $"Version {validatedManifest.Version} is required. Achievement monitoring is paused until it is installed."
                 : $"Version {validatedManifest.Version} is available from the official GitHub release.",
             ReleasePage = releasePage,
-            LastCheckedUtc = cache!.LastCheckedUtc
+            LastCheckedUtc = cache!.LastCheckedUtc,
+            ReleaseNotes = cache.ReleaseNotes
         };
     }
 
@@ -1258,6 +1264,7 @@ public sealed class AppUpdateService : IDisposable
         public string LatestVersion { get; init; } = string.Empty;
 
         public string ReleasePageUrl { get; init; } = string.Empty;
+        public string ReleaseNotes { get; init; } = "";
 
         public string InstallerDownloadUrl { get; init; } = string.Empty;
 
@@ -1270,6 +1277,8 @@ public sealed class AppUpdateService : IDisposable
 
     private sealed record GitHubRelease
     {
+        [JsonPropertyName("body")]
+        public string? Body { get; init; }
         [JsonPropertyName("tag_name")]
         public string TagName { get; init; } = string.Empty;
 

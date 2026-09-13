@@ -237,9 +237,11 @@ public static class OpenXblResponseParser
             var devices = new List<string>();
             AddStringValues(item, devices, "devices", "platforms");
 
+            var totalAchievements = GetFirstNonNegativeInteger(achievement, "totalAchievements");
             parsed.Add(new XboxTitleProgress
             {
                 TitleId = titleId.Trim(),
+                TotalAchievements = totalAchievements > 0 ? totalAchievements : null,
                 Name = NullIfWhiteSpace(GetString(item, "name", "titleName")),
                 CurrentAchievements = GetFirstNonNegativeInteger(
                     achievement,

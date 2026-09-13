@@ -47,6 +47,8 @@ public partial class AchievementOverlayWindow : Window
 
     private readonly AchievementOverlayPresentation _presentation;
     private readonly AppSettings _preferences;
+    private TimeSpan HoldDuration => TimeSpan.FromSeconds(Math.Clamp(_preferences.Companion.OverlaySeconds, 3, 12));
+    private double UserScale => CompanionPolicy.Bounded(_preferences.Companion.OverlayScale, .75, 1.5, 1);
     private readonly TaskCompletionSource _motionSuppressed =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
     private IntPtr _windowHandle;
@@ -60,6 +62,9 @@ public partial class AchievementOverlayWindow : Window
         InitializeComponent();
         _presentation = presentation;
         _preferences = preferences ?? new AppSettings();
+        OverlayRoot.LayoutTransform = new ScaleTransform(UserScale, UserScale);
+        Width = OverlayWidth * UserScale;
+        Height = OverlayHeight * UserScale;
         AutomationProperties.SetName(this, presentation.AccessibleAnnouncement);
         ApplyPresentation();
     }
@@ -90,7 +95,8 @@ public partial class AchievementOverlayWindow : Window
             UpdateLayout();
             PositionOnForegroundMonitor();
             RaiseAccessibleAnnouncement();
-            if (_preferences.AchievementOverlaySoundEnabled) chime.Play(_preferences.AchievementOverlayVolume);
+            if (_preferences.AchievementOverlaySoundEnabled) chime.Play(_preferences.AchievementOverlayVolume,
+                _preferences.Companion.RarityCelebrations ? _presentation.Tier : RelayRarityTier.Unranked);
             if (useMotion) StartUnlockEffects();
 
             if (useFade)
@@ -100,7 +106,7 @@ public partial class AchievementOverlayWindow : Window
                     AnimateAsync(OverlayTranslate, TranslateTransform.YProperty, 0, TimeSpan.FromMilliseconds(240), EasingMode.EaseOut, _motionSuppressed.Task));
             }
 
-            await Task.Delay(DisplayDuration, cancellationToken);
+            await Task.Delay(HoldDuration, cancellationToken);
 
             if (useFade)
             {
@@ -316,6 +322,14 @@ public partial class AchievementOverlayWindow : Window
             return;
         }
 
+        var selectedScreen = System.Windows.Forms.Screen.AllScreens.FirstOrDefault(
+            screen => screen.DeviceName == _preferences.Companion.OverlayMonitor);
+        if (selectedScreen is not null)
+        {
+            var area = selectedScreen.WorkingArea;
+            monitorInfo.WorkArea = new NativeRectangle { Left = area.Left, Top = area.Top, Right = area.Right, Bottom = area.Bottom };
+        }
+
         var workWidth = monitorInfo.WorkArea.Width;
         var workHeight = monitorInfo.WorkArea.Height;
         if (workWidth <= 0 || workHeight <= 0)
@@ -329,7 +343,7 @@ public partial class AchievementOverlayWindow : Window
         // source for this overlay.
         var provisionalDpi = GetDpiForWindow(_windowHandle);
         provisionalDpi = provisionalDpi == 0 ? 96u : provisionalDpi;
-        var provisionalScale = provisionalDpi / 96d;
+        var provisionalScale = provisionalDpi / 96d * UserScale;
         var provisionalWidth = Math.Min(
             workWidth,
             Math.Max(1, (int)Math.Round(OverlayWidth * provisionalScale)));
@@ -355,7 +369,7 @@ public partial class AchievementOverlayWindow : Window
 
         var dpi = GetDpiForWindow(_windowHandle);
         dpi = dpi == 0 ? 96u : dpi;
-        var scale = dpi / 96d;
+        var scale = dpi / 96d * UserScale;
         var widthPixels = Math.Min(workWidth, Math.Max(1, (int)Math.Round(OverlayWidth * scale)));
         var heightPixels = Math.Min(workHeight, Math.Max(1, (int)Math.Round(OverlayHeight * scale)));
         var left = Math.Clamp(
@@ -366,6 +380,12 @@ public partial class AchievementOverlayWindow : Window
             monitorInfo.WorkArea.Top + (int)Math.Round(TopInsetDips * scale),
             monitorInfo.WorkArea.Top,
             monitorInfo.WorkArea.Bottom - heightPixels);
+
+        left = monitorInfo.WorkArea.Left + (int)Math.Round((workWidth - widthPixels) *
+            CompanionPolicy.Bounded(_preferences.Companion.OverlayX, 0, 1, .5));
+        top = Math.Clamp(monitorInfo.WorkArea.Top + (int)Math.Round((workHeight - heightPixels) *
+            CompanionPolicy.Bounded(_preferences.Companion.OverlayY, 0, 1, 0)) + TopInsetDips,
+            monitorInfo.WorkArea.Top, monitorInfo.WorkArea.Bottom - heightPixels);
 
         SetWindowPos(
             _windowHandle,

@@ -1,5 +1,6 @@
 using AchievementRelay.Core.Models;
 using AchievementRelay.Core.Services;
+using System.IO;
 
 namespace AchievementRelay.App.Services;
 
@@ -16,7 +17,8 @@ public sealed class AchievementDeliveryService(
     DiscordWebhookClient webhookClient,
     DiscordAchievementPostComposer postComposer,
     AchievementOverlayService overlayService,
-    ActivityLog activityLog) : IDisposable
+    ActivityLog activityLog,
+    CompanionJournal? journal = null) : IDisposable
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
 
@@ -32,6 +34,7 @@ public sealed class AchievementDeliveryService(
         ArgumentNullException.ThrowIfNull(settings);
 
         await _gate.WaitAsync(cancellationToken);
+        SharedDeliveryClaim? shared = null;
         try
         {
             if (await eventLedger.ContainsAsync(achievement.Id, cancellationToken))
@@ -39,11 +42,15 @@ public sealed class AchievementDeliveryService(
                 return AchievementDeliveryResult.Handled;
             }
 
+            settings = CompanionPolicy.ForGame(achievement, settings);
+            if (journal is not null) await journal.RecordAsync(achievement, "Pending");
+
             if (settings.PostRareOnly && achievement.RarityKnown && !achievement.IsRare)
             {
                 await eventLedger.MarkProcessedAsync(achievement.Id, cancellationToken);
                 TryQueueOverlay(achievement, settings, achievement.ImageBytes);
                 activityLog.Info($"Skipped common {achievement.SourceProvider} achievement because Rare Only is enabled: {achievement.Name}.");
+                if (journal is not null) await journal.RecordAsync(achievement, "Filtered");
                 return AchievementDeliveryResult.Handled;
             }
 
@@ -51,21 +58,61 @@ public sealed class AchievementDeliveryService(
             if (!WebhookUrlValidator.TryNormalize(webhookValue, out var webhookUri, out _) || webhookUri is null)
             {
                 activityLog.Warning($"Found {achievement.Name}, but Discord is not configured.");
+                if (journal is not null) await journal.RecordAsync(achievement, "Needs connection");
                 return AchievementDeliveryResult.RetryRequired;
             }
 
             activityLog.Info($"{achievement.SourceProvider} achievement detected: {achievement.Name}.");
-            var post = await postComposer.ComposeAsync(achievement, settings, cancellationToken);
-            var result = await SendWithRetryAsync(webhookUri, post, cancellationToken);
+            if (!string.IsNullOrWhiteSpace(settings.Companion.SharedDeliveryFolder))
+            {
+                try { shared = await Task.Run(() => SharedDeliveryClaim.Acquire(settings.Companion.SharedDeliveryFolder, achievement.Id, webhookUri)); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    if (journal is not null) await journal.RecordAsync(achievement, "Shared delivery unavailable");
+                    activityLog.Warning("Shared delivery is busy or unavailable. No uncoordinated post was sent.");
+                    return AchievementDeliveryResult.RetryRequired;
+                }
+                if (shared.State == "delivered")
+                {
+                    await eventLedger.MarkProcessedAsync(achievement.Id, cancellationToken);
+                    if (journal is not null) await journal.RecordAsync(achievement, "Delivered on another PC");
+                    return AchievementDeliveryResult.Handled;
+                }
+                if (shared.State == "sending")
+                {
+                    if (journal is not null) await journal.RecordAsync(achievement, "Delivery uncertain — check Discord");
+                    return AchievementDeliveryResult.RetryRequired;
+                }
+            }
+            var displayAchievement = achievement;
+            if (achievement.IsGameCompletion && journal is not null)
+            {
+                var rarest = journal.Snapshot.Where(x => CompanionPolicy.GameKey(x.Achievement) == CompanionPolicy.GameKey(achievement) &&
+                    x.Achievement.PlayerName == achievement.PlayerName && x.Achievement.RarityPercentage is >= 0 and <= 100)
+                    .MinBy(x => x.Achievement.RarityPercentage);
+                if (rarest is not null) displayAchievement = achievement with { Description =
+                    $"Rarest recorded here: {rarest.Achievement.Name} ({RelayRarityClassifier.FormatPercentage(rarest.Achievement.RarityPercentage)}).\n" + achievement.Description };
+            }
+            var post = await postComposer.ComposeAsync(displayAchievement, settings, cancellationToken);
+            if (shared is not null) await Task.Run(() => shared.SetState("sending"));
+            var result = shared is null ? await SendWithRetryAsync(webhookUri, post, cancellationToken) :
+                await webhookClient.SendAsync(webhookUri, post.JsonPayload, post.AttachmentBytes,
+                    post.AttachmentFileName, post.AttachmentContentType, cancellationToken);
             if (!result.Success)
             {
+                if (result.StatusCode is >= 400 and < 500 && shared is not null) await Task.Run(() => shared.SetState("pending"));
                 activityLog.Error($"Could not relay {achievement.Name}: {result.Message}");
+                if (journal is not null) await journal.RecordAsync(achievement,
+                    shared?.State == "sending" ? "Delivery uncertain — check Discord" : "Retry pending");
                 return AchievementDeliveryResult.RetryRequired;
             }
+
+            if (shared is not null) await Task.Run(() => shared.SetState("delivered"));
 
             await eventLedger.MarkProcessedAsync(achievement.Id, cancellationToken);
             TryQueueOverlay(achievement, settings, post.AchievementIconBytes);
             activityLog.Success($"Posted {achievement.Name} from {achievement.SourceProvider} to Discord.");
+            if (journal is not null) await journal.RecordAsync(achievement, "Delivered", post.AchievementIconBytes);
             foreach (var observer in AchievementPosted?.GetInvocationList() ?? [])
             {
                 try { ((Action<AchievementEvent, DiscordAchievementPost>)observer)(achievement, post); }
@@ -75,7 +122,8 @@ public sealed class AchievementDeliveryService(
         }
         finally
         {
-            _gate.Release();
+            try { shared?.Dispose(); }
+            finally { _gate.Release(); }
         }
     }
 

@@ -410,6 +410,7 @@ public sealed partial class CompanionWindow : Window
 
     internal async Task VerifyCustomPreviewAsync()
     {
+        var original = (_scale.Value, Seconds: _seconds.Value, X: _x, Y: _y);
         _scale.Value = 1.35; _seconds.Value = 3; _x = 1; _y = 1;
         var started = new TaskCompletionSource<AchievementOverlayWindow>(TaskCreationOptions.RunContinuationsAsynchronously);
         var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -425,7 +426,13 @@ public sealed partial class CompanionWindow : Window
                 throw new InvalidOperationException("Custom size and corner placement did not reach the real overlay.");
             await closed.Task.WaitAsync(TimeSpan.FromSeconds(4));
         }
-        finally { _services.AchievementOverlayService.PresentationStarted -= Observe; _services.AchievementOverlayService.Clear(); }
+        finally
+        {
+            _services.AchievementOverlayService.PresentationStarted -= Observe;
+            _services.AchievementOverlayService.Clear();
+            _scale.Value = original.Value; _seconds.Value = original.Seconds;
+            _x = original.X; _y = original.Y; PositionStrip();
+        }
     }
     private async void Run(Func<Task> action)
     {

@@ -4,7 +4,15 @@ All notable changes to Achievement Relay are documented here. The project follow
 
 ## [Unreleased]
 
-No changes yet.
+### Usability and polish
+
+- Guided Relay account sign-in, recovery-key backup and pairing, clearer errors, cancellation, account labels and last-sync status.
+- Persistent Settings save/discard controls, section shortcuts, Ctrl+S, draft protection during sync and an exit reminder.
+- Simpler Home status, a useful primary action, compact layout and scrollable navigation.
+- Shared Companion save controls, protected per-game edits, library search/sorting, labelled history and activity filtering.
+- Accessible slider labels and values, sound previews that respect master mute, Stop preview and overlay defaults.
+- Native previews for all main and Companion screens, plus a settings draft regression check.
+
 
 ## [0.11.0] - 2026-09-13
 

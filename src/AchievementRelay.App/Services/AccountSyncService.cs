@@ -16,6 +16,14 @@ public sealed class AccountSyncService(AppServices services)
     private sealed record Snapshot(int Schema, JsonObject Settings, JournalEntry[] Journal, LibraryGame[] Library);
     private string BaselinePath => Path.Combine(services.Paths.DataDirectory, "account-baseline-" + services.AccountCloud.UserId + ".bin");
 
+    public DateTimeOffset? LastSuccessfulSync
+    {
+        get {
+            try { return services.AccountCloud.UserId is not null && File.Exists(BaselinePath) ? File.GetLastWriteTimeUtc(BaselinePath) : null; }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
+        }
+    }
+
     public async Task<AppSettings> SyncAsync()
     {
         await _gate.WaitAsync();

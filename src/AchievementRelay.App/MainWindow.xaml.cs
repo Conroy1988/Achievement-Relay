@@ -69,6 +69,7 @@ public partial class MainWindow : Window
         SystemParameters.StaticPropertyChanged += OnOverlayMotionSystemChanged;
 
         PopulateControls();
+        InitializeUsability(previewOnly);
         if (!previewOnly) InitializeAccountSync();
         if (!previewOnly) InitializeTrayIcon();
         ApplyUpdateState(_services.UpdateService.Snapshot);
@@ -94,6 +95,7 @@ public partial class MainWindow : Window
         NavigateTo(0);
         ShowFromTray();
         ApplyUpdateState(_services.UpdateService.Snapshot);
+        RefreshAccountSummary();
     }
 
     public Task<bool> TryStartAutomaticUpdateOnLaunchAsync(AppUpdateSnapshot snapshot)
@@ -381,7 +383,7 @@ public partial class MainWindow : Window
             HomeSummaryText.Text = !hasProvider
                 ? "Choose Xbox, Steam, or both. Then connect the Discord channel that should receive your achievements."
                 : !webhookConfigured
-                    ? "Your achievement source is ready. Connect a Discord channel to finish."
+                    ? "Your platform choices are saved. Connect a Discord channel, then check that your selected platforms are available."
                     : "Review the final setup step to start monitoring.";
             HomePrimaryActionButton.Content = "Continue setup";
             HomePrimaryActionButton.Tag = "setup";
@@ -405,8 +407,8 @@ public partial class MainWindow : Window
         HomeSummaryText.Text = activeProviders.Count == 0
             ? "Achievement Relay is ready and waiting quietly."
             : $"{string.Join(" and ", activeProviders)} monitoring is active. New achievements will appear in Discord automatically.";
-        HomePrimaryActionButton.Content = "Send Discord test";
-        HomePrimaryActionButton.Tag = "test";
+        HomePrimaryActionButton.Content = "View achievements";
+        HomePrimaryActionButton.Tag = "gallery";
     }
 
     private void UpdateSetupSummary(bool accountConfigured, bool webhookConfigured)
@@ -522,7 +524,7 @@ public partial class MainWindow : Window
         menu.Items.Add("Resume local alerts", null, (_, _) => _services.AchievementOverlayService.SetQuiet(AchievementOverlayService.QuietMode.Off, TimeSpan.Zero));
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add("Exit", null, (_, _) => Dispatcher.Invoke(() =>
-            (System.Windows.Application.Current as App)?.ExitApplication()));
+            { if (ConfirmExitWithDraft()) (System.Windows.Application.Current as App)?.ExitApplication(); }));
 
         var executablePath = Environment.ProcessPath;
         System.Drawing.Icon? extractedIcon = null;
@@ -575,6 +577,8 @@ public partial class MainWindow : Window
         SettingsStartMinimizedCheckBox.IsChecked = _settings.StartMinimized;
 
         PopulateSecretControls();
+        _savedEditorState = EditorState();
+        RefreshDraftStatus();
     }
 
     private void ShowFromTray()
@@ -609,6 +613,7 @@ public partial class MainWindow : Window
 
     private void NavigateTo(int index)
     {
+        if (index == 1 && BlockConnectionDraft()) return;
         MainTabs.SelectedIndex = Math.Clamp(index, 0, 5);
         UpdateNavigationState();
     }
@@ -782,6 +787,9 @@ public partial class MainWindow : Window
                 NavigateTo(4);
                 RefreshStatus();
                 break;
+            case "gallery":
+                ShowCompanion_Click(sender, e);
+                break;
             case "test":
                 SendSampleAchievement_Click(sender, e);
                 break;
@@ -908,11 +916,11 @@ public partial class MainWindow : Window
             GetSecretValue(SetupXboxApiKeyPasswordBox, SetupXboxApiKeyRevealTextBox),
             SetupXboxStatus);
 
-    private async void SaveAndTestSettingsOpenXbl_Click(object sender, RoutedEventArgs e) =>
-        await SaveAndTestOpenXblAsync(
-            sender,
-            GetSecretValue(SettingsXboxApiKeyPasswordBox, SettingsXboxApiKeyRevealTextBox),
-            SettingsXboxStatus);
+    private async void SaveAndTestSettingsOpenXbl_Click(object sender, RoutedEventArgs e)
+    {
+        if (BlockConnectionDraft(allowXboxKey: true)) return;
+        await SaveAndTestOpenXblAsync(sender, GetSecretValue(SettingsXboxApiKeyPasswordBox, SettingsXboxApiKeyRevealTextBox), SettingsXboxStatus);
+    }
 
     private async Task SaveAndTestOpenXblAsync(object sender, string value, TextBlock statusTarget)
     {
@@ -1247,6 +1255,8 @@ public partial class MainWindow : Window
 
     private async void SaveSettings_Click(object sender, RoutedEventArgs e)
     {
+        if (_savingPreferences) return;
+        var pendingKey = PendingXboxKey();
         var protectedWebhook = _settings.ProtectedWebhookUrl;
         var replacement = GetSecretValue(SettingsWebhookPasswordBox, SettingsWebhookRevealTextBox);
         if (!string.IsNullOrWhiteSpace(replacement))
@@ -1260,6 +1270,7 @@ public partial class MainWindow : Window
             protectedWebhook = _services.WebhookProtector.Protect(webhookUri.ToString());
         }
 
+        _savingPreferences = true;
         SetButtonBusy(sender, true);
         try
         {
@@ -1320,6 +1331,10 @@ public partial class MainWindow : Window
             }
 
             PopulateControls();
+            if (pendingKey is not null) {
+                SetSecretValue(SettingsXboxApiKeyPasswordBox, SettingsXboxApiKeyRevealTextBox, SettingsXboxApiKeyRevealButton, pendingKey, "Reveal Key");
+                RefreshDraftStatus();
+            }
 
             RefreshStatus();
             _services.ActivityLog.Success("Settings saved.");
@@ -1327,16 +1342,19 @@ public partial class MainWindow : Window
             var message = startWithWindows && !startupApplied
                 ? "Settings were saved, but Windows did not enable automatic startup. Enable Achievement Relay in Windows Startup Apps."
                 : "Settings saved.";
-            ShowMessage(message, startWithWindows && !startupApplied ? MessageBoxImage.Warning : MessageBoxImage.Information);
+            SettingsSaveStatus.Text = pendingKey is null ? message : message + " Your Xbox key edit is kept; select Verify and save key to apply it.";
+            if (startWithWindows && !startupApplied) ShowMessage(message, MessageBoxImage.Warning);
         }
         finally
         {
+            _savingPreferences = false;
             SetButtonBusy(sender, false);
         }
     }
 
     private async void RemoveOpenXbl_Click(object sender, RoutedEventArgs e)
     {
+        if (BlockConnectionDraft()) return;
         var confirmation = MessageBox.Show(
             this,
             "Disconnect the saved Xbox account and remove its OpenXBL API key from this PC? The Discord webhook will be kept.",
@@ -1379,6 +1397,7 @@ public partial class MainWindow : Window
 
     private async void RemoveWebhook_Click(object sender, RoutedEventArgs e)
     {
+        if (BlockConnectionDraft()) return;
         var confirmation = MessageBox.Show(
             this,
             "Remove the saved Discord webhook from this PC? Achievement Relay will stop posting until another webhook is configured.",
@@ -1411,6 +1430,7 @@ public partial class MainWindow : Window
 
     private async void RefreshSteam_Click(object sender, RoutedEventArgs e)
     {
+        if (BlockConnectionDraft()) return;
         if (BlockForRequiredUpdate())
         {
             return;

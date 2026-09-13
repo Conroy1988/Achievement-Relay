@@ -24,6 +24,19 @@ public partial class App
             var output = Path.GetFullPath(args[1]);
             Directory.CreateDirectory(Path.GetDirectoryName(output)!);
             Render(window, output, 1440, 920);
+            window.VerifyDraftProtection();
+            for (var page = 0; page < 6; page++) {
+                window.SelectReviewPage(page);
+                Render(window, Path.Combine(Path.GetDirectoryName(output)!, $"page-{page}.png"), 1100, 760);
+            }
+            var account = new AccountWindow(services, () => Task.CompletedTask);
+            Render(account, Path.Combine(Path.GetDirectoryName(output)!, "account.png"), 620, 780);
+            account.Close();
+            var companion = new CompanionWindow(services, new AppSettings(), _ => {}, () => {}, () => {}, () => {});
+            companion.ExportPreviews(Path.GetDirectoryName(output)!);
+            companion.Close();
+            window.SelectReviewPage(0);
+            Render(window, Path.Combine(Path.GetDirectoryName(output)!, "home-small.png"), 900, 600);
             Render(window, Path.Combine(Path.GetDirectoryName(output)!,
                 Path.GetFileNameWithoutExtension(output) + "_compact.png"), 1100, 640);
         }
@@ -41,7 +54,7 @@ public partial class App
         return true;
     }
 
-    private static void Render(MainWindow window, string output, int width, int height)
+    private static void Render(Window window, string output, int width, int height)
     {
         window.Width = width;
         window.Height = height;

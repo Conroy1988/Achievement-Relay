@@ -34,6 +34,9 @@ public sealed partial class CompanionWindow
     private readonly ListBox _trophies = new() { DisplayMemberPath = "Label", Height = 300 };
     private readonly System.Windows.Controls.Image _libraryArt = new() { Height = 165, Stretch = Stretch.UniformToFill };
     private int _libraryRevision = -1;
+    private readonly System.Windows.Controls.TextBox _librarySearch = new();
+    private readonly ComboBox _librarySort = new() { ItemsSource = new[] { "Recently played", "Game name", "Closest to completion" }, SelectedIndex = 0 };
+
     private sealed record GameRow(LibraryGame Game)
     {
         public string Label => $"{Game.Name} · {Game.Provider} · {Game.Earned}/{Game.Total?.ToString() ?? "?"}";
@@ -50,12 +53,13 @@ public sealed partial class CompanionWindow
         _trophies.DisplayMemberPath = ""; _trophies.ItemTemplate = (DataTemplate)FindResource("TrophyRowTemplate");
         _trophies.ItemContainerStyle = (Style)FindResource("GalleryItemStyle");
         var sound = Panel(); sound.Children.Add(Text("SOUND STUDIO", 22));
+        sound.Children.Add(Text("Save presentation, sound and history applies presentation, sound and history controls together. The master sound switch in Settings also controls previews."));
+        sound.Children.Add(ActionButton("Stop preview", () => _soundPreview.Dispose()));
         sound.Children.Add(_soundStudio); sound.Children.Add(Text("Standard unlock")); sound.Children.Add(_soundPack);
         sound.Children.Add(Text("Rare unlock")); sound.Children.Add(_rareSoundPack);
-        sound.Children.Add(Text("Dedicated volume · 0–100%")); sound.Children.Add(_soundVolume);
-        sound.Children.Add(ActionButton("Preview standard sound", () => _soundPreview.Play((int)_soundVolume.Value, RelayRarityTier.Unranked, (UnlockSoundPack)Math.Max(0, _soundPack.SelectedIndex))));
-        sound.Children.Add(ActionButton("Preview rare sound", () => _soundPreview.Play((int)_soundVolume.Value, RelayRarityTier.Platinum, (UnlockSoundPack)Math.Max(0, _rareSoundPack.SelectedIndex))));
-        sound.Children.Add(ActionButton("Save sound preferences", () => Run(SaveControlsAsync)));
+        sound.Children.Add(Text("Dedicated volume · 0–100%")); sound.Children.Add(_soundVolume); sound.Children.Add(SliderValue(_soundVolume, "Volume: {0:0}%"));
+        sound.Children.Add(ActionButton("Preview standard sound", () => PreviewSound(false)));
+        sound.Children.Add(ActionButton("Preview rare sound", () => PreviewSound(true)));
         sound.Children.Add(Text("QUIET GAMING", 20)); sound.Children.Add(_quietStatus);
         foreach (var option in new[] { ("Mute for 30 minutes", AchievementOverlayService.QuietMode.Mute), ("Hide alerts for 30 minutes", AchievementOverlayService.QuietMode.Hide), ("Hold up to 8 alerts for later", AchievementOverlayService.QuietMode.Hold), ("Resume local alerts", AchievementOverlayService.QuietMode.Off) })
             sound.Children.Add(ActionButton(option.Item1, () => { _services.AchievementOverlayService.SetQuiet(option.Item2, TimeSpan.FromMinutes(30)); RefreshShowcaseStatus(); }));
@@ -66,7 +70,12 @@ public sealed partial class CompanionWindow
         library.Children.Add(Text("Verified snapshots observed on this PC—not a complete account library. Unknown totals stay unknown. Last-observed counts can lag behind play."));
         library.Children.Add(_closest); library.Children.Add(_libraryGames); library.Children.Add(_libraryArt); library.Children.Add(_libraryDetails);
         library.Children.Add(_importHistory);
-        library.Children.Add(ActionButton("Save history preference", () => Run(SaveControlsAsync)));
+        library.Children.Add(Text("Find a game")); library.Children.Add(_librarySearch);
+        library.Children.Add(Text("Sort games")); library.Children.Add(_librarySort);
+        System.Windows.Automation.AutomationProperties.SetName(_librarySearch, "Search game library");
+        System.Windows.Automation.AutomationProperties.SetName(_librarySort, "Sort game library");
+        _librarySearch.TextChanged += (_, _) => { _libraryRevision = -1; RefreshLibrary(); };
+        _librarySort.SelectionChanged += (_, _) => { _libraryRevision = -1; RefreshLibrary(); };
         library.Children.Add(ActionButton("Refresh library", () => { _libraryRevision = -1; RefreshLibrary(); }));
         library.Children.Add(Text("IMPORTED HISTORY · LOCAL ONLY", 16)); library.Children.Add(_libraryHistory);
         library.Children.Add(Text("Opt-in import captures up to 300 earned achievements per game / 3,000 overall as monitoring naturally fetches complete snapshots. It does not make extra Xbox API calls. Historical entries never enter the delivery queue."));
@@ -122,6 +131,14 @@ public sealed partial class CompanionWindow
         if (sessionsTab.Content is ScrollViewer { Content: StackPanel session }) { session.Children.Add(Text("UNLOCK TIMELINE", 18)); session.Children.Add(_sessionTimeline); }
         RefreshLibrary(); RefreshTrophies(); RefreshShowcaseStatus();
     }
+    private void PreviewSound(bool rare) => Run(async () => {
+        var current = await _services.SettingsStore.LoadAsync();
+        _soundPreview.Dispose();
+        if (!current.AchievementOverlaySoundEnabled) { _notice.Text = "Sound is muted in Settings. Enable the master sound switch to hear a preview."; return; }
+        _soundPreview.Play((int)_soundVolume.Value, rare ? RelayRarityTier.Platinum : RelayRarityTier.Unranked,
+            (UnlockSoundPack)Math.Max(0, rare ? _rareSoundPack.SelectedIndex : _soundPack.SelectedIndex));
+        _notice.Text = _soundVolume.Value <= 0 ? "Preview is silent because volume is 0%." : "Playing a local preview. Use Stop preview to end it.";
+    });
     private static double Snap(double value) => new[] { 0d, .5, 1d }.FirstOrDefault(x => Math.Abs(value - x) < .04, value);
     private void RefreshLibrary()
     {
@@ -129,7 +146,14 @@ public sealed partial class CompanionWindow
         var revision = HashCode.Combine(games.Length, games.LastOrDefault()?.ObservedAt);
         if (_libraryRevision == revision) return; _libraryRevision = revision;
         var key = (_libraryGames.SelectedItem as GameRow)?.Game.Key;
-        var rows = games.OrderByDescending(x => x.ObservedAt).Select(x => new GameRow(x)).ToArray();
+        var matching = games.Where(x => x.Name.Contains(_librarySearch.Text.Trim(), StringComparison.OrdinalIgnoreCase));
+        var ordered = _librarySort.SelectedIndex switch {
+            1 => matching.OrderBy(x => x.Name),
+            2 => matching.OrderBy(x => x.Total > x.Earned ? x.Total - x.Earned : int.MaxValue),
+            _ => matching.OrderByDescending(x => x.ObservedAt)
+        };
+        var rows = ordered.Select(x => new GameRow(x)).ToArray();
+        if (rows.Length == 0) { _libraryDetails.Text = "No matching games. Clear your search or play a monitored game to build your library."; _libraryHistory.ItemsSource = null; _libraryArt.Source = null; }
         _libraryGames.Height = Math.Clamp(rows.Length * 75, 75, 210);
         _libraryGames.ItemsSource = rows; _libraryGames.SelectedItem = rows.FirstOrDefault(x => x.Game.Key == key) ?? rows.FirstOrDefault();
         var close = games.Where(x => x.Total > x.Earned).OrderBy(x => x.Total - x.Earned).Take(3);

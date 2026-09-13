@@ -17,6 +17,7 @@
     <StackPanel Margin="8,10">
       <TextBlock Text="{Binding Entry.Achievement.GameName}" Foreground="{DynamicResource MutedTextBrush}" FontSize="11" TextWrapping="Wrap"/>
       <TextBlock Text="{Binding Entry.Achievement.Name}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,4"/>
+      <TextBlock Text="{Binding Kind}" FontSize="11" Foreground="{DynamicResource MutedTextBrush}" Margin="0,3"/>
       <TextBlock Text="{Binding Entry.Delivery}" FontSize="11" Foreground="{DynamicResource AccentTextBrush}" TextWrapping="Wrap"/>
     </StackPanel>
   </DataTemplate>
@@ -64,7 +65,7 @@
         <ControlTemplate TargetType="TabControl">
           <Grid KeyboardNavigation.TabNavigation="Local">
             <Grid.ColumnDefinitions><ColumnDefinition Width="160"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-            <TabPanel IsItemsHost="True" Margin="0,8,10,8" VerticalAlignment="Top" KeyboardNavigation.TabIndex="1"/>
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><TabPanel IsItemsHost="True" Margin="0,8,10,8" VerticalAlignment="Top" KeyboardNavigation.TabIndex="1"/></ScrollViewer>
             <Border Grid.Column="1" Background="{TemplateBinding Background}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8">
               <ContentPresenter x:Name="PART_SelectedContentHost" ContentSource="SelectedContent" Margin="10"/>
             </Border>

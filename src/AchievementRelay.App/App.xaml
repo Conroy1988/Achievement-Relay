@@ -88,6 +88,7 @@
     </Style>
 
     <Style TargetType="TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
       <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
 

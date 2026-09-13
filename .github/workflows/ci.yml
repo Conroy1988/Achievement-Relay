@@ -54,7 +54,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Redline-native-preview
-          path: artifacts/AchievementRelay_Redline_Preview*.png
+          path: |
+            artifacts/AchievementRelay_Redline_Preview*.png
+            artifacts/page-*.png
+            artifacts/companion-*.png
+            artifacts/account.png
+            artifacts/home-small.png
           if-no-files-found: error
           retention-days: 1
 

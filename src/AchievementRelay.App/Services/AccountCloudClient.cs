@@ -26,10 +26,11 @@ public sealed class AccountCloudClient : IDisposable
     private Session? _session;
     private CloudRow? _cachedRow;
     public Guid? UserId => _session?.UserId;
+    public string AccountDisplayName => string.IsNullOrWhiteSpace(_session?.DisplayName) ? "Your Discord account" : _session.DisplayName;
     public bool HasRecoveryKey => _session?.Key is { Length: 32 };
     public bool IsConnected => _session is not null || File.Exists(_path);
     public sealed record CloudRow(Guid UserId, long Revision, string Ciphertext);
-    private sealed record Session(Guid UserId, string AccessToken, string RefreshToken, DateTimeOffset ExpiresAt, byte[]? Key);
+    private sealed record Session(Guid UserId, string AccessToken, string RefreshToken, DateTimeOffset ExpiresAt, byte[]? Key, string? DisplayName = null);
 
     public AccountCloudClient(AppPaths paths)
     {
@@ -216,9 +217,19 @@ public sealed class AccountCloudClient : IDisposable
         }
         finally { _gate.Release(); }
     }
-    private static Session ParseSession(JsonElement data, byte[]? key) => new(data.GetProperty("user").GetProperty("id").GetGuid(),
-        data.GetProperty("access_token").GetString()!, data.GetProperty("refresh_token").GetString()!,
-        DateTimeOffset.UtcNow.AddSeconds(data.GetProperty("expires_in").GetInt32()), key);
+    private static Session ParseSession(JsonElement data, byte[]? key)
+    {
+        var user = data.GetProperty("user");
+        string? displayName = null;
+        // User-editable metadata is display text only, never an authorization input.
+        if (user.TryGetProperty("user_metadata", out var metadata) && metadata.ValueKind == JsonValueKind.Object)
+            foreach (var field in new[] { "full_name", "name", "preferred_username", "user_name" })
+                if (metadata.TryGetProperty(field, out var value) && value.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(value.GetString())) {
+                    displayName = new string(value.GetString()!.Where(c => !char.IsControl(c)).Take(80).ToArray()); break;
+                }
+        return new Session(user.GetProperty("id").GetGuid(), data.GetProperty("access_token").GetString()!,
+            data.GetProperty("refresh_token").GetString()!, DateTimeOffset.UtcNow.AddSeconds(data.GetProperty("expires_in").GetInt32()), key, displayName);
+    }
     private void Save()
     {
         var bytes = JsonSerializer.SerializeToUtf8Bytes(_session, Json);

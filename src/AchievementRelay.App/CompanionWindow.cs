@@ -81,6 +81,7 @@ public sealed class CompanionWindow : Window
         actions.Children.Add(ActionButton("Replay locally", Replay));
         actions.Children.Add(ActionButton("Retry pending delivery", () => Run(RetryAsync)));
         actions.Children.Add(ActionButton("Preview Discord card", () => Run(PreviewCardAsync)));
+        actions.Children.Add(ActionButton("Confirm uncertain delivery", () => Run(ConfirmUncertainAsync)));
         gallery.Children.Add(actions);
         gallery.Children.Add(Text("PER-GAME CONTROLS", 16)); gallery.Children.Add(_muteGame); gallery.Children.Add(_hideGame); gallery.Children.Add(_rareGame);
         gallery.Children.Add(ActionButton("Save this game's preferences", () => Run(SaveGameAsync)));
@@ -206,6 +207,22 @@ public sealed class CompanionWindow : Window
         var post = await _services.AchievementPostComposer.ComposeAsync(row.Entry.Achievement, _settings with { Companion = ReadControls() });
         _artwork.Source = MainWindow.DecodeRedlineImage(post.AttachmentBytes, 1200);
         _notice.Text = post.UsesCollectorCard ? "Local preview of your Discord showcase. Nothing sent." : "Compact card selected: achievement name, description, platform, rarity and available icon. Nothing sent.";
+    }
+    private async Task ConfirmUncertainAsync()
+    {
+        if (Selected is not { } row || !row.Entry.Delivery.StartsWith("Delivery uncertain", StringComparison.Ordinal)) return;
+        if (System.Windows.MessageBox.Show(this,
+            "Only continue if you have checked Discord and this achievement post is already present. This records your confirmation and prevents a retry; it does not send a post.",
+            "Confirm existing Discord post", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+        var settings = await _services.SettingsStore.LoadAsync();
+        var secret = _services.WebhookProtector.TryUnprotect(settings.ProtectedWebhookUrl);
+        if (!WebhookUrlValidator.TryNormalize(secret, out var uri, out _) || uri is null) return;
+        using var claim = SharedDeliveryClaim.Acquire(settings.Companion.SharedDeliveryFolder, row.Entry.Achievement.Id, uri);
+        if (claim.State != "sending") { _notice.Text = "The shared claim has changed. Refresh delivery status before confirming."; return; }
+        claim.SetState("delivered");
+        await _services.EventLedger.MarkProcessedAsync(row.Entry.Achievement.Id);
+        await _services.CompanionJournal.RecordAsync(row.Entry.Achievement, "Delivered (confirmed by you)");
+        _notice.Text = "Existing post confirmed. No new post was sent.";
     }
     private void RefreshSessions()
     {

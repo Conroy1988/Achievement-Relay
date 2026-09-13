@@ -12,8 +12,9 @@ public sealed class SharedDeliveryClaim : IDisposable
     private SharedDeliveryClaim(FileStream stream)
     {
         _stream = stream;
+        if (stream.Length > 1_000_000) throw new InvalidDataException("Shared delivery claim exceeded its bound.");
         using var reader = new StreamReader(stream, Encoding.UTF8, false, 1024, leaveOpen: true);
-        State = reader.ReadToEnd();
+        State = reader.ReadToEnd().Split('\n').LastOrDefault(value => value.Length > 0) ?? "";
         if (State is not ("" or "pending" or "sending" or "delivered"))
             throw new InvalidDataException("Shared delivery claim is invalid.");
     }
@@ -30,9 +31,11 @@ public sealed class SharedDeliveryClaim : IDisposable
     }
     public void SetState(string state)
     {
-        var bytes = Encoding.UTF8.GetBytes(state);
-        _stream.Position = 0;
-        _stream.SetLength(0);
+        if (state is not ("pending" or "sending" or "delivered")) throw new ArgumentException("Unknown claim state.", nameof(state));
+        // Append receipts: truncating a sent claim before writing 'delivered'
+        // could make a crash look like an unused claim and permit a duplicate.
+        var bytes = Encoding.UTF8.GetBytes(state + "\n");
+        _stream.Position = _stream.Length;
         _stream.Write(bytes);
         _stream.Flush(flushToDisk: true);
         State = state;

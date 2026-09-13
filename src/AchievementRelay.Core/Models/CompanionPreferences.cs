@@ -1,6 +1,7 @@
 namespace AchievementRelay.Core.Models;
 
 public enum DiscordPresentation { Showcase, Compact }
+public enum UnlockSoundPack { Signal, Glass, Arcade }
 public sealed record GamePreferences
 {
     public string GameKey { get; init; } = "";
@@ -20,4 +21,10 @@ public sealed record CompanionPreferences
     public string OverlayMonitor { get; init; } = "";
     public string SharedDeliveryFolder { get; init; } = "";
     public GamePreferences[] Games { get; init; } = [];
+    public UnlockSoundPack SoundPack { get; init; }
+    public UnlockSoundPack RareSoundPack { get; init; } = UnlockSoundPack.Glass;
+    public int SoundVolume { get; init; } = 20;
+    public bool SoundStudioEnabled { get; init; }
+    public bool ImportHistory { get; init; }
+    public string[] PinnedAchievements { get; init; } = [];
 }

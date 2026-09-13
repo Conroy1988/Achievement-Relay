@@ -6,6 +6,34 @@ namespace AchievementRelay.App.Services;
 
 public sealed class AchievementOverlayService : IDisposable
 {
+    public enum QuietMode { Off, Mute, Hide, Hold }
+    private QuietMode _quiet;
+    private DateTimeOffset _quietUntil;
+    public string QuietStatus { get { lock (_gate) return _quiet == QuietMode.Off ? "Local alerts active" : $"{_quiet} until {_quietUntil.ToLocalTime():t} · {_queuedCount} queued"; } }
+    public void SetQuiet(QuietMode mode, TimeSpan duration)
+    {
+        lock (_gate)
+        {
+            if (_disposed) return;
+            duration = TimeSpan.FromSeconds(Math.Clamp(duration.TotalSeconds, 0, 7200));
+            _quiet = mode; _quietUntil = DateTimeOffset.UtcNow + duration;
+            if (mode != QuietMode.Off)
+                try { _activePresentationCancellation?.Cancel(); } catch (ObjectDisposedException) { }
+            if (mode == QuietMode.Hide) ClearQueuedLocked();
+            if (mode == QuietMode.Off && !_queue.IsEmpty) ScheduleDrainLocked();
+        }
+        if (mode != QuietMode.Off) _ = EndQuietAsync(_quietUntil, duration);
+    }
+    private async Task EndQuietAsync(DateTimeOffset until, TimeSpan duration)
+    {
+        try
+        {
+            await Task.Delay(duration, _lifetimeCancellation.Token);
+            lock (_gate) if (_quietUntil == until && !_disposed)
+            { _quiet = QuietMode.Off; if (!_queue.IsEmpty) ScheduleDrainLocked(); }
+        }
+        catch (OperationCanceledException) { }
+    }
     public const int MaximumQueuedNotifications = 8;
 
     private readonly ConcurrentQueue<QueuedOverlay> _queue = new();
@@ -36,7 +64,7 @@ public sealed class AchievementOverlayService : IDisposable
         ArgumentNullException.ThrowIfNull(achievement);
         ArgumentNullException.ThrowIfNull(settings);
 
-        if (!settings.AchievementOverlayEnabled)
+        if (!settings.AchievementOverlayEnabled || achievement.IsHistorical)
         {
             return false;
         }
@@ -95,6 +123,7 @@ public sealed class AchievementOverlayService : IDisposable
     {
         lock (_gate)
         {
+            if (_quiet == QuietMode.Hide) return false;
             if (_disposed ||
                 _dispatcher.HasShutdownStarted ||
                 _dispatcher.HasShutdownFinished ||
@@ -128,6 +157,7 @@ public sealed class AchievementOverlayService : IDisposable
             };
             _queue.Enqueue(new QueuedOverlay(eventId, presentation, preferences));
             _queuedCount++;
+            if (_quiet == QuietMode.Hold) return true;
             return ScheduleDrainLocked();
         }
     }
@@ -165,6 +195,7 @@ public sealed class AchievementOverlayService : IDisposable
                 {
                     lock (_gate)
                     {
+                        if (_quiet == QuietMode.Hold) break;
                         if (!_queue.TryDequeue(out queued))
                         {
                             break;
@@ -176,7 +207,10 @@ public sealed class AchievementOverlayService : IDisposable
                         _activePresentationCancellation = presentationCancellation;
                     }
 
-                    var window = new AchievementOverlayWindow(queued.Presentation, queued.Preferences);
+                    AppSettings displayPreferences;
+                    lock (_gate) displayPreferences = _quiet == QuietMode.Mute
+                        ? queued.Preferences with { AchievementOverlaySoundEnabled = false } : queued.Preferences;
+                    var window = new AchievementOverlayWindow(queued.Presentation, displayPreferences);
                     var showing = window.ShowForAsync(presentationCancellation.Token);
                     try { PresentationStarted?.Invoke(window); } catch (Exception) { }
                     await showing;
@@ -224,7 +258,7 @@ public sealed class AchievementOverlayService : IDisposable
                 {
                     _queueLimitLogged = false;
                 }
-                if (!_disposed && !_queue.IsEmpty)
+                if (!_disposed && !_queue.IsEmpty && _quiet != QuietMode.Hold)
                 {
                     ScheduleDrainLocked();
                 }

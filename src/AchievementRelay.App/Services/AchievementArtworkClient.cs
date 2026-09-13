@@ -17,6 +17,10 @@ public sealed record AchievementCardArtwork(
 /// </summary>
 public sealed class AchievementArtworkClient : IDisposable
 {
+    private readonly object _cacheGate = new();
+    private readonly Dictionary<string, (byte[] Bytes, DateTimeOffset At)> _cache = new();
+    private long _cacheBytes;
+    public long CachedBytes { get { lock (_cacheGate) return _cacheBytes; } }
     private const int MaximumArtworkBytes = 6 * 1024 * 1024;
     private static readonly TimeSpan ArtworkRequestTimeout = TimeSpan.FromSeconds(5);
     private static readonly HashSet<string> AllowedImageHosts = new(StringComparer.OrdinalIgnoreCase)
@@ -68,6 +72,9 @@ public sealed class AchievementArtworkClient : IDisposable
         {
             return null;
         }
+        lock (_cacheGate)
+            if (_cache.TryGetValue(uri.AbsoluteUri, out var cached) && DateTimeOffset.UtcNow - cached.At < TimeSpan.FromMinutes(15))
+                return cached.Bytes;
 
         try
         {
@@ -105,7 +112,15 @@ public sealed class AchievementArtworkClient : IDisposable
             }
 
             var bytes = output.ToArray();
-            return IsSupportedRasterImage(bytes) ? bytes : null;
+            if (!IsSupportedRasterImage(bytes)) return null;
+            lock (_cacheGate)
+            {
+                if (_cache.Remove(uri.AbsoluteUri, out var old)) _cacheBytes -= old.Bytes.Length;
+                while (_cache.Count > 0 && (_cacheBytes + bytes.Length > 24 * 1024 * 1024 || _cache.Count >= 32))
+                { var first = _cache.MinBy(x => x.Value.At); _cache.Remove(first.Key); _cacheBytes -= first.Value.Bytes.Length; }
+                _cache[uri.AbsoluteUri] = (bytes, DateTimeOffset.UtcNow); _cacheBytes += bytes.Length;
+            }
+            return bytes;
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {

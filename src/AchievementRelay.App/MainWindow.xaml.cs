@@ -109,6 +109,7 @@ public partial class MainWindow : Window
 
     public void RefreshStatus()
     {
+        RefreshNowPlaying();
         var apiKeyConfigured = TryGetOpenXblApiKey(out _);
         var accountConfigured = apiKeyConfigured && !string.IsNullOrWhiteSpace(_settings.XboxUserId);
         var webhookConfigured = TryGetWebhook(out _);
@@ -511,6 +512,13 @@ public partial class MainWindow : Window
     {
         var menu = new Forms.ContextMenuStrip();
         menu.Items.Add("Open Achievement Relay", null, (_, _) => Dispatcher.Invoke(ShowFromTray));
+        var statusItem = menu.Items.Add("Monitoring status"); statusItem.Enabled = false;
+        menu.Opening += (_, _) => statusItem.Text = $"Xbox: {(_services.RelayCoordinator.IsRunning ? "on" : "off")} · Steam: {_services.SteamMonitorCoordinator.Phase}";
+        menu.Items.Add("Gallery & trophies", null, (_, _) => Dispatcher.Invoke(() => { ShowFromTray(); ShowCompanion_Click(this, new RoutedEventArgs()); }));
+        menu.Items.Add("Test local unlock", null, (_, _) => Dispatcher.Invoke(() => _services.AchievementOverlayService.Preview(
+            new AchievementEvent { Id = "tray-preview", Name = "Signal check", GameName = "Achievement Relay", SourceProvider = "Preview", RarityKnown = true, RarityPercentage = .5, IsRare = true }, settings: _settings)));
+        menu.Items.Add("Mute alerts for 30 minutes", null, (_, _) => _services.AchievementOverlayService.SetQuiet(AchievementOverlayService.QuietMode.Mute, TimeSpan.FromMinutes(30)));
+        menu.Items.Add("Resume local alerts", null, (_, _) => _services.AchievementOverlayService.SetQuiet(AchievementOverlayService.QuietMode.Off, TimeSpan.Zero));
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add("Exit", null, (_, _) => Dispatcher.Invoke(() =>
             (System.Windows.Application.Current as App)?.ExitApplication()));
@@ -534,7 +542,7 @@ public partial class MainWindow : Window
 
     private void PopulateControls()
     {
-        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.9.0";
+        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.10.0";
         AboutVersionText.Text = $"Version {version}";
 
         var xboxConfigured = TryGetOpenXblApiKey(out _) && !string.IsNullOrWhiteSpace(_settings.XboxUserId);

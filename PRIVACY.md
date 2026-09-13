@@ -1,6 +1,6 @@
 # Privacy policy
 
-Effective: 30 August 2026
+Effective: 13 September 2026
 
 Achievement Relay is a local, open-source Windows application. It has no analytics, advertising, account system, cloud database, telemetry, or developer-operated relay service.
 
@@ -19,7 +19,7 @@ The app does not ask for or store the Xbox/Microsoft password, Microsoft authent
 
 Steam support is keyless and read-only. Achievement Relay reads the signed-in Windows user's local Steam install path, library/manifests, active App ID, running executable paths, current Steam account ID/player name, and the active game's achievement identifiers, display metadata, unlock state/time, and optional icon through the local Steamworks client. It does not ask for or store a Steam password, browser cookie, Web API key, OAuth token, or other login credential.
 
-Only after a new unlock, the app may request public global achievement percentages from `api.steampowered.com` for that App ID. After that unlock is independently eligible for Discord delivery, it may also request the game's public `library_hero.jpg` from an exact allowlisted Steam CDN host. Both requests are credential-free and optional; the percentage result is cached for the running process and contains aggregate data, not personal history.
+Only after a new unlock, the app may request public global achievement percentages from `api.steampowered.com` for that App ID. It may request the game's public `library_hero.jpg` from an exact allowlisted Steam CDN host for a live post or a home/library/local-preview presentation. Both requests are credential-free and optional; the percentage result is cached for the running process and contains aggregate data, not personal history.
 
 ## Data sent to Discord
 
@@ -100,3 +100,11 @@ Revoking the OpenXBL API key stops future account requests. Deleting/rotating th
 ## Changes and contact
 
 Material policy changes are recorded in repository history and release notes. Privacy reports can be opened in the project's GitHub tracker, but never include API keys, webhook URLs/tokens, XUIDs, gamertags, or other private data.
+
+## Showcase library and diagnostics
+
+The local Companion library retains progress for up to 100 games observed through normal monitoring. Optional historical capture stores earned-achievement metadata (up to 300 per game / 3,000 overall) only after you enable it. It does not make additional Xbox history requests or send history to Discord. The library contains provider account/game keys for identity separation but strips player names and embedded image bytes. It is separate from the live delivery journal and ledger.
+
+Artwork caching is memory-only, capped at 24 MB and 32 entries, with a 15-minute reuse window; existing public-image host restrictions still apply. No hosted pairing service or new telemetry endpoint is introduced. Quiet controls affect local presentation only.
+
+Exported achievement posters are user-selected local PNG files and can contain player/achievement information. The new support-report export uses an explicit allowlist of version, OS version, boolean statuses, stage names, counts and cache size. It excludes credentials, URLs, identifiers, names, filesystem paths and raw logs/errors.

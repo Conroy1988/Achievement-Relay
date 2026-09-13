@@ -21,7 +21,7 @@ using HorizontalAlignment = System.Windows.HorizontalAlignment;
 
 namespace AchievementRelay.App;
 
-public sealed class CompanionWindow : Window
+public sealed partial class CompanionWindow : Window
 {
     private readonly AppServices _services;
     private AppSettings _settings;
@@ -74,7 +74,7 @@ public sealed class CompanionWindow : Window
         var heading = Text("YOUR ACHIEVEMENTS. YOUR WAY.", 25);
         DockPanel.SetDock(heading, Dock.Top); root.Children.Add(heading);
         DockPanel.SetDock(_notice, Dock.Bottom); root.Children.Add(_notice);
-        var tabs = new TabControl(); root.Children.Add(tabs); Content = root;
+        var tabs = new TabControl { TabStripPlacement = Dock.Left }; root.Children.Add(tabs); Content = root;
         var gallery = Panel();
         gallery.Children.Add(Text("GALLERY", 20));
         gallery.Children.Add(Text("Your latest 300 live unlocks on this PC."));
@@ -87,6 +87,8 @@ public sealed class CompanionWindow : Window
         var detail = Panel(); _artwork.Height = 175; detail.Children.Add(_artwork); detail.Children.Add(_details);
         var actions = new WrapPanel();
         actions.Children.Add(ActionButton("Replay locally", Replay));
+        actions.Children.Add(ActionButton("Export poster", () => Run(() => ExportPosterAsync(Selected?.Entry.Achievement))));
+        actions.Children.Add(ActionButton("Pin / unpin trophy", () => Run(() => TogglePinAsync(Selected?.Entry.Achievement))));
         _retryButton = ActionButton("Retry pending delivery", () => Run(RetryAsync)); actions.Children.Add(_retryButton);
         actions.Children.Add(ActionButton("Preview Discord card", () => Run(PreviewCardAsync)));
         _confirmButton = ActionButton("Confirm uncertain delivery", () => Run(ConfirmUncertainAsync)); actions.Children.Add(_confirmButton);
@@ -125,6 +127,7 @@ public sealed class CompanionWindow : Window
         setup.Children.Add(Text("1. Connect Discord, then Xbox if you use it. Steam uses the local client.\n\n2. Run the connection checks in Connections.\n\n3. Test your local overlay and chime below.\n\n4. Start monitoring before playing. Your first snapshot quietly records existing achievements; it does not repost your history."));
         setup.Children.Add(ActionButton("Connect and verify accounts", _connections)); setup.Children.Add(ActionButton("Show sample unlock", ReplayControls));
         AddTab(tabs, "Getting started", setup);
+        BuildShowcaseTabs(tabs, controls, health);
         LoadControls();
         _search.TextChanged += (_, _) => RefreshGallery(); _platform.SelectionChanged += (_, _) => RefreshGallery(); _period.SelectionChanged += (_, _) => RefreshGallery();
         _gallery.SelectionChanged += (_, _) => SelectAchievement(); _sessions.SelectionChanged += (_, _) => RefreshRecap();
@@ -133,8 +136,8 @@ public sealed class CompanionWindow : Window
         _position.MouseMove += (_, e) => { if (_position.IsMouseCaptured) DragPosition(e); };
         _position.MouseLeftButtonUp += (_, _) => _position.ReleaseMouseCapture();
         _services.CompanionJournal.Changed += JournalChanged;
-        _timer.Tick += (_, _) => { if (IsVisible) RefreshHealth(); }; _timer.Start();
-        Closed += (_, _) => { _closed = true; _timer.Stop(); _artworkCancellation?.Cancel(); _services.CompanionJournal.Changed -= JournalChanged; };
+        _timer.Tick += (_, _) => { if (IsVisible) { RefreshHealth(); RefreshShowcaseStatus(); } }; _timer.Start();
+        Closed += (_, _) => { _closed = true; _timer.Stop(); _artworkCancellation?.Cancel(); _showcaseCancellation.Cancel(); _soundPreview.Dispose(); _services.CompanionJournal.Changed -= JournalChanged; };
         RefreshGallery(); RefreshSessions(); RefreshHealth();
     }
 
@@ -181,7 +184,8 @@ public sealed class CompanionWindow : Window
         if (_confirmButton is not null) _confirmButton.IsEnabled = Selected?.Entry.Delivery.StartsWith("Delivery uncertain", StringComparison.Ordinal) == true;
         if (Selected is not { } row) { _details.Text = "No matching live unlocks recorded yet."; _artwork.Source = null; return; }
         var a = row.Entry.Achievement;
-        _details.Text = $"{a.Name}\n{a.GameName} · {a.Platform ?? a.SourceProvider}\n{a.Description}\n{RelayRarityClassifier.FormatPercentage(a.RarityPercentage)} · {row.Entry.Delivery}";
+        _details.Text = $"{a.Name}\n{a.GameName} · {a.Platform ?? a.SourceProvider}\n{a.Description}\n{RelayRarityClassifier.FormatPercentage(a.RarityPercentage)} · {row.Entry.Delivery}\n\n" +
+            string.Join("\n", (row.Entry.Transitions ?? []).Select(x => $"{x.At.ToLocalTime():HH:mm:ss}  {x.Status}"));
         _artwork.Source = MainWindow.DecodeRedlineImage(a.ImageBytes, 600) ?? new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/AchievementRelay.App;component/Assets/RelayCommandDeck.png"));
         var rule = (_settings.Companion.Games ?? []).FirstOrDefault(x => x.GameKey == CompanionPolicy.GameKey(a));
         _muteGame.IsChecked = rule?.MuteSound == true; _hideGame.IsChecked = rule?.HideOverlay == true; _rareGame.IsChecked = rule?.RareCelebrationsOnly == true;
@@ -268,17 +272,25 @@ public sealed class CompanionWindow : Window
     private void LoadControls()
     {
         var p = _settings.Companion; _scale.Value = p.OverlayScale; _seconds.Value = p.OverlaySeconds; _x = p.OverlayX; _y = p.OverlayY;
+        _soundPack.SelectedIndex = (int)p.SoundPack; _rareSoundPack.SelectedIndex = (int)p.RareSoundPack;
+        _soundVolume.Value = p.SoundVolume; _soundStudio.IsChecked = p.SoundStudioEnabled; _importHistory.IsChecked = p.ImportHistory;
         _presentation.SelectedIndex = p.DiscordPresentation == DiscordPresentation.Compact ? 1 : 0;
         _rarity.IsChecked = p.RarityCelebrations; _shared.Text = p.SharedDeliveryFolder;
         var monitors = new[] { new MonitorRow("", "Follow the active game") }.Concat(System.Windows.Forms.Screen.AllScreens.Select((x, i) => new MonitorRow(x.DeviceName, $"Screen {i + 1} · {x.Bounds.Width} × {x.Bounds.Height}"))).ToArray();
         _monitor.ItemsSource = monitors; _monitor.SelectedItem = monitors.FirstOrDefault(x => x.Id == p.OverlayMonitor) ?? monitors[0];
     }
     private CompanionPreferences ReadControls() => _settings.Companion with { OverlayScale = _scale.Value, OverlaySeconds = (int)_seconds.Value, OverlayX = _x, OverlayY = _y,
+        SoundPack = (UnlockSoundPack)Math.Max(0, _soundPack.SelectedIndex), RareSoundPack = (UnlockSoundPack)Math.Max(0, _rareSoundPack.SelectedIndex),
+        SoundVolume = (int)_soundVolume.Value, SoundStudioEnabled = _soundStudio.IsChecked == true, ImportHistory = _importHistory.IsChecked == true,
         OverlayMonitor = (_monitor.SelectedItem as MonitorRow)?.Id ?? "", RarityCelebrations = _rarity.IsChecked == true,
         DiscordPresentation = _presentation.SelectedIndex == 1 ? DiscordPresentation.Compact : DiscordPresentation.Showcase, SharedDeliveryFolder = _shared.Text.Trim() };
     private void DragPosition(System.Windows.Input.MouseEventArgs e)
     { var point = e.GetPosition(_position); _x = Math.Clamp((point.X - _strip.Width / 2) / Math.Max(1, _position.ActualWidth - _strip.Width), 0, 1); _y = Math.Clamp((point.Y - _strip.Height / 2) / Math.Max(1, _position.ActualHeight - _strip.Height), 0, 1); PositionStrip(); }
-    private void PositionStrip() { Canvas.SetLeft(_strip, _x * Math.Max(0, _position.ActualWidth - _strip.Width)); Canvas.SetTop(_strip, _y * Math.Max(0, _position.ActualHeight - _strip.Height)); }
+    private void PositionStrip()
+    {
+        _strip.Width = Math.Min(_position.ActualWidth, 170 * _scale.Value); _strip.Height = 25 * _scale.Value;
+        Canvas.SetLeft(_strip, _x * Math.Max(0, _position.ActualWidth - _strip.Width)); Canvas.SetTop(_strip, _y * Math.Max(0, _position.ActualHeight - _strip.Height));
+    }
     private async Task SaveControlsAsync()
     {
         var preferences = ReadControls();

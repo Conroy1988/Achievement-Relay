@@ -32,6 +32,7 @@ public sealed class AchievementDeliveryService(
     {
         ArgumentNullException.ThrowIfNull(achievement);
         ArgumentNullException.ThrowIfNull(settings);
+        if (achievement.IsHistorical) return AchievementDeliveryResult.Handled;
 
         await _gate.WaitAsync(cancellationToken);
         SharedDeliveryClaim? shared = null;

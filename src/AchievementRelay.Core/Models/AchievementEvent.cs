@@ -55,6 +55,8 @@ public sealed record AchievementEvent
     /// </summary>
     public bool IsCollectorCard { get; init; }
     public bool IsGameCompletion { get; init; }
+    /// <summary>Presentation-only imported history; never eligible for delivery or automatic overlays.</summary>
+    public bool IsHistorical { get; init; }
     public int? VerifiedAchievementTotal { get; init; }
 
     /// <summary>

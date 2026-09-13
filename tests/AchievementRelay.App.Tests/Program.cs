@@ -11,6 +11,7 @@ using AchievementRelay.Core.Models;
 
 var tests = new (string Name, Action Run)[]
 {
+    ("Account imports preserve delivery isolation and concurrent local edits", AccountStoreTests.Run),
     ("Imported history is opt-in, bounded and isolated from delivery state", LibraryHistoryContract),
     ("Sound Studio packs are deterministic, distinct and respect zero", SoundStudioContract),
     ("Quiet hold is bounded and historical entries cannot auto-present", QuietModeContract),

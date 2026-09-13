@@ -41,6 +41,27 @@ public sealed class CompanionJournal
         { StorageError = "History could not be loaded. Existing history has been preserved."; }
     }
 
+    public async Task MergeAccountHistoryAsync(IEnumerable<JournalEntry> incoming)
+    {
+        await _gate.WaitAsync();
+        try
+        {
+            if (StorageError is not null) throw new IOException(StorageError);
+            var local = _entries.ToDictionary(x => x.Achievement.Id);
+            var next = _entries.Concat(incoming.Where(x => x?.Achievement?.Id is { Length: > 0 }))
+                .GroupBy(x => x.Achievement.Id).Select(g => g.MaxBy(x => x.UpdatedAt)!)
+                .OrderBy(x => x.ObservedAt).TakeLast(300).Select(x => local.TryGetValue(x.Achievement.Id, out var old)
+                    ? x with { Achievement = x.Achievement with { ImageBytes = old.Achievement.ImageBytes } }
+                    : x with { Achievement = x.Achievement with { ImageBytes = null, IsHistorical = true } }).ToArray();
+            await File.WriteAllTextAsync(_path + ".tmp", JsonSerializer.Serialize(next, Json));
+            File.Move(_path + ".tmp", _path, true);
+            Volatile.Write(ref _entries, next);
+        }
+        finally { _gate.Release(); }
+        foreach (var callback in Changed?.GetInvocationList() ?? [])
+        { try { ((Action)callback)(); } catch (Exception) { } }
+    }
+
     public async Task RecordAsync(AchievementEvent achievement, string delivery, byte[]? icon = null)
     {
         await _gate.WaitAsync();

@@ -21,6 +21,7 @@ public sealed class AchievementDeliveryService(
     CompanionJournal? journal = null) : IDisposable
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
+    public AccountCloudClient? AccountCloud { get; set; }
 
     // Observational only: failures in the desktop showcase must never retry a post.
     public event Action<AchievementEvent, DiscordAchievementPost>? AchievementPosted;
@@ -95,12 +96,47 @@ public sealed class AchievementDeliveryService(
                     $"Rarest recorded here: {rarest.Achievement.Name} ({RelayRarityClassifier.FormatPercentage(rarest.Achievement.RarityPercentage)}).\n" + achievement.Description };
             }
             var post = await postComposer.ComposeAsync(displayAchievement, settings, cancellationToken);
+            var accountCoordinated = AccountCloud?.IsConnected == true;
+            if (accountCoordinated)
+            {
+                try
+                {
+                    if (!await AccountCloud!.ClaimAsync(achievement.Id, webhookUri, cancellationToken))
+                    {
+                        if (journal is not null) await journal.RecordAsync(achievement, "Claimed on another device — check Discord");
+                        await eventLedger.MarkProcessedAsync(achievement.Id, cancellationToken);
+                        return AchievementDeliveryResult.Handled;
+                    }
+                }
+                catch (Exception ex) when (ex is System.Net.Http.HttpRequestException or InvalidOperationException or OperationCanceledException)
+                {
+                    activityLog.Warning("Account delivery coordination is unavailable. The achievement is queued; no uncoordinated post was sent.");
+                    return AchievementDeliveryResult.RetryRequired;
+                }
+            }
             if (shared is not null) await Task.Run(() => shared.SetState("sending"));
-            var result = shared is null ? await SendWithRetryAsync(webhookUri, post, cancellationToken) :
+            var result = shared is null && !accountCoordinated ? await SendWithRetryAsync(webhookUri, post, cancellationToken) :
                 await webhookClient.SendAsync(webhookUri, post.JsonPayload, post.AttachmentBytes,
                     post.AttachmentFileName, post.AttachmentContentType, cancellationToken);
             if (!result.Success)
             {
+                if (accountCoordinated)
+                {
+                    if (result.StatusCode is >= 400 and < 500)
+                    {
+                        try
+                        {
+                            await AccountCloud!.ReleaseRejectedClaimAsync(achievement.Id, webhookUri, cancellationToken);
+                            if (journal is not null) await journal.RecordAsync(achievement, "Retry pending");
+                            return AchievementDeliveryResult.RetryRequired;
+                        }
+                        catch (Exception ex) when (ex is System.Net.Http.HttpRequestException or InvalidOperationException or OperationCanceledException) { }
+                    }
+                    activityLog.Warning("An account-coordinated post failed or is uncertain. Check Discord; it will not be automatically sent twice.");
+                    if (journal is not null) await journal.RecordAsync(achievement, "Delivery uncertain — check Discord");
+                    await eventLedger.MarkProcessedAsync(achievement.Id, cancellationToken);
+                    return AchievementDeliveryResult.Handled;
+                }
                 if (result.StatusCode is >= 400 and < 500 && shared is not null) await Task.Run(() => shared.SetState("pending"));
                 activityLog.Error($"Could not relay {achievement.Name}: {result.Message}");
                 if (journal is not null) await journal.RecordAsync(achievement,

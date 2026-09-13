@@ -11,6 +11,8 @@ public sealed class AppServices : IDisposable
         UpdateService = new AppUpdateService(Paths, ActivityLog);
         WebhookProtector = new SecureWebhookProtector();
         SettingsStore = new SettingsStore(Paths);
+        AccountCloud = new AccountCloudClient(Paths);
+        AccountSync = new AccountSyncService(this);
         EventLedger = new EventLedger(Paths);
         CompanionJournal = new CompanionJournal(Paths, ActivityLog);
         CompanionLibrary = new CompanionLibrary(Paths);
@@ -30,6 +32,7 @@ public sealed class AppServices : IDisposable
             AchievementOverlayService,
             ActivityLog,
             CompanionJournal);
+        AchievementDeliveryService.AccountCloud = AccountCloud;
         OpenXblClient = new OpenXblClient();
         SyncStateStore = new XboxSyncStateStore(Paths);
         SteamSyncStateStore = new SteamSyncStateStore(Paths);
@@ -70,6 +73,8 @@ public sealed class AppServices : IDisposable
     public SecureWebhookProtector WebhookProtector { get; }
 
     public SettingsStore SettingsStore { get; }
+    public AccountCloudClient AccountCloud { get; }
+    public AccountSyncService AccountSync { get; }
 
     public EventLedger EventLedger { get; }
     public CompanionJournal CompanionJournal { get; }
@@ -116,5 +121,6 @@ public sealed class AppServices : IDisposable
         OpenXblClient.Dispose();
         SteamRarityClient.Dispose();
         WebhookClient.Dispose();
+        AccountCloud.Dispose();
     }
 }

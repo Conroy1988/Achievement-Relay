@@ -76,7 +76,9 @@ Every outbound OpenXBL request is admitted by two budgets. A detail operation ca
 
 Progress first discovered when the app starts or resumes after a long gap is deliberately reconciled into the local baseline instead of treated as offline delivery. This prevents the common sequential-device replay: an achievement already posted by a relay on another device cannot be posted merely because this PC starts later. A timestamped unlock after the new epoch remains eligible on the first poll; missing-time identities require a prior successful poll in that same live session.
 
-The event ledger and Xbox snapshots are intentionally local: no API key, webhook secret, account history, or device state is sent to an Achievement Relay server. A Discord incoming webhook is a delivery endpoint, not a shared readable transaction store. Consequently two PCs simultaneously monitoring one Xbox account can still race on the same live change; atomic multi-device exclusion would require a hosted shared ledger. Users should keep Xbox monitoring active on one PC at a time. The epoch rule protects sequential handoffs and inactive-device restarts without introducing that privacy/service dependency.
+Without account sync, the event ledger and Xbox snapshots are local. Two PCs can race on a live change, so local-only users should monitor Xbox on one PC at a time. The epoch rule protects sequential handoffs and inactive-device restarts.
+
+The optional [account sync beta](ACCOUNT-SYNC.md) adds a bounded encrypted profile and owner-scoped cloud delivery claims. Downloaded presentation history never changes the event ledger or provider baselines. Connection credentials are included only inside the encrypted profile; recovery keys and device settings stay local. Cloud claims are acquired before a single webhook send and retained for ambiguous outcomes to avoid automatic duplicate delivery.
 
 Event IDs are SHA-256 hashes over a version marker, account XUID, service configuration, title, and achievement identifier. Upstream corrections to an unlock timestamp therefore cannot create a duplicate post. The ledger is capped at 1,000 entries and 90 days.
 

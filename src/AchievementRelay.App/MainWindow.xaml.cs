@@ -69,6 +69,7 @@ public partial class MainWindow : Window
         SystemParameters.StaticPropertyChanged += OnOverlayMotionSystemChanged;
 
         PopulateControls();
+        if (!previewOnly) InitializeAccountSync();
         if (!previewOnly) InitializeTrayIcon();
         ApplyUpdateState(_services.UpdateService.Snapshot);
         RefreshStatus();

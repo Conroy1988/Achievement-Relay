@@ -31,6 +31,28 @@ public sealed class CompanionLibrary
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         { Error = "Library could not be loaded; existing data has been preserved."; }
     }
+    public async Task MergeAccountHistoryAsync(IEnumerable<LibraryGame> incoming)
+    {
+        await _gate.WaitAsync();
+        try
+        {
+            if (Error is not null) throw new IOException(Error);
+            var next = _games.Concat(incoming.Where(x => x is not null && x.History is not null))
+                .GroupBy(x => x.Key).Select(g => g.MaxBy(x => x.ObservedAt)!).OrderBy(x => x.ObservedAt).TakeLast(100).ToArray();
+            var remaining = 3000;
+            for (var i = next.Length - 1; i >= 0; i--)
+            {
+                next[i] = next[i] with { History = next[i].History.Take(remaining)
+                    .Select(x => x with { ImageBytes = null, IsHistorical = true }).ToArray() };
+                remaining -= next[i].History.Length;
+            }
+            await File.WriteAllTextAsync(_path + ".tmp", JsonSerializer.Serialize(next, Json));
+            File.Move(_path + ".tmp", _path, true);
+            Volatile.Write(ref _games, next);
+        }
+        finally { _gate.Release(); }
+    }
+
     public async Task ObserveAsync(string key, string name, string provider, int earned, int? total,
         string? artwork, IEnumerable<AchievementEvent> history, bool import)
     {

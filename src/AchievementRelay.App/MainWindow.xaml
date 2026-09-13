@@ -518,6 +518,7 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <StackPanel Margin="34,28,34,46">
             <TextBlock Style="{StaticResource PageTitle}" Text="Settings" />
+            <Button Content="Relay account — Discord login and encrypted sync" Click="ShowAccount_Click" HorizontalAlignment="Left" Margin="0,8,0,12" />
             <TextBlock Style="{StaticResource PageSubtitle}" Text="Change a connection or preference. Nothing is applied until you select Save settings." />
 
             <Border Style="{StaticResource Card}" Margin="0,0,0,14">

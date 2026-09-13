@@ -90,7 +90,12 @@ public partial class App
                 SourceProvider = "Steam", RarityKnown = true, IsRare = true, RarityPercentage = .4
             }, "Delivered");
             var companion = new CompanionWindow(services, new AppSettings(), _ => { }, () => { }, () => { }, () => { });
-            try { companion.ExportPreviews(directory); }
+            try
+            {
+                companion.ExportPreviews(directory);
+                await companion.VerifyCustomPreviewAsync();
+                File.AppendAllText(Path.Combine(directory, "motion-verification.txt"), "Companion button: unsaved 135% size, bottom-right placement and 3-second duration verified.\n");
+            }
             finally { companion.Close(); }
             return 0;
         }

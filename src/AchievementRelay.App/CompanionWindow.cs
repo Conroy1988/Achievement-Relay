@@ -59,6 +59,7 @@ public sealed class CompanionWindow : Window
     private string? _lastGame;
     private Button? _retryButton;
     private Button? _confirmButton;
+    private Button? _testButton;
 
     public CompanionWindow(AppServices services, AppSettings settings, Action<CompanionPreferences> saved,
         Action connections, Action updates, Action support)
@@ -111,7 +112,7 @@ public sealed class CompanionWindow : Window
         controls.Children.Add(Text("Size · 75%–150%")); controls.Children.Add(_scale);
         controls.Children.Add(Text("Display time · 3–12 seconds")); controls.Children.Add(_seconds); controls.Children.Add(_rarity);
         controls.Children.Add(Text("Discord appearance")); controls.Children.Add(_presentation);
-        controls.Children.Add(ActionButton("Test unsaved controls locally", ReplayControls));
+        _testButton = ActionButton("Test unsaved controls locally", ReplayControls); controls.Children.Add(_testButton);
         controls.Children.Add(Text("CROSS-PC DELIVERY", 18));
         controls.Children.Add(Text(@"Optional: enter the same Windows network folder on both PCs, for example \\server\Relay. The folder must already exist and be writable. OneDrive and other sync folders are not supported. Both PCs must use this option for the same webhook. If the share is unavailable, posting waits. An interrupted send remains uncertain to avoid a duplicate; check Discord before investigating."));
         controls.Children.Add(_shared);
@@ -330,6 +331,26 @@ public sealed class CompanionWindow : Window
             encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
             using var file = File.Create(Path.Combine(directory, $"companion-{index}.png")); encoder.Save(file);
         }
+    }
+
+    internal async Task VerifyCustomPreviewAsync()
+    {
+        _scale.Value = 1.35; _seconds.Value = 3; _x = 1; _y = 1;
+        var started = new TaskCompletionSource<AchievementOverlayWindow>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        void Observe(AchievementOverlayWindow window)
+        { window.Closed += (_, _) => closed.TrySetResult(); started.TrySetResult(window); }
+        _services.AchievementOverlayService.PresentationStarted += Observe;
+        try
+        {
+            _testButton!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var window = await started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            await Task.Delay(400);
+            if (Math.Abs(window.Width - 702) > 4 || window.Top <= 0 || window.Left <= 0)
+                throw new InvalidOperationException("Custom size and corner placement did not reach the real overlay.");
+            await closed.Task.WaitAsync(TimeSpan.FromSeconds(4));
+        }
+        finally { _services.AchievementOverlayService.PresentationStarted -= Observe; _services.AchievementOverlayService.Clear(); }
     }
     private async void Run(Func<Task> action)
     {

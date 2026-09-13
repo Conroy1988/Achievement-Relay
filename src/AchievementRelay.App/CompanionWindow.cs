@@ -74,18 +74,26 @@ public sealed class CompanionWindow : Window
         var tabs = new TabControl(); root.Children.Add(tabs); Content = root;
         var gallery = Panel();
         gallery.Children.Add(Text("GALLERY", 20));
-        gallery.Children.Add(Text("Recent live unlocks retained on this PC · search by game or achievement. Latest 300 entries."));
+        gallery.Children.Add(Text("Your latest 300 live unlocks on this PC."));
+        gallery.Children.Add(Text("Search game or achievement"));
         gallery.Children.Add(_search); gallery.Children.Add(_platform); gallery.Children.Add(_period);
-        _gallery.Height = 200; gallery.Children.Add(_gallery); gallery.Children.Add(_artwork); gallery.Children.Add(_details);
+        _gallery.Height = 360; _gallery.DisplayMemberPath = "";
+        _gallery.ItemTemplate = (DataTemplate)FindResource("GalleryRowTemplate");
+        _gallery.ItemContainerStyle = (Style)FindResource("GalleryItemStyle");
+        gallery.Children.Add(_gallery);
+        var detail = Panel(); _artwork.Height = 175; detail.Children.Add(_artwork); detail.Children.Add(_details);
         var actions = new WrapPanel();
         actions.Children.Add(ActionButton("Replay locally", Replay));
         actions.Children.Add(ActionButton("Retry pending delivery", () => Run(RetryAsync)));
         actions.Children.Add(ActionButton("Preview Discord card", () => Run(PreviewCardAsync)));
         actions.Children.Add(ActionButton("Confirm uncertain delivery", () => Run(ConfirmUncertainAsync)));
-        gallery.Children.Add(actions);
-        gallery.Children.Add(Text("PER-GAME CONTROLS", 16)); gallery.Children.Add(_muteGame); gallery.Children.Add(_hideGame); gallery.Children.Add(_rareGame);
-        gallery.Children.Add(ActionButton("Save this game's preferences", () => Run(SaveGameAsync)));
-        AddTab(tabs, "Gallery", gallery);
+        detail.Children.Add(actions);
+        detail.Children.Add(Text("PER-GAME CONTROLS", 16)); detail.Children.Add(_muteGame); detail.Children.Add(_hideGame); detail.Children.Add(_rareGame);
+        detail.Children.Add(ActionButton("Save this game's preferences", () => Run(SaveGameAsync)));
+        var galleryGrid = new Grid(); galleryGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(280) }); galleryGrid.ColumnDefinitions.Add(new ColumnDefinition());
+        galleryGrid.Children.Add(new ScrollViewer { Content = gallery, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
+        var detailScroll = new ScrollViewer { Content = detail, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }; Grid.SetColumn(detailScroll, 1); galleryGrid.Children.Add(detailScroll);
+        AddTab(tabs, "Gallery", galleryGrid, scroll: false);
         var session = Panel(); session.Children.Add(Text("SESSION RECAP", 22)); session.Children.Add(Text("A new session begins after 30 minutes without a recorded unlock. Counts cover unlocks observed by this PC."));
         session.Children.Add(_sessions); session.Children.Add(_recap);
         session.Children.Add(ActionButton("Share this recap to Discord", () => Run(ShareRecapAsync)));
@@ -131,7 +139,7 @@ public sealed class CompanionWindow : Window
     private static StackPanel Panel() => new() { Margin = new Thickness(12) };
     private static Button ActionButton(string title, Action action)
     { var button = new Button { Content = title, Margin = new Thickness(0, 8, 10, 8), HorizontalAlignment = HorizontalAlignment.Left }; button.Click += (_, _) => action(); return button; }
-    private static void AddTab(TabControl tabs, string title, StackPanel content) => tabs.Items.Add(new TabItem { Header = title, Content = new ScrollViewer { Content = content, VerticalScrollBarVisibility = ScrollBarVisibility.Auto } });
+    private static void AddTab(TabControl tabs, string title, FrameworkElement content, bool scroll = true) => tabs.Items.Add(new TabItem { Header = title, Content = scroll ? new ScrollViewer { Content = content, VerticalScrollBarVisibility = ScrollBarVisibility.Auto } : content });
     private sealed record Row(JournalEntry Entry) { public string Label => $"{Entry.Achievement.GameName} · {Entry.Achievement.Name}  |  {Entry.Delivery}  |  {Entry.ObservedAt.ToLocalTime():g}"; }
     private sealed record SessionRow(string Id, DateTimeOffset Start) { public string Label => Start.ToLocalTime().ToString("f"); }
     private sealed record MonitorRow(string Id, string Label);
@@ -169,13 +177,14 @@ public sealed class CompanionWindow : Window
         if (Selected is not { } row) { _details.Text = "No matching live unlocks recorded yet."; _artwork.Source = null; return; }
         var a = row.Entry.Achievement;
         _details.Text = $"{a.Name}\n{a.GameName} · {a.Platform ?? a.SourceProvider}\n{a.Description}\n{RelayRarityClassifier.FormatPercentage(a.RarityPercentage)} · {row.Entry.Delivery}";
-        _artwork.Source = MainWindow.DecodeRedlineImage(a.ImageBytes, 600);
+        _artwork.Source = MainWindow.DecodeRedlineImage(a.ImageBytes, 600) ?? new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/AchievementRelay.App;component/Assets/RelayCommandDeck.png"));
         var rule = (_settings.Companion.Games ?? []).FirstOrDefault(x => x.GameKey == CompanionPolicy.GameKey(a));
         _muteGame.IsChecked = rule?.MuteSound == true; _hideGame.IsChecked = rule?.HideOverlay == true; _rareGame.IsChecked = rule?.RareCelebrationsOnly == true;
         try
         {
             var art = await _services.ArtworkClient.GetAsync(a, token);
-            if (!token.IsCancellationRequested && !_closed) _artwork.Source = MainWindow.DecodeRedlineImage(art.HeroImageBytes ?? art.AchievementIconBytes, 900);
+            if (!token.IsCancellationRequested && !_closed)
+                _artwork.Source = MainWindow.DecodeRedlineImage(art.HeroImageBytes ?? art.AchievementIconBytes, 900) ?? _artwork.Source;
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) when (ex is IOException or InvalidOperationException or System.Net.Http.HttpRequestException) { }
@@ -217,9 +226,9 @@ public sealed class CompanionWindow : Window
         var settings = await _services.SettingsStore.LoadAsync();
         var secret = _services.WebhookProtector.TryUnprotect(settings.ProtectedWebhookUrl);
         if (!WebhookUrlValidator.TryNormalize(secret, out var uri, out _) || uri is null) return;
-        using var claim = SharedDeliveryClaim.Acquire(settings.Companion.SharedDeliveryFolder, row.Entry.Achievement.Id, uri);
+        using var claim = await Task.Run(() => SharedDeliveryClaim.Acquire(settings.Companion.SharedDeliveryFolder, row.Entry.Achievement.Id, uri));
         if (claim.State != "sending") { _notice.Text = "The shared claim has changed. Refresh delivery status before confirming."; return; }
-        claim.SetState("delivered");
+        await Task.Run(() => claim.SetState("delivered"));
         await _services.EventLedger.MarkProcessedAsync(row.Entry.Achievement.Id);
         await _services.CompanionJournal.RecordAsync(row.Entry.Achievement, "Delivered (confirmed by you)");
         _notice.Text = "Existing post confirmed. No new post was sent.";
@@ -270,7 +279,7 @@ public sealed class CompanionWindow : Window
         var preferences = ReadControls();
         if (!string.IsNullOrEmpty(preferences.SharedDeliveryFolder))
         {
-            using var probe = SharedDeliveryClaim.Acquire(preferences.SharedDeliveryFolder, "configuration-check", new Uri("https://discord.com/"));
+            using var probe = await Task.Run(() => SharedDeliveryClaim.Acquire(preferences.SharedDeliveryFolder, "configuration-check", new Uri("https://discord.com/")));
         }
         await SaveAsync(preferences);
     }

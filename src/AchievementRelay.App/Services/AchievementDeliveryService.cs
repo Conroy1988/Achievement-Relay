@@ -65,7 +65,7 @@ public sealed class AchievementDeliveryService(
             activityLog.Info($"{achievement.SourceProvider} achievement detected: {achievement.Name}.");
             if (!string.IsNullOrWhiteSpace(settings.Companion.SharedDeliveryFolder))
             {
-                try { shared = SharedDeliveryClaim.Acquire(settings.Companion.SharedDeliveryFolder, achievement.Id, webhookUri); }
+                try { shared = await Task.Run(() => SharedDeliveryClaim.Acquire(settings.Companion.SharedDeliveryFolder, achievement.Id, webhookUri)); }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
                     if (journal is not null) await journal.RecordAsync(achievement, "Shared delivery unavailable");
@@ -85,20 +85,20 @@ public sealed class AchievementDeliveryService(
                 }
             }
             var post = await postComposer.ComposeAsync(achievement, settings, cancellationToken);
-            shared?.SetState("sending");
+            if (shared is not null) await Task.Run(() => shared.SetState("sending"));
             var result = shared is null ? await SendWithRetryAsync(webhookUri, post, cancellationToken) :
                 await webhookClient.SendAsync(webhookUri, post.JsonPayload, post.AttachmentBytes,
                     post.AttachmentFileName, post.AttachmentContentType, cancellationToken);
             if (!result.Success)
             {
-                if (result.StatusCode is >= 400 and < 500) shared?.SetState("pending");
+                if (result.StatusCode is >= 400 and < 500 && shared is not null) await Task.Run(() => shared.SetState("pending"));
                 activityLog.Error($"Could not relay {achievement.Name}: {result.Message}");
                 if (journal is not null) await journal.RecordAsync(achievement,
                     shared?.State == "sending" ? "Delivery uncertain — check Discord" : "Retry pending");
                 return AchievementDeliveryResult.RetryRequired;
             }
 
-            shared?.SetState("delivered");
+            if (shared is not null) await Task.Run(() => shared.SetState("delivered"));
 
             await eventLedger.MarkProcessedAsync(achievement.Id, cancellationToken);
             TryQueueOverlay(achievement, settings, post.AchievementIconBytes);

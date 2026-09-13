@@ -49,7 +49,7 @@ public sealed record AchievementOverlayPresentation(
             ? $" · +{rewardGamerscore}G"
             : string.Empty;
         var gameAndReward = string.Concat(gameName, reward);
-        var eyebrow = string.Concat(achievement.IsGameCompletion ? "100% COMPLETE · " : "ACHIEVEMENT UNLOCKED · ", platform.ToUpperInvariant());
+        var eyebrow = string.Concat(achievement.IsGameCompletion && achievement.VerifiedAchievementTotal is > 0 ? "100% COMPLETE · " : "ACHIEVEMENT UNLOCKED · ", platform.ToUpperInvariant());
         var rarityAnnouncement = tier == RelayRarityTier.Unranked
             ? "Global rarity unavailable. Relay Unranked tier"
             : string.Concat(percentage, " of players. Relay ", tierName, " tier");

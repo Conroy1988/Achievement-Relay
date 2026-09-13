@@ -69,7 +69,10 @@ jobs:
           foreach ($file in @('mode-static.png', 'mode-reduced.png', 'motion-verification.txt')) {
             if (-not (Test-Path (Join-Path $previewPath $file))) { throw "Missing motion verification: $file" }
           }
-          if ((Get-ChildItem $previewPath -Filter 'companion-*.png').Count -ne 5) { throw 'Missing Companion tab previews.' }
+          if ((Get-ChildItem $previewPath -Filter 'companion-*.png').Count -ne 9) { throw 'Missing Companion tab previews.' }
+          foreach ($index in 0..8) {
+            if ((Get-Item (Join-Path $previewPath "companion-$index.png")).Length -lt 2KB) { throw "Missing or empty Companion tab $index." }
+          }
 
       - name: Retain animated unlock preview
         uses: actions/upload-artifact@v4

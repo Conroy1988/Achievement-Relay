@@ -11,6 +11,9 @@ using AchievementRelay.Core.Models;
 
 var tests = new (string Name, Action Run)[]
 {
+    ("Companion history persists status without duplicating unlocks", CompanionHistoryContract),
+    ("Rare celebration chimes are distinct and remain silent at zero", RareChimeContract),
+    ("Shared delivery claims exclude concurrent senders and retain uncertain outcomes", SharedClaimContract),
     ("Unlock chime is bounded original PCM with clamped volume", UnlockChimeContract),
     ("Unlock effects start and cleanly stop", UnlockEffectsContract),
     ("Collector Card PNG contract", CollectorCardPngContract),
@@ -51,6 +54,69 @@ if (failures.Count > 0)
 else
 {
     Console.WriteLine($"All {tests.Length} app presentation smoke tests passed.");
+}
+
+static void SharedClaimContract()
+{
+    var directory = Directory.CreateTempSubdirectory("relay-claim-test-");
+    var file = Path.Combine(directory.FullName, "claim");
+    try
+    {
+        var constructor = typeof(SharedDeliveryClaim).GetConstructor(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance,
+            null, [typeof(FileStream)], null)!;
+        SharedDeliveryClaim Open() => (SharedDeliveryClaim)constructor.Invoke([new FileStream(file, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None)]);
+        using (var claim = Open())
+        {
+            claim.SetState("sending");
+            var excluded = false;
+            try { using var concurrent = new FileStream(file, FileMode.Open, FileAccess.ReadWrite, FileShare.None); }
+            catch (IOException) { excluded = true; }
+            Assert(excluded, "A second sender could acquire the same claim.");
+        }
+        using (var resumed = Open())
+        {
+            Assert(resumed.State == "sending", "An interrupted send lost its uncertain state.");
+            resumed.SetState("delivered");
+        }
+        using (var completed = Open()) Assert(completed.State == "delivered", "Completed receipt did not survive reopening.");
+        var rejected = false;
+        try { using var unsupported = SharedDeliveryClaim.Acquire(directory.FullName, "id", new Uri("https://discord.com/")); }
+        catch (IOException) { rejected = true; }
+        Assert(rejected, "Local or cloud-synced folders must not be accepted as shared authority.");
+    }
+    finally { directory.Delete(true); }
+}
+
+static void CompanionHistoryContract()
+{
+    var directory = Directory.CreateTempSubdirectory("relay-journal-test-");
+    try
+    {
+        var paths = new AppPaths(directory.FullName);
+        var log = new ActivityLog(paths);
+        var journal = new CompanionJournal(paths, log);
+        var achievement = CreateAchievement(1);
+        journal.RecordAsync(achievement, "Pending").GetAwaiter().GetResult();
+        var first = journal.Snapshot.Single();
+        journal.RecordAsync(achievement, "Delivered").GetAwaiter().GetResult();
+        var loaded = new CompanionJournal(paths, log).Snapshot.Single();
+        Assert(loaded.Delivery == "Delivered" && loaded.SessionId == first.SessionId && loaded.ObservedAt == first.ObservedAt, "Retry duplicated an unlock or changed its session.");
+        Assert(!File.Exists(paths.EventLedgerFile), "Presentation history must not mark events processed.");
+        File.WriteAllText(Path.Combine(paths.DataDirectory, "companion-journal.json"), "invalid");
+        var broken = new CompanionJournal(paths, log);
+        broken.RecordAsync(achievement, "Pending").GetAwaiter().GetResult();
+        Assert(broken.StorageError is not null && File.ReadAllText(Path.Combine(paths.DataDirectory, "companion-journal.json")) == "invalid", "Invalid history was overwritten.");
+    }
+    finally { directory.Delete(true); }
+}
+
+static void RareChimeContract()
+{
+    var common = UnlockChime.CreateWave(15);
+    var gold = UnlockChime.CreateWave(15, RelayRarityTier.Gold);
+    var platinum = UnlockChime.CreateWave(15, RelayRarityTier.Platinum);
+    Assert(!common.SequenceEqual(gold) && !gold.SequenceEqual(platinum), "Rarity chimes must be distinct.");
+    Assert(UnlockChime.CreateWave(0, RelayRarityTier.Platinum).AsSpan(44).ToArray().All(x => x == 0), "Rare chime ignored mute.");
 }
 
 static void UnlockChimeContract()

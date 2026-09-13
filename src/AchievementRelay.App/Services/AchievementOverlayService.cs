@@ -123,7 +123,8 @@ public sealed class AchievementOverlayService : IDisposable
                 AchievementOverlayReducedMotion = settings.AchievementOverlayReducedMotion,
                 AchievementOverlayFollowWindowsMotion = settings.AchievementOverlayFollowWindowsMotion,
                 AchievementOverlaySoundEnabled = settings.AchievementOverlaySoundEnabled,
-                AchievementOverlayVolume = Math.Clamp(settings.AchievementOverlayVolume, 0, 100)
+                AchievementOverlayVolume = Math.Clamp(settings.AchievementOverlayVolume, 0, 100),
+                Companion = settings.Companion with { Games = [], SharedDeliveryFolder = "" }
             };
             _queue.Enqueue(new QueuedOverlay(eventId, presentation, preferences));
             _queuedCount++;

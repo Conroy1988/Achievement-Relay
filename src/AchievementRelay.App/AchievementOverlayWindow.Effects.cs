@@ -13,18 +13,20 @@ public partial class AchievementOverlayWindow
         SweepPosition.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(-110, 540, TimeSpan.FromMilliseconds(650))
         { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
         var pulse = new DoubleAnimationUsingKeyFrames();
+        var celebratory = _preferences.Companion.RarityCelebrations &&
+            (_presentation.Tier is RelayRarityTier.Gold or RelayRarityTier.Platinum || _presentation.Eyebrow.StartsWith("100%", StringComparison.Ordinal));
         pulse.KeyFrames.Add(new EasingDoubleKeyFrame(.82, KeyTime.FromTimeSpan(TimeSpan.Zero)));
-        pulse.KeyFrames.Add(new EasingDoubleKeyFrame(1.08, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(260)), new CubicEase { EasingMode = EasingMode.EaseOut }));
+        pulse.KeyFrames.Add(new EasingDoubleKeyFrame(celebratory ? 1.16 : 1.08, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(260)), new CubicEase { EasingMode = EasingMode.EaseOut }));
         pulse.KeyFrames.Add(new EasingDoubleKeyFrame(1, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(470))));
         ArtworkPulse.BeginAnimation(ScaleTransform.ScaleXProperty, pulse);
         ArtworkPulse.BeginAnimation(ScaleTransform.ScaleYProperty, pulse);
         RarityShimmer.Opacity = 1;
         ShimmerPosition.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(-28, 150, TimeSpan.FromMilliseconds(700)) { BeginTime = TimeSpan.FromMilliseconds(500) });
         AchievementNameText.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(260)) { BeginTime = TimeSpan.FromMilliseconds(120) });
-        if (_presentation.Tier == RelayRarityTier.Platinum)
+        if (_preferences.Companion.RarityCelebrations && _presentation.Tier == RelayRarityTier.Platinum)
             PlatinumSparkle.BeginAnimation(OpacityProperty, new DoubleAnimation(0, .8, TimeSpan.FromMilliseconds(350)) { AutoReverse = true, BeginTime = TimeSpan.FromMilliseconds(650) });
         CountdownLine.Opacity = 1;
-        CountdownScale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(1, 0, DisplayDuration) { BeginTime = TimeSpan.FromMilliseconds(240) });
+        CountdownScale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(1, 0, HoldDuration) { BeginTime = TimeSpan.FromMilliseconds(240) });
     }
 
     private void StopUnlockEffects()

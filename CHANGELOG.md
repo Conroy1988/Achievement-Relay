@@ -6,6 +6,20 @@ All notable changes to Achievement Relay are documented here. The project follow
 
 No changes yet.
 
+## [0.9.0] - 2026-09-12
+
+### Added
+
+- Companion gallery, live-unlock history, session recaps and explicit recap sharing.
+- Local replay, delivery recovery, per-game preferences and configurable overlay screen, position, size and duration.
+- Rarity-specific chimes, stronger rare-unlock pulses and verified Steam completion showcases.
+- Compact/showcase Discord choices, official artwork browsing, connection health, setup checklist and in-app release notes.
+- Optional cross-PC coordination through exclusive claims in a Windows network share, with uncertain-send holds.
+
+### Preserved
+
+- Collector Card showcase, Xbox PC Game Pass classification, no-history-flood guarantees and v0.4.0 update support.
+
 ## [0.8.1] - 2026-09-12
 
 ### Fixed
@@ -278,7 +292,8 @@ No changes yet.
 - x64/Arm64 MSIX packaging, installer scripts, development signing, CI, and tagged release workflow
 - User, privacy, security, troubleshooting, architecture, contributor, and release documentation
 
-[Unreleased]: https://github.com/Conroy1988/Achievement-Relay/compare/v0.8.1...HEAD
+[Unreleased]: https://github.com/Conroy1988/Achievement-Relay/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.9.0
 [0.8.1]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.8.1
 [0.8.0]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.8.0
 [0.7.0]: https://github.com/Conroy1988/Achievement-Relay/releases/tag/v0.7.0

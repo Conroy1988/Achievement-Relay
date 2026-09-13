@@ -12,6 +12,7 @@ public sealed class AppServices : IDisposable
         WebhookProtector = new SecureWebhookProtector();
         SettingsStore = new SettingsStore(Paths);
         EventLedger = new EventLedger(Paths);
+        CompanionJournal = new CompanionJournal(Paths, ActivityLog);
         WebhookClient = new DiscordWebhookClient();
         ArtworkClient = new AchievementArtworkClient();
         AchievementOverlayService = new AchievementOverlayService(ActivityLog);
@@ -26,7 +27,8 @@ public sealed class AppServices : IDisposable
             WebhookClient,
             AchievementPostComposer,
             AchievementOverlayService,
-            ActivityLog);
+            ActivityLog,
+            CompanionJournal);
         OpenXblClient = new OpenXblClient();
         SyncStateStore = new XboxSyncStateStore(Paths);
         SteamSyncStateStore = new SteamSyncStateStore(Paths);
@@ -67,6 +69,7 @@ public sealed class AppServices : IDisposable
     public SettingsStore SettingsStore { get; }
 
     public EventLedger EventLedger { get; }
+    public CompanionJournal CompanionJournal { get; }
 
     public DiscordWebhookClient WebhookClient { get; }
 

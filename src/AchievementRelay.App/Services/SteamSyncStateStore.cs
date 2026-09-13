@@ -5,6 +5,8 @@ namespace AchievementRelay.App.Services;
 
 public sealed record SteamGameSyncState
 {
+    public string? CompletionAchievementApiName { get; init; }
+    public int? CompletionAchievementTotal { get; init; }
     public DateTimeOffset MonitoringStartedUtc { get; init; }
 
     public DateTimeOffset LastObservedUtc { get; init; }

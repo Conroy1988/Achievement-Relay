@@ -8,6 +8,7 @@ using AchievementRelay.Core.Services;
 
 var tests = new (string Name, Action Run)[]
 {
+    ("Companion preferences preserve global opt-outs and per-game scope", CompanionPreferencesContract),
     ("Relay motion controls are explicit across all Windows and accessibility modes", OverlayMotionControls),
     ("Unlock animation and sound preferences migrate and round trip independently", UnlockPreferencesRoundTrip),
     ("Legacy settings enable the achievement overlay without resetting preferences", LegacySettingsEnableAchievementOverlay),
@@ -111,7 +112,21 @@ static void UnlockPreferencesRoundTrip()
     Assert(legacy.AchievementOverlayAnimationEnabled && legacy.AchievementOverlaySoundEnabled && legacy.AchievementOverlayVolume == 15, "Missing settings must use approved defaults.");
     var preferences = legacy with { AchievementOverlayAnimationEnabled = false, AchievementOverlayReducedMotion = true, AchievementOverlayFollowWindowsMotion = true, AchievementOverlaySoundEnabled = false, AchievementOverlayVolume = 0, AchievementOverlayEnabled = false };
     var restored = JsonSerializer.Deserialize<AppSettings>(JsonSerializer.Serialize(preferences));
-    Assert(restored == preferences, "Overlay motion, sound and disabled preferences were not preserved independently.");
+    Assert(JsonSerializer.Serialize(restored) == JsonSerializer.Serialize(preferences), "Overlay motion, sound and disabled preferences were not preserved independently.");
+}
+
+static void CompanionPreferencesContract()
+{
+    var a = new AchievementEvent { Id = "live", Name = "Unlock", SourceProvider = "Steam", GameName = "Test", RarityKnown = true };
+    var settings = new AppSettings { Companion = new CompanionPreferences { Games = [new GamePreferences { GameKey = CompanionPolicy.GameKey(a), MuteSound = true, RareCelebrationsOnly = true }] } };
+    var effective = CompanionPolicy.ForGame(a, settings);
+    Assert(!effective.AchievementOverlaySoundEnabled && !effective.AchievementOverlayEnabled, "Game preferences did not apply.");
+    Assert(CompanionPolicy.ForGame(a with { GameName = "Other" }, settings).AchievementOverlayEnabled, "Game preference leaked to another game.");
+    Assert(!CompanionPolicy.ForGame(a with { IsRare = true }, settings with { AchievementOverlayEnabled = false }).AchievementOverlayEnabled, "Global overlay opt-out was overridden.");
+    Assert(CompanionPolicy.ForGame(a with { RarityKnown = false }, settings).AchievementOverlayEnabled, "Unknown rarity must not be discarded.");
+    var json = JsonSerializer.Serialize(settings);
+    Assert(JsonSerializer.Serialize(JsonSerializer.Deserialize<AppSettings>(json)) == json, "Companion settings did not survive round trip.");
+    Assert(CompanionPolicy.Bounded(double.NaN, 0, 1, .5) == .5, "Nonfinite layout preference was not bounded.");
 }
 
 static void OverlayMotionControls()

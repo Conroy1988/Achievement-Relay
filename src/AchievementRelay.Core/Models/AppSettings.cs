@@ -33,6 +33,7 @@ public sealed record AppSettings
     public bool AchievementOverlayFollowWindowsMotion { get; init; }
     public bool AchievementOverlaySoundEnabled { get; init; } = true;
     public int AchievementOverlayVolume { get; init; } = 15;
+    public CompanionPreferences Companion { get; init; } = new();
 
     /// <summary>
     /// Enables local, read-only Steam achievement monitoring. Steam does not

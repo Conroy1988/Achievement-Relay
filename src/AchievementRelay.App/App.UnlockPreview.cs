@@ -83,6 +83,15 @@ public partial class App
             File.WriteAllText(Path.Combine(directory, "motion-verification.txt"),
                 $"Real Settings button → Preview → queue → ShowForAsync verified.\nWindows animations: {SystemParameters.ClientAreaAnimation}\nHigh contrast: {SystemParameters.HighContrast}\nFull, static, reduced and unsaved preference behavior checked.\n");
             File.WriteAllBytes(Path.Combine(directory, "relay-unlock-15-percent.wav"), UnlockChime.CreateWave(15));
+            await services.CompanionJournal.RecordAsync(new AchievementEvent
+            {
+                Id = "native-companion-fixture", Name = "Beyond the horizon", GameName = "Relay Showcase",
+                Description = "A complete achievement description with enough space to read every detail.",
+                SourceProvider = "Steam", RarityKnown = true, IsRare = true, RarityPercentage = .4
+            }, "Delivered");
+            var companion = new CompanionWindow(services, new AppSettings(), _ => { }, () => { }, () => { }, () => { });
+            try { companion.ExportPreviews(directory); }
+            finally { companion.Close(); }
             return 0;
         }
         catch (Exception exception) { Console.Error.WriteLine(exception); return 1; }

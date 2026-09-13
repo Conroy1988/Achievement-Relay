@@ -2,7 +2,13 @@
 
 Effective: 13 September 2026
 
-Achievement Relay is a local, open-source Windows application. It has no analytics, advertising, account system, cloud database, telemetry, or developer-operated relay service.
+Achievement Relay is an open-source Windows application with optional Discord account login and encrypted cloud sync. It has no analytics, advertising or telemetry. Local use does not require an account.
+
+## Optional account sync beta
+
+If you sign in, Supabase Auth receives the Discord identity information needed for authentication, including your Discord account identifier and email. Supabase stores session/account records, an encrypted Relay profile and hashed delivery claims. The profile includes connection credentials (OpenXBL key and Discord webhook), shared preferences, pins and bounded achievement history. It is encrypted on your device with AES-256-GCM before upload. The recovery key is not uploaded. Windows DPAPI protects the recovery key, session and merge baseline on each device. Keep a private recovery-key backup; the hosted service cannot restore a lost key.
+
+Artwork bytes, device paths, Windows startup preferences and monitor/overlay position remain local. Signing out removes this device's account session and key but retains its local settings/history and the cloud copy. Cloud account deletion is not yet exposed in the beta UI; do not treat sign-out as deletion. No cloud profile is uploaded before you unlock the account and sync. See [Account sync](docs/ACCOUNT-SYNC.md) for scope, conflict resolution, retention bounds and beta limitations.
 
 ## OpenXBL account access
 

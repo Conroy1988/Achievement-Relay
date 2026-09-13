@@ -69,6 +69,7 @@ public partial class MainWindow : Window
         SystemParameters.StaticPropertyChanged += OnOverlayMotionSystemChanged;
 
         PopulateControls();
+        if (!previewOnly) InitializeAccountSync();
         if (!previewOnly) InitializeTrayIcon();
         ApplyUpdateState(_services.UpdateService.Snapshot);
         RefreshStatus();
@@ -542,7 +543,7 @@ public partial class MainWindow : Window
 
     private void PopulateControls()
     {
-        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.10.0";
+        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.11.0";
         AboutVersionText.Text = $"Version {version}";
 
         var xboxConfigured = TryGetOpenXblApiKey(out _) && !string.IsNullOrWhiteSpace(_settings.XboxUserId);

@@ -80,4 +80,20 @@ public sealed class SettingsStore(AppPaths paths)
             _gate.Release();
         }
     }
+
+    public async Task<bool> CompareAndSaveAccountAsync(AppSettings expected, AppSettings updated)
+    {
+        await _gate.WaitAsync();
+        try
+        {
+            var current = File.Exists(paths.SettingsFile)
+                ? JsonSerializer.Deserialize<AppSettings>(await File.ReadAllTextAsync(paths.SettingsFile), JsonOptions) ?? new AppSettings()
+                : new AppSettings();
+            if (JsonSerializer.Serialize(current, JsonOptions) != JsonSerializer.Serialize(expected, JsonOptions)) return false;
+            await File.WriteAllTextAsync(paths.SettingsFile + ".tmp", JsonSerializer.Serialize(updated, JsonOptions));
+            File.Move(paths.SettingsFile + ".tmp", paths.SettingsFile, true);
+            return true;
+        }
+        finally { _gate.Release(); }
+    }
 }

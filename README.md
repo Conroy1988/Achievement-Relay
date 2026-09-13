@@ -24,7 +24,7 @@ Achievement Relay watches the Xbox account you connect and the Steam game runnin
 - **On screen:** celebrates each proven live unlock with a compact animated Signal Strip and optional quiet chime, without taking focus from the game.
 - **Discord:** sends a full-width Collector Card with game, platform, rarity tier, global unlock percentage and artwork, while retaining the important facts as accessible text.
 - **Safe by default:** first observations become silent baselines, so installing or upgrading cannot dump years of old achievements into Discord.
-- **Private:** the Discord webhook and optional OpenXBL key are encrypted for the current Windows account with DPAPI. There is no analytics service, advertising, cloud database, or developer-operated relay server.
+- **Private:** the Discord webhook and optional OpenXBL key are protected locally with Windows DPAPI. Optional [account sync (beta)](docs/ACCOUNT-SYNC.md) encrypts the shared profile before uploading it to Supabase Free. There is no analytics or advertising.
 - **Quiet:** runs in the notification area, supports Windows startup, retains failed live deliveries for retry, and includes redacted diagnostics.
 
 ## What's new in v0.8
@@ -114,7 +114,7 @@ No Xbox password, Microsoft password, Steam account credential, Steam API key, D
 - The first complete Xbox or Steam observation is a silent history baseline.
 - Xbox begins a fresh live-delivery epoch whenever the app starts or resumes after a long interruption. Account progress from before that epoch is folded into the local identity baseline without posting, preventing a PC used later from replaying achievements already relayed by another device.
 - A timestamped Xbox unlock after the epoch remains eligible immediately. An untimestamped Xbox 360 unlock is eligible only after a successful poll in the same uninterrupted session; proven pending delivery evidence survives an updater/app restart.
-- Deduplication state is local and Achievement Relay has no hosted account service. Two PCs actively monitoring the same Xbox account at the same moment can still race, so keep Xbox relay monitoring active on only one PC at a time. Sequential device handoffs are protected by the fresh epoch above.
+- Without account sync, deduplication state is local; keep Xbox monitoring active on one PC at a time. The optional [account sync beta](docs/ACCOUNT-SYNC.md) adds shared delivery claims while signed in. Sequential device handoffs remain protected by the fresh epoch above.
 - Steam posts only a locked-to-unlocked transition directly observed while the app is running, or Steam's completed-achievement callback from that helper session. Offline Steam history is deliberately folded into the next silent baseline.
 - Steam games must publish achievements through Steamworks. Steam monitoring on Arm64 requires Windows 11 x64 emulation; Xbox remains available on Windows 10 Arm64.
 - Xbox delivery is account polling rather than instant push: normal delay is approximately 0–60 seconds plus Xbox/OpenXBL propagation time.

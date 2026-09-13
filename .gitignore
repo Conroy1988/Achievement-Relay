@@ -34,6 +34,9 @@ coverage/
 settings.json
 processed-events.json
 *.secrets.json
+account-session.bin*
+account-baseline-*.bin*
+supabase/.temp/
 .env
 .env.*
 

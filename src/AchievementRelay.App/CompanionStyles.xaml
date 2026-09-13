@@ -49,9 +49,9 @@
       <Setter.Value>
         <ControlTemplate TargetType="TabControl">
           <Grid KeyboardNavigation.TabNavigation="Local">
-            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-            <TabPanel IsItemsHost="True" Margin="0,8,0,8" KeyboardNavigation.TabIndex="1"/>
-            <Border Grid.Row="1" Background="{TemplateBinding Background}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="160"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+            <TabPanel IsItemsHost="True" Margin="0,8,10,8" VerticalAlignment="Top" KeyboardNavigation.TabIndex="1"/>
+            <Border Grid.Column="1" Background="{TemplateBinding Background}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8">
               <ContentPresenter x:Name="PART_SelectedContentHost" ContentSource="SelectedContent" Margin="10"/>
             </Border>
           </Grid>
@@ -62,13 +62,13 @@
   <Style TargetType="TabItem">
     <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
     <Setter Property="Background" Value="{DynamicResource PanelRaisedBrush}"/>
-    <Setter Property="Padding" Value="16,12"/>
-    <Setter Property="Margin" Value="0,0,6,0"/>
+    <Setter Property="Padding" Value="12,13"/>
+    <Setter Property="Margin" Value="0,0,0,6"/>
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="TabItem">
           <Border x:Name="Frame" Background="{TemplateBinding Background}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="{TemplateBinding Padding}">
-            <ContentPresenter ContentSource="Header" RecognizesAccessKey="True" HorizontalAlignment="Center"/>
+            <ContentPresenter ContentSource="Header" RecognizesAccessKey="True" HorizontalAlignment="Left"/>
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="IsSelected" Value="True"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource AccentDarkBrush}"/><Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource AccentTextBrush}"/><Setter Property="FontWeight" Value="SemiBold"/></Trigger>

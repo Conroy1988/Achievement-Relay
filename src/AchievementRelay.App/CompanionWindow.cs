@@ -337,6 +337,8 @@ public sealed partial class CompanionWindow : Window
             tabs.SelectedIndex = index;
             root.Measure(new System.Windows.Size(980, 780));
             root.Arrange(new Rect(0, 0, 980, 780)); root.UpdateLayout();
+            if (tabs.Template.FindName("PART_SelectedContentHost", tabs) is not FrameworkElement panel || panel.ActualHeight < 500 || panel.ActualWidth < 600)
+                throw new InvalidOperationException("Companion navigation left insufficient space for its content.");
             var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(980, 780, 96, 96, PixelFormats.Pbgra32);
             bitmap.Render(root);
             var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
@@ -371,6 +373,6 @@ public sealed partial class CompanionWindow : Window
         try { await action(); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or System.Net.Http.HttpRequestException or OperationCanceledException)
         { _notice.Text = "The action could not finish. Check your connection, folder access and delivery status before retrying."; }
-        finally { _busy = false; }
+        finally { _busy = false; if (_notice.Text == "Working…") _notice.Text = "Ready."; }
     }
 }

@@ -68,10 +68,10 @@ public sealed partial class CompanionWindow
 
         var library = Panel(); library.Children.Add(Text("YOUR GAME LIBRARY", 22));
         library.Children.Add(Text("Verified snapshots observed on this PC—not a complete account library. Unknown totals stay unknown. Last-observed counts can lag behind play."));
-        library.Children.Add(_closest); library.Children.Add(_libraryGames); library.Children.Add(_libraryArt); library.Children.Add(_libraryDetails);
-        library.Children.Add(_importHistory);
         library.Children.Add(Text("Find a game")); library.Children.Add(_librarySearch);
         library.Children.Add(Text("Sort games")); library.Children.Add(_librarySort);
+        library.Children.Add(_closest); library.Children.Add(_libraryGames); library.Children.Add(_libraryArt); library.Children.Add(_libraryDetails);
+        library.Children.Add(_importHistory);
         System.Windows.Automation.AutomationProperties.SetName(_librarySearch, "Search game library");
         System.Windows.Automation.AutomationProperties.SetName(_librarySort, "Sort game library");
         _librarySearch.TextChanged += (_, _) => { _libraryRevision = -1; RefreshLibrary(); };

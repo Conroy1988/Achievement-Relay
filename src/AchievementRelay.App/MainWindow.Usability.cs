@@ -16,6 +16,23 @@ public partial class MainWindow
     private System.Windows.Data.ListCollectionView? _activityView;
 
     internal void SelectReviewPage(int page) => NavigateTo(page);
+    internal async Task VerifySettingsFailureAsync()
+    {
+        var savedSettings = _settings;
+        SettingsDisplayNameTextBox.Text = "Keep this unsaved name";
+        var blocker = _services.Paths.SettingsFile + ".tmp";
+        if (System.IO.File.Exists(blocker) || System.IO.Directory.Exists(blocker)) throw new InvalidOperationException("Failure fixture already exists.");
+        System.IO.Directory.CreateDirectory(blocker);
+        try
+        {
+            await SavePreferencesAsync(SavePreferencesButton);
+            if (_settings != savedSettings || !HasSettingsDraft || SettingsDisplayNameTextBox.Text != "Keep this unsaved name" ||
+                _savingPreferences || !MainTabs.IsEnabled || !SettingsSaveStatus.Text.Contains("could not be saved"))
+                throw new InvalidOperationException("A failed Settings save did not preserve the draft and restore usable controls.");
+        }
+        finally { System.IO.Directory.Delete(blocker); }
+        DiscardSettings_Click(this, new RoutedEventArgs());
+    }
     internal void VerifyDraftProtection()
     {
         var original = SettingsDisplayNameTextBox.Text;

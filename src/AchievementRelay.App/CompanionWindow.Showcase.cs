@@ -82,7 +82,13 @@ public sealed partial class CompanionWindow
         library.Children.Add(ActionButton("Export historical poster", () => Run(() => ExportPosterAsync(_libraryHistory.SelectedItem as AchievementEvent))));
         library.Children.Add(ActionButton("Pin / unpin historical trophy", () => Run(() => TogglePinAsync(_libraryHistory.SelectedItem as AchievementEvent))));
         AddTab(tabs, "Library", library);
-        _libraryGames.SelectionChanged += (_, _) => Run(SelectLibraryGameAsync);
+        _libraryGames.SelectionChanged += async (_, _) =>
+        {
+            try { await SelectLibraryGameAsync(); }
+            catch (OperationCanceledException) { }
+            catch (Exception ex) when (ex is IOException or System.Net.Http.HttpRequestException or InvalidOperationException)
+            { _notice.Text = "Artwork is unavailable. Your game details are still shown."; }
+        };
 
         var trophies = Panel(); trophies.Children.Add(Text("THE TROPHY ROOM", 24));
         trophies.Children.Add(Text("Pinned favourites first, then your rarest known unlocks. Unknown rarity is never treated as rare.")); trophies.Children.Add(_trophies);
@@ -175,7 +181,7 @@ public sealed partial class CompanionWindow
     private void RefreshTrophies()
     {
         var pins = _settings.Companion.PinnedAchievements ?? [];
-        var live = _services.CompanionJournal.Snapshot.Select(x => new TrophyRow(x.Achievement, pins.Contains(x.Achievement.Id), false));
+        var live = _services.CompanionJournal.Snapshot.Select(x => new TrophyRow(x.Achievement, pins.Contains(x.Achievement.Id), x.Achievement.IsHistorical));
         var historical = _services.CompanionLibrary.Snapshot.SelectMany(x => x.History).Select(x => new TrophyRow(x, pins.Contains(x.Id), true));
         _trophies.ItemsSource = live.Concat(historical).DistinctBy(x => x.Achievement.Id).OrderByDescending(x => x.Pinned)
             .ThenBy(x => x.Achievement.RarityPercentage is >= 0 and <= 100 ? x.Achievement.RarityPercentage : double.MaxValue).Take(300).ToArray();

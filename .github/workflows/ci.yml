@@ -71,7 +71,7 @@ jobs:
           $process = Start-Process -FilePath $appPath -ArgumentList "--export-unlock-sequence `"$previewPath`"" -Wait -PassThru
           if ($process.ExitCode -ne 0) { throw 'Unlock sequence export failed.' }
           if ((Get-ChildItem $previewPath -Filter 'unlock-*.png').Count -ne 6) { throw 'Missing animation frames.' }
-          foreach ($file in @('mode-static.png', 'mode-reduced.png', 'motion-verification.txt')) {
+          foreach ($file in @('mode-static.png', 'mode-reduced.png', 'motion-verification.txt', 'usability-verification.txt')) {
             if (-not (Test-Path (Join-Path $previewPath $file))) { throw "Missing motion verification: $file" }
           }
           if ((Get-ChildItem $previewPath -Filter 'companion-*.png').Count -ne 9) { throw 'Missing Companion tab previews.' }

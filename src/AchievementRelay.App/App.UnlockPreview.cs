@@ -83,6 +83,7 @@ public partial class App
             File.WriteAllText(Path.Combine(directory, "motion-verification.txt"),
                 $"Real Settings button → Preview → queue → ShowForAsync verified.\nWindows animations: {SystemParameters.ClientAreaAnimation}\nHigh contrast: {SystemParameters.HighContrast}\nFull, static, reduced and unsaved preference behavior checked.\n");
             File.WriteAllBytes(Path.Combine(directory, "relay-unlock-15-percent.wav"), UnlockChime.CreateWave(15));
+            await main.VerifySettingsFailureAsync();
             await services.CompanionJournal.RecordAsync(new AchievementEvent
             {
                 Id = "native-companion-fixture", Name = "Beyond the horizon", GameName = "Relay Showcase",
@@ -91,12 +92,19 @@ public partial class App
             }, "Delivered");
             await services.CompanionLibrary.ObserveAsync("fixture", "Relay Showcase", "Steam", 47, 50, null,
                 new[] { new AchievementEvent { Id = "historic-fixture", Name = "The first signal", GameName = "Relay Showcase", SourceProvider = "Steam", Description = "Imported history stays local.", UnlockedAt = DateTimeOffset.UtcNow.AddDays(-2) } }, true);
+            var now = DateTimeOffset.UtcNow;
+            await services.CompanionJournal.MergeAccountHistoryAsync(Enumerable.Range(0, 299).Select(i =>
+                new JournalEntry(new AchievementEvent { Id = $"review-{i}", Name = $"Historical achievement {i} with a long readable title", GameName = "A game with a long name and no artwork", SourceProvider = "Preview", IsHistorical = true }, now.AddMinutes(-i), "imported-session", "Delivery uncertain", now)));
+            await services.CompanionLibrary.MergeAccountHistoryAsync(Enumerable.Range(0, 100).Select(i =>
+                new LibraryGame($"review-game-{i}", $"Fixture game {i:D3}", "Preview", i, i % 3 == 0 ? null : 100, null, now.AddSeconds(i), [])));
             var companion = new CompanionWindow(services, new AppSettings(), _ => { }, () => { }, () => { }, () => { });
             try
             {
+                await companion.VerifyUsabilityAsync();
                 companion.ExportPreviews(directory);
                 await companion.VerifyCustomPreviewAsync();
                 File.AppendAllText(Path.Combine(directory, "motion-verification.txt"), "Companion button: unsaved 135% size, bottom-right placement and 3-second duration verified.\n");
+                File.WriteAllText(Path.Combine(directory, "usability-verification.txt"), "PASS: failed Settings save preserves edits and restores controls.\nPASS: 300-entry gallery, 100-game library, long titles and missing artwork.\nPASS: imported history excluded from local sessions and labelled in trophies.\nPASS: historical retry and confirmation are disabled and inert.\nPASS: per-game draft survives filtering; discard applies pending filters.\nPASS: library search, empty result clearing and name sorting.\nPASS: failed Companion save retains draft; retry persists it.\nNo real accounts, cloud records or Discord posts used.\n");
             }
             finally { companion.Close(); }
             return 0;

@@ -1254,6 +1254,9 @@ public partial class MainWindow : Window
     }
 
     private async void SaveSettings_Click(object sender, RoutedEventArgs e)
+        => await SavePreferencesAsync(sender);
+
+    private async Task SavePreferencesAsync(object sender)
     {
         if (_savingPreferences) return;
         var pendingKey = PendingXboxKey();

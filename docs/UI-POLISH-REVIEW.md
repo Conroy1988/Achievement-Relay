@@ -34,4 +34,20 @@ This records the scope of the 16-part usability checklist. “Retained” means 
 
 Build Release and run `--export-redline-preview <output-directory>/home.png` with the desktop executable. It creates isolated temporary storage, starts no monitoring or tray service, sends no Discord messages, renders the main/Companion/account pages and deletes the isolated data afterward. CI retains the preview images.
 
-The current export primarily covers empty/local states. It is not a substitute for the populated, error, accessibility and live scenarios above. The complete checklist remains the acceptance scope; this review does not mark every item finished solely because the first implementation passes its automated checks.
+The dashboard export covers empty/local states. The animated export also runs the isolated usability acceptance cases below. Neither replaces physical-device or real-account acceptance.
+
+## Additional isolated acceptance
+
+The `--export-unlock-sequence <directory>` runner now exercises real WPF controls against temporary storage with 300 journal entries and 100 games. Its `usability-verification.txt` records:
+
+- Failed Settings writes retain edits, leave saved settings unchanged and restore usable controls.
+- Failed Companion writes retain edits; retry persists the draft.
+- Imported history stays out of local session recaps and is labelled correctly in trophies.
+- Historical delivery recovery buttons are disabled, and the underlying handlers are inert.
+- Per-game drafts survive filtering. Discard applies the pending filter without leaving stale draft state.
+- Library search, empty-result clearing and name sorting work at the supported 100-game limit.
+- Long titles wrap and missing artwork uses the branded fallback in populated native renders.
+
+The review also added Companion dropdown focus outlines, named lists and initial work-area sizing. Companion saves now mark only the submitted control snapshot as saved, preserving edits made while a write is pending. Library selection updates are no longer skipped by an unrelated busy action.
+
+Still unverified: real-account and two-PC flows, physical monitor/audio changes, Windows high contrast, assistive-technology walkthroughs, and installer upgrade/uninstall on a separate Windows installation. No production cloud data, credentials or Discord posts are used by these isolated checks.

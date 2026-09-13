@@ -1272,10 +1272,12 @@ public partial class MainWindow : Window
 
         _savingPreferences = true;
         SetButtonBusy(sender, true);
+        MainTabs.IsEnabled = false;
+        var preferencesSaved = false;
         try
         {
             var startWithWindows = SettingsStartWithWindowsCheckBox.IsChecked == true;
-            _settings = _settings with
+            var updatedSettings = _settings with
             {
                 ProtectedWebhookUrl = protectedWebhook,
                 DiscordUsername = NormalizeWebhookName(SettingsDiscordUsernameTextBox.Text),
@@ -1295,9 +1297,11 @@ public partial class MainWindow : Window
 
             var xboxConfigured = TryGetOpenXblApiKey(out _) && !string.IsNullOrWhiteSpace(_settings.XboxUserId);
             var webhookConfigured = TryGetWebhook(out _) || !string.IsNullOrWhiteSpace(replacement);
-            var hasProvider = xboxConfigured || _settings.SteamEnabled;
-            _settings = _settings with { SetupCompleted = _settings.SetupCompleted && webhookConfigured && hasProvider };
-            await _services.SettingsStore.SaveAsync(_settings);
+            var hasProvider = xboxConfigured || updatedSettings.SteamEnabled;
+            updatedSettings = updatedSettings with { SetupCompleted = updatedSettings.SetupCompleted && webhookConfigured && hasProvider };
+            await _services.SettingsStore.SaveAsync(updatedSettings);
+            _settings = updatedSettings;
+            preferencesSaved = true;
             // Discard old preference snapshots, including active sound, after saving.
             _services.AchievementOverlayService.Clear();
 
@@ -1345,9 +1349,17 @@ public partial class MainWindow : Window
             SettingsSaveStatus.Text = pendingKey is null ? message : message + " Your Xbox key edit is kept; select Verify and save key to apply it.";
             if (startWithWindows && !startupApplied) ShowMessage(message, MessageBoxImage.Warning);
         }
+        catch (Exception)
+        {
+            SettingsSaveStatus.Text = preferencesSaved
+                ? "Preferences were saved, but a background service could not refresh. Restart Relay to apply them."
+                : "Settings could not be saved. Your edits are still here; check free disk space and try Save settings again.";
+            _services.ActivityLog.Warning(preferencesSaved ? "Preferences saved; service refresh failed." : "Settings save failed; edits retained.");
+        }
         finally
         {
             _savingPreferences = false;
+            MainTabs.IsEnabled = true;
             SetButtonBusy(sender, false);
         }
     }

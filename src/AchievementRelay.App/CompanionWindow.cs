@@ -57,6 +57,8 @@ public sealed class CompanionWindow : Window
     private bool _busy;
     private bool _refreshing;
     private string? _lastGame;
+    private Button? _retryButton;
+    private Button? _confirmButton;
 
     public CompanionWindow(AppServices services, AppSettings settings, Action<CompanionPreferences> saved,
         Action connections, Action updates, Action support)
@@ -84,9 +86,9 @@ public sealed class CompanionWindow : Window
         var detail = Panel(); _artwork.Height = 175; detail.Children.Add(_artwork); detail.Children.Add(_details);
         var actions = new WrapPanel();
         actions.Children.Add(ActionButton("Replay locally", Replay));
-        actions.Children.Add(ActionButton("Retry pending delivery", () => Run(RetryAsync)));
+        _retryButton = ActionButton("Retry pending delivery", () => Run(RetryAsync)); actions.Children.Add(_retryButton);
         actions.Children.Add(ActionButton("Preview Discord card", () => Run(PreviewCardAsync)));
-        actions.Children.Add(ActionButton("Confirm uncertain delivery", () => Run(ConfirmUncertainAsync)));
+        _confirmButton = ActionButton("Confirm uncertain delivery", () => Run(ConfirmUncertainAsync)); actions.Children.Add(_confirmButton);
         detail.Children.Add(actions);
         detail.Children.Add(Text("PER-GAME CONTROLS", 16)); detail.Children.Add(_muteGame); detail.Children.Add(_hideGame); detail.Children.Add(_rareGame);
         detail.Children.Add(ActionButton("Save this game's preferences", () => Run(SaveGameAsync)));
@@ -141,8 +143,8 @@ public sealed class CompanionWindow : Window
     { var button = new Button { Content = title, Margin = new Thickness(0, 8, 10, 8), HorizontalAlignment = HorizontalAlignment.Left }; button.Click += (_, _) => action(); return button; }
     private static void AddTab(TabControl tabs, string title, FrameworkElement content, bool scroll = true) => tabs.Items.Add(new TabItem { Header = title, Content = scroll ? new ScrollViewer { Content = content, VerticalScrollBarVisibility = ScrollBarVisibility.Auto } : content });
     private sealed record Row(JournalEntry Entry) { public string Label => $"{Entry.Achievement.GameName} · {Entry.Achievement.Name}  |  {Entry.Delivery}  |  {Entry.ObservedAt.ToLocalTime():g}"; }
-    private sealed record SessionRow(string Id, DateTimeOffset Start) { public string Label => Start.ToLocalTime().ToString("f"); }
-    private sealed record MonitorRow(string Id, string Label);
+    private sealed record SessionRow(string Id, DateTimeOffset Start) { public string Label => Start.ToLocalTime().ToString("f"); public override string ToString() => Label; }
+    private sealed record MonitorRow(string Id, string Label) { public override string ToString() => Label; }
     private Row? Selected => _gallery.SelectedItem as Row;
     private void JournalChanged()
     { if (_closed || Dispatcher.HasShutdownStarted) return; _ = Dispatcher.InvokeAsync(() => { if (!_closed) { RefreshGallery(); RefreshSessions(); RefreshHealth(); } }); }
@@ -174,6 +176,8 @@ public sealed class CompanionWindow : Window
         if (_refreshing) return;
         _artworkCancellation?.Cancel(); _artworkCancellation?.Dispose(); _artworkCancellation = new();
         var token = _artworkCancellation.Token;
+        if (_retryButton is not null) _retryButton.IsEnabled = Selected is { } pending && !pending.Entry.Delivery.StartsWith("Delivered", StringComparison.Ordinal) && pending.Entry.Delivery != "Filtered";
+        if (_confirmButton is not null) _confirmButton.IsEnabled = Selected?.Entry.Delivery.StartsWith("Delivery uncertain", StringComparison.Ordinal) == true;
         if (Selected is not { } row) { _details.Text = "No matching live unlocks recorded yet."; _artwork.Source = null; return; }
         var a = row.Entry.Achievement;
         _details.Text = $"{a.Name}\n{a.GameName} · {a.Platform ?? a.SourceProvider}\n{a.Description}\n{RelayRarityClassifier.FormatPercentage(a.RarityPercentage)} · {row.Entry.Delivery}";
@@ -330,6 +334,7 @@ public sealed class CompanionWindow : Window
     private async void Run(Func<Task> action)
     {
         if (_busy) return; _busy = true;
+        _notice.Text = "Working…";
         try { await action(); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or System.Net.Http.HttpRequestException or OperationCanceledException)
         { _notice.Text = "The action could not finish. Check your connection, folder access and delivery status before retrying."; }

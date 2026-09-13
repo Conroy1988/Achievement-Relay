@@ -22,7 +22,7 @@ jobs:
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
 
       - name: Install .NET 10
@@ -51,7 +51,7 @@ jobs:
           }
 
       - name: Retain native dashboard screenshots
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Redline-native-preview
           path: |
@@ -80,7 +80,7 @@ jobs:
           }
 
       - name: Retain animated unlock preview
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Signal-Strip-animation-and-chime
           path: artifacts/unlock-sequence
@@ -217,7 +217,7 @@ jobs:
 
       - name: Retain pull-request installer for Windows verification
         if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: AchievementRelay-v0.12.0-r${{ github.run_number }}-windows-test
           path: |

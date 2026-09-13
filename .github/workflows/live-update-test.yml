@@ -29,12 +29,12 @@ jobs:
 
     steps:
       - name: Check out target source
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           path: target
 
       - name: Check out automatic-update baseline source
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           path: baseline
@@ -243,7 +243,7 @@ jobs:
           "@ | Set-Content -LiteralPath $notesPath -Encoding utf8
 
       - name: Retain the matched installer pair
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: AchievementRelay-v0.3.2-automatic-update-test
           path: |

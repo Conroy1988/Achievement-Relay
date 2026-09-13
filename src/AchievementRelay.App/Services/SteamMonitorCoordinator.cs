@@ -27,6 +27,7 @@ public sealed class SteamMonitorCoordinator(
     AchievementDeliveryService deliveryService,
     ActivityLog activityLog) : IDisposable
 {
+    public CompanionLibrary? Library { get; set; }
     private const int ProtocolVersion = 1;
     private static readonly TimeSpan FutureClockTolerance = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan GameExitGracePeriod = TimeSpan.FromSeconds(10);
@@ -788,6 +789,19 @@ public sealed class SteamMonitorCoordinator(
                 .OrderBy(item => item.UnlockedAt ?? observedAt)
                 .ThenBy(item => item.ApiName, StringComparer.Ordinal)
                 .ToArray();
+            if (Library is not null)
+            {
+                var librarySettings = await settingsStore.LoadAsync(cancellationToken);
+                await Library.ObserveAsync("Steam:" + snapshot.SteamId + ":" + appKey, game.Name, "Steam",
+                    observations.Count(x => x.IsUnlocked), snapshot.TotalAchievements,
+                    $"https://cdn.akamai.steamstatic.com/steam/apps/{appKey}/library_hero.jpg",
+                    observations.Where(x => x.IsUnlocked).Select(x => new AchievementEvent
+                    {
+                        Id = SteamAchievementDeltaDetector.CreateEventId(snapshot.SteamId, snapshot.AppId, x.ApiName),
+                        Name = x.Name, Description = x.Description, GameName = game.Name, SourceProvider = "Steam", Platform = "Steam",
+                        HeroImageUrl = $"https://cdn.akamai.steamstatic.com/steam/apps/{appKey}/library_hero.jpg", UnlockedAt = x.UnlockedAt
+                    }), librarySettings.Companion.ImportHistory);
+            }
             if (pendingAchievements.Length > 0 && now < _nextDeliveryAttemptUtc)
             {
                 return;

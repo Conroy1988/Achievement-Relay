@@ -13,6 +13,7 @@ public sealed class AppServices : IDisposable
         SettingsStore = new SettingsStore(Paths);
         EventLedger = new EventLedger(Paths);
         CompanionJournal = new CompanionJournal(Paths, ActivityLog);
+        CompanionLibrary = new CompanionLibrary(Paths);
         WebhookClient = new DiscordWebhookClient();
         ArtworkClient = new AchievementArtworkClient();
         AchievementOverlayService = new AchievementOverlayService(ActivityLog);
@@ -56,6 +57,8 @@ public sealed class AppServices : IDisposable
             SettingsStore,
             AchievementDeliveryService,
             ActivityLog);
+        SteamMonitorCoordinator.Library = CompanionLibrary;
+        RelayCoordinator.Library = CompanionLibrary;
     }
 
     public AppPaths Paths { get; }
@@ -70,6 +73,7 @@ public sealed class AppServices : IDisposable
 
     public EventLedger EventLedger { get; }
     public CompanionJournal CompanionJournal { get; }
+    public CompanionLibrary CompanionLibrary { get; }
 
     public DiscordWebhookClient WebhookClient { get; }
 

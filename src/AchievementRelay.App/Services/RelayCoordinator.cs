@@ -18,6 +18,7 @@ public sealed class RelayCoordinator(
     AchievementDeliveryService deliveryService,
     ActivityLog activityLog) : IDisposable
 {
+    public CompanionLibrary? Library { get; set; }
     private static readonly TimeSpan FutureClockTolerance = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan BackgroundWorkInterval = TimeSpan.FromMinutes(15);
     private static readonly TimeSpan MaximumProviderBackoff = TimeSpan.FromHours(2);
@@ -439,6 +440,13 @@ public sealed class RelayCoordinator(
                     activityLog.Info(
                         $"Silently baselined {delta.UnidentifiedIncrease} existing achievement{(delta.UnidentifiedIncrease == 1 ? "" : "s")} for {selectedWork.Name ?? "an Xbox title"}. Nothing historical was sent to Discord; only later unlocks are eligible.");
                 }
+
+                if (Library is not null)
+                    await Library.ObserveAsync("Xbox:" + state.AccountXuid + ":" + selectedWork.TitleId,
+                        selectedWork.Name ?? "Xbox title", "Xbox", selectedWork.CurrentAchievements,
+                        selectedWork.TotalAchievements, selectedWork.DisplayImageUrl,
+                        detailFetch.Achievements.Select(x => x with { GameName = selectedWork.Name, HeroImageUrl = selectedWork.DisplayImageUrl }),
+                        settings.Companion.ImportHistory);
 
                 if (selectedWork.CompletionEventId is null && CompletionPolicy.IsVerifiedTransition(
                     hadPreviousSnapshot ? previousCount : null, selectedWork.CurrentAchievements, selectedWork.TotalAchievements,

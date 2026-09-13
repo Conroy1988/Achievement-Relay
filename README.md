@@ -11,7 +11,7 @@ Relay new Xbox and local Steam achievements to Discord from one secure Windows t
 [![Community & Support](https://img.shields.io/badge/Discord-Community%20%26%20Support-5865F2?logo=discord&logoColor=white)](https://discord.gg/3ZdXhYjgDm)
 [![Support on Ko-fi](https://img.shields.io/badge/Ko--fi-Support-D72B32?logo=ko-fi&logoColor=white)](https://ko-fi.com/D4P124RWI9)
 
-[**Download for Windows**](https://github.com/Conroy1988/Achievement-Relay/releases/latest/download/AchievementRelay_Setup.exe) · [Getting started](GETTING_STARTED.md) · [Release notes](docs/RELEASE-NOTES-0.9.0.md) · [Accessibility](docs/ACCESSIBILITY.md) · [Community & Support](https://discord.gg/3ZdXhYjgDm)
+[**Download for Windows**](https://github.com/Conroy1988/Achievement-Relay/releases/latest/download/AchievementRelay_Setup.exe) · [Getting started](GETTING_STARTED.md) · [Release notes](docs/RELEASE-NOTES-0.10.0.md) · [Accessibility](docs/ACCESSIBILITY.md) · [Community & Support](https://discord.gg/3ZdXhYjgDm)
 
 ![Achievement Relay command-red interface](docs/images/achievement-relay-interface.png)
 
@@ -31,7 +31,7 @@ Achievement Relay watches the Xbox account you connect and the Steam game runnin
 
 **Animated unlocks:** a crimson sweep, artwork pulse, metallic rarity shimmer and original chimes, with distinct rare-unlock celebrations. Configure animation, reduced motion, sound and volume in Settings; use Companion for screen, position, size and duration. Sound starts at 15%. High contrast suppresses decorative motion, and consecutive unlocks never overlap.
 
-**Companion:** browse the latest 300 recorded live unlocks, replay locally, inspect delivery status, set per-game preferences and share a session recap. Choose compact Discord cards or the full artwork showcase. Connection health and release notes stay visible. Optional cross-PC coordination requires the same writable Windows network share on both PCs; see the [release notes](docs/RELEASE-NOTES-0.9.0.md) for its uncertain-delivery behavior and completion-data limits.
+**Companion:** browse the latest 300 recorded live unlocks, replay locally, inspect delivery status, set per-game preferences and share a session recap. Choose compact Discord cards or the full artwork showcase. Connection health and release notes stay visible. Optional cross-PC coordination requires the same writable Windows network share on both PCs; see the [release notes](docs/RELEASE-NOTES-0.10.0.md) for its uncertain-delivery behavior and completion-data limits.
 
 ### Retained from v0.7
 
@@ -75,7 +75,7 @@ The established v0.4 reliability work remains in place:
 - The CRNY **Relay Online** soundtrack at a fixed 10% volume with Play/Pause and a direct [SoundCloud link](https://soundcloud.com/daniel-conroy-224318319/crny-relay-online); fresh installs may play it, while updaters start muted until **Play music** is selected.
 - Local, keyless Steam monitoring alongside the existing Xbox relay, with strict anti-backlog rules for both sources.
 
-See the [v0.9.0 release notes](docs/RELEASE-NOTES-0.9.0.md), [v0.5.0 Collector Card notes](docs/RELEASE-NOTES-0.5.0.md), [v0.4.3 startup-hotfix notes](docs/RELEASE-NOTES-0.4.3.md), [v0.4.2 relay-safety notes](docs/RELEASE-NOTES-0.4.2.md), [v0.4.1 accessibility notes](docs/RELEASE-NOTES-0.4.1.md), [v0.4.0 launch notes](docs/RELEASE-NOTES-0.4.0.md), and [changelog](CHANGELOG.md).
+See the [v0.10.0 release notes](docs/RELEASE-NOTES-0.10.0.md), [v0.5.0 Collector Card notes](docs/RELEASE-NOTES-0.5.0.md), [v0.4.3 startup-hotfix notes](docs/RELEASE-NOTES-0.4.3.md), [v0.4.2 relay-safety notes](docs/RELEASE-NOTES-0.4.2.md), [v0.4.1 accessibility notes](docs/RELEASE-NOTES-0.4.1.md), [v0.4.0 launch notes](docs/RELEASE-NOTES-0.4.0.md), and [changelog](CHANGELOG.md).
 
 > [!IMPORTANT]
 > **Moving from a pre-official 0.3.x updater test:** install v0.4.0 once from this repository's official release page. The 0.3.x test builds used an intentionally temporary signing identity whose private key was destroyed, so they cannot authenticate the new permanent release channel. Your encrypted connections, settings, baselines, pending deliveries, and preferences remain in place. Automatic verified updates take over from v0.4.0 onward.
@@ -150,7 +150,7 @@ dotnet build .\AchievementRelay.sln --configuration Release
 dotnet run --project .\tests\AchievementRelay.Core.Tests --configuration Release
 dotnet run --project .\tests\AchievementRelay.App.Tests --configuration Release
 .\scripts\Test-Repository.ps1
-.\scripts\Build-Release.ps1 -Version 0.9.0.0
+.\scripts\Build-Release.ps1 -Version 0.10.0.0
 ```
 
 Maintainer instructions are in [Release Process](docs/RELEASING.md). Detailed reliability and provider research is available in [OpenXBL reliability](docs/OPENXBL-RELIABILITY.md) and [Steam integration](docs/STEAM-INTEGRATION.md).

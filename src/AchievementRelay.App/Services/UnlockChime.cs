@@ -10,7 +10,7 @@ public sealed class UnlockChime : IDisposable
     private SoundPlayer? _player;
     private MemoryStream? _stream;
 
-    public static byte[] CreateWave(int volume, RelayRarityTier tier = RelayRarityTier.Unranked)
+    public static byte[] CreateWave(int volume, RelayRarityTier tier = RelayRarityTier.Unranked, UnlockSoundPack pack = UnlockSoundPack.Signal)
     {
         const int rate = 22050;
         const int samples = rate;
@@ -33,7 +33,9 @@ public sealed class UnlockChime : IDisposable
             }
             var impact = .10 * Math.Sin(2 * Math.PI * 110 * t) * Math.Min(t / .008, 1) * Math.Exp(-t * 35);
             var rare = tier is RelayRarityTier.Gold or RelayRarityTier.Platinum;
-            var signal = .35 * Bell(t, .02, rare ? 783.99 : 659.25) + .40 * Bell(t, .18, rare ? 1174.66 : 987.77) + impact;
+            var tuning = pack == UnlockSoundPack.Glass ? 1.5 : pack == UnlockSoundPack.Arcade ? .75 : 1;
+            var signal = .35 * Bell(t, .02, (rare ? 783.99 : 659.25) * tuning) + .40 * Bell(t, .18, (rare ? 1174.66 : 987.77) * tuning) + impact;
+            if (pack == UnlockSoundPack.Arcade) signal += .12 * Bell(t, .32, 1318.51);
             if (tier == RelayRarityTier.Platinum) signal += .20 * Bell(t, .38, 1567.98);
             var tail = Math.Clamp((1 - t) / .08, 0, 1);
             writer.Write((short)(Math.Clamp(signal * gain * tail, -1, 1) * short.MaxValue));
@@ -41,12 +43,13 @@ public sealed class UnlockChime : IDisposable
         return output.ToArray();
     }
 
-    public void Play(int volume, RelayRarityTier tier = RelayRarityTier.Unranked)
+    public void Play(int volume, RelayRarityTier tier = RelayRarityTier.Unranked, UnlockSoundPack pack = UnlockSoundPack.Signal)
     {
         if (volume <= 0) return;
         try
         {
-            _stream = new MemoryStream(CreateWave(volume, tier), writable: false);
+            Dispose();
+            _stream = new MemoryStream(CreateWave(volume, tier, pack), writable: false);
             _player = new SoundPlayer(_stream);
             _player.Load();
             _player.Play();

@@ -5,7 +5,11 @@ using AchievementRelay.Core.Models;
 namespace AchievementRelay.App.Services;
 
 public sealed record JournalEntry(AchievementEvent Achievement, DateTimeOffset ObservedAt,
-    string SessionId, string Delivery, DateTimeOffset UpdatedAt);
+    string SessionId, string Delivery, DateTimeOffset UpdatedAt)
+{
+    public JournalTransition[] Transitions { get; init; } = [];
+}
+public sealed record JournalTransition(string Status, DateTimeOffset At);
 
 /// <summary>Local presentation history. Never authorizes historical delivery.</summary>
 public sealed class CompanionJournal
@@ -54,7 +58,10 @@ public sealed class CompanionJournal
                 Name = Bound(achievement.Name, 256)!, Description = Bound(achievement.Description, 3000),
                 GameName = Bound(achievement.GameName, 256), PlayerName = Bound(achievement.PlayerName, 128),
                 ImageUrl = Bound(achievement.ImageUrl, 2048), HeroImageUrl = Bound(achievement.HeroImageUrl, 2048) };
-            var entry = new JournalEntry(safe, previous?.ObservedAt ?? now, session, delivery, now);
+            var transitions = previous?.Transitions ?? [];
+            if (transitions.LastOrDefault()?.Status != delivery)
+                transitions = transitions.Append(new JournalTransition(delivery, now)).TakeLast(12).ToArray();
+            var entry = new JournalEntry(safe, previous?.ObservedAt ?? now, session, delivery, now) { Transitions = transitions };
             var next = _entries.Where(x => x.Achievement.Id != achievement.Id).Append(entry)
                 .OrderBy(x => x.ObservedAt).TakeLast(300).ToArray();
             var temp = _path + ".tmp";

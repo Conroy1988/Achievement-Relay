@@ -152,6 +152,16 @@
                       <Border Style="{StaticResource StatusPill}" Margin="0,0,0,6"><TextBlock x:Name="RelayStatusText" Text="Checking…" FontSize="12"/></Border>
                     </WrapPanel>
                     <TextBlock x:Name="HomeSummaryText" Text="Listening for new achievements from your connected accounts." Foreground="{StaticResource MutedTextBrush}" FontSize="12" Margin="0,0,0,14"/>
+                    <Border Background="#10151D" CornerRadius="8" Margin="0,0,0,12" ClipToBounds="True">
+                      <Grid MinHeight="120">
+                        <Image x:Name="NowPlayingArtwork" Stretch="UniformToFill" Opacity="0.3"/>
+                        <StackPanel Margin="16">
+                          <TextBlock Text="NOW PLAYING" Foreground="#FF657B" FontSize="11" FontWeight="Bold"/>
+                          <TextBlock x:Name="NowPlayingTitle" Text="Waiting for your next game" FontSize="21" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,5"/>
+                          <TextBlock x:Name="NowPlayingProgress" Text="Steam game detection · Xbox progress from verified snapshots" FontSize="12" TextWrapping="Wrap"/>
+                        </StackPanel>
+                      </Grid>
+                    </Border>
                     <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions><Border Grid.Column="0" Style="{StaticResource RedlinePanel}" Padding="12" Margin="0,0,8,0"><DockPanel><Image Source="Assets/Xbox.png" Width="27" Height="27" Margin="0,0,10,0"/><StackPanel><TextBlock Text="Xbox"/><TextBlock Text="{Binding Text, ElementName=XboxStatusText}" Foreground="{Binding Foreground, ElementName=XboxStatusText}" FontSize="12"/></StackPanel></DockPanel></Border><Border Grid.Column="1" Style="{StaticResource RedlinePanel}" Padding="12" Margin="0,0,8,0"><DockPanel><Image Source="Assets/Steam.png" Width="27" Height="27" Margin="0,0,10,0"/><StackPanel><TextBlock Text="Steam"/><TextBlock Text="{Binding Text, ElementName=SteamStatusText}" Foreground="{Binding Foreground, ElementName=SteamStatusText}" FontSize="12"/></StackPanel></DockPanel></Border><Border Grid.Column="2" Style="{StaticResource RedlinePanel}" Padding="12" Margin="0,0,8,0"><DockPanel><Image Source="Assets/Discord.png" Width="27" Height="27" Margin="0,0,10,0"/><StackPanel><TextBlock Text="Discord"/><TextBlock Text="{Binding Text, ElementName=DiscordStatusText}" Foreground="{Binding Foreground, ElementName=DiscordStatusText}" FontSize="12"/></StackPanel></DockPanel></Border></Grid>
                     <TextBlock x:Name="RelayStatusDetail" FontSize="11" Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" AutomationProperties.LiveSetting="Polite"/>
                   </StackPanel>
@@ -755,7 +765,7 @@
                 <Image Source="Assets/AchievementRelay.png" Width="56" Height="56" VerticalAlignment="Top" />
                 <StackPanel Grid.Column="1">
                   <TextBlock Text="Achievement Relay" FontSize="20" FontWeight="SemiBold" />
-                  <TextBlock x:Name="AboutVersionText" Text="Version 0.9.0" Foreground="{StaticResource AccentTextBrush}" FontWeight="SemiBold" Margin="0,2,0,9" />
+                  <TextBlock x:Name="AboutVersionText" Text="Version 0.10.0" Foreground="{StaticResource AccentTextBrush}" FontWeight="SemiBold" Margin="0,2,0,9" />
                   <TextBlock Text="Xbox and Steam achievements relayed to the Discord channel you choose. Secrets are encrypted locally; Steam monitoring is local and read-only." Foreground="{StaticResource MutedTextBrush}" FontSize="12" Margin="0,0,0,12" />
                   <WrapPanel>
                     <Button Content="Privacy" Click="OpenPrivacyPolicy_Click" Margin="0,0,8,8" />

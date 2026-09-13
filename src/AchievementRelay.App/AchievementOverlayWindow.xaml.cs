@@ -77,6 +77,13 @@ public partial class AchievementOverlayWindow : Window
         var useFade = mode != OverlayMotionMode.Static;
         var useMotion = mode == OverlayMotionMode.Full;
         using var chime = new UnlockChime();
+        var displayWatch = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
+        displayWatch.Tick += (_, _) =>
+        {
+            var foreground = GetForegroundWindow();
+            if (foreground != IntPtr.Zero && foreground != _windowHandle && foreground != _foregroundWindow)
+            { _foregroundWindow = foreground; PositionOnForegroundMonitor(); }
+        };
 
         if (useFade)
         {
@@ -94,9 +101,14 @@ public partial class AchievementOverlayWindow : Window
             Show();
             UpdateLayout();
             PositionOnForegroundMonitor();
+            displayWatch.Start();
             RaiseAccessibleAnnouncement();
-            if (_preferences.AchievementOverlaySoundEnabled) chime.Play(_preferences.AchievementOverlayVolume,
-                _preferences.Companion.RarityCelebrations ? _presentation.Tier : RelayRarityTier.Unranked);
+            if (_preferences.AchievementOverlaySoundEnabled) chime.Play(
+                _preferences.Companion.SoundStudioEnabled ? _preferences.Companion.SoundVolume : _preferences.AchievementOverlayVolume,
+                _preferences.Companion.RarityCelebrations ? _presentation.Tier : RelayRarityTier.Unranked,
+                !_preferences.Companion.SoundStudioEnabled ? UnlockSoundPack.Signal :
+                _preferences.Companion.RarityCelebrations && _presentation.Tier is RelayRarityTier.Gold or RelayRarityTier.Platinum
+                    ? _preferences.Companion.RareSoundPack : _preferences.Companion.SoundPack);
             if (useMotion) StartUnlockEffects();
 
             if (useFade)
@@ -108,6 +120,7 @@ public partial class AchievementOverlayWindow : Window
 
             await Task.Delay(HoldDuration, cancellationToken);
 
+            if (useMotion) RetractUnlockEffects();
             if (useFade)
             {
                 await Task.WhenAll(
@@ -117,6 +130,7 @@ public partial class AchievementOverlayWindow : Window
         }
         finally
         {
+            displayWatch.Stop();
             StopUnlockEffects();
             if (IsVisible || _source is not null)
             {

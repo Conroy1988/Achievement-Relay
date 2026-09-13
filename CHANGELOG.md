@@ -6,6 +6,19 @@ All notable changes to Achievement Relay are documented here. The project follow
 
 No changes yet.
 
+## [0.10.0] - 2026-09-13
+
+### Added
+
+- Now-playing panel, validated game library, closest-to-completion shelf, isolated opt-in history, trophy pins and local poster export.
+- Beam reveal and retraction, bounded rarity/completion particles, original sound packs, dedicated volume and quiet controls.
+- Actual-strip placement editor, snapping, session/delivery timelines, tray actions, private-safe support export and release tour.
+- Bounded artwork cache and local performance metrics. Existing cross-PC coordination remains unchanged.
+
+### Preserved
+
+- Collector Card showcase, Xbox PC Game Pass evidence, no-history delivery rules and v0.4.0 update support.
+
 ## [0.9.0] - 2026-09-12
 
 ### Added

@@ -11,6 +11,9 @@ using AchievementRelay.Core.Models;
 
 var tests = new (string Name, Action Run)[]
 {
+    ("Imported history is opt-in, bounded and isolated from delivery state", LibraryHistoryContract),
+    ("Sound Studio packs are deterministic, distinct and respect zero", SoundStudioContract),
+    ("Quiet hold is bounded and historical entries cannot auto-present", QuietModeContract),
     ("Companion history persists status without duplicating unlocks", CompanionHistoryContract),
     ("Rare celebration chimes are distinct and remain silent at zero", RareChimeContract),
     ("Shared delivery claims exclude concurrent senders and retain uncertain outcomes", SharedClaimContract),
@@ -101,6 +104,7 @@ static void CompanionHistoryContract()
         journal.RecordAsync(achievement, "Delivered").GetAwaiter().GetResult();
         var loaded = new CompanionJournal(paths, log).Snapshot.Single();
         Assert(loaded.Delivery == "Delivered" && loaded.SessionId == first.SessionId && loaded.ObservedAt == first.ObservedAt, "Retry duplicated an unlock or changed its session.");
+        Assert(loaded.Transitions.Select(x => x.Status).SequenceEqual(new[] { "Pending", "Delivered" }), "Delivery timeline lost transition order.");
         Assert(!File.Exists(paths.EventLedgerFile), "Presentation history must not mark events processed.");
         File.WriteAllText(Path.Combine(paths.DataDirectory, "companion-journal.json"), "invalid");
         var broken = new CompanionJournal(paths, log);
@@ -108,6 +112,60 @@ static void CompanionHistoryContract()
         Assert(broken.StorageError is not null && File.ReadAllText(Path.Combine(paths.DataDirectory, "companion-journal.json")) == "invalid", "Invalid history was overwritten.");
     }
     finally { directory.Delete(true); }
+}
+
+static void LibraryHistoryContract()
+{
+    var directory = Directory.CreateTempSubdirectory("relay-library-test-");
+    try
+    {
+        var paths = new AppPaths(directory.FullName); var library = new CompanionLibrary(paths);
+        var achievements = Enumerable.Range(0, 350).Select(i => CreateAchievement(1) with { Id = "history:" + i, PlayerName = "private-name", IsGameCompletion = true }).ToArray();
+        library.ObserveAsync("game", "Test game", "Steam", 350, 400, null, achievements, false).GetAwaiter().GetResult();
+        Assert(library.Snapshot.Single().History.Length == 0, "History was imported without opt-in.");
+        library.ObserveAsync("game", "Test game", "Steam", 350, 400, null, achievements, true).GetAwaiter().GetResult();
+        var reloaded = new CompanionLibrary(paths).Snapshot.Single();
+        Assert(reloaded.History.Length == 300 && reloaded.Earned == 350 && reloaded.Total == 400, "Import bounds or provider totals were lost.");
+        Assert(reloaded.History.All(x => x.IsHistorical && !x.IsGameCompletion && x.PlayerName is null && x.ImageBytes is null), "Historical entry retained unsafe live presentation metadata.");
+        Assert(!File.Exists(paths.EventLedgerFile) && !File.Exists(Path.Combine(paths.DataDirectory, "companion-journal.json")), "Import modified live delivery state.");
+        library.ObserveAsync("unknown", "Unknown total", "Xbox", 5, null, null, [], false).GetAwaiter().GetResult();
+        Assert(library.Snapshot.Last().Total is null, "Missing total was invented.");
+    }
+    finally { directory.Delete(true); }
+}
+
+static void SoundStudioContract()
+{
+    var packs = Enum.GetValues<UnlockSoundPack>();
+    var hashes = packs.Select(x => Convert.ToHexString(SHA256.HashData(UnlockChime.CreateWave(20, RelayRarityTier.Gold, x)))).ToArray();
+    Assert(hashes.Distinct().Count() == packs.Length, "Sound packs are not distinct.");
+    foreach (var pack in packs)
+    {
+        Assert(UnlockChime.CreateWave(0, RelayRarityTier.Platinum, pack).AsSpan(44).ToArray().All(x => x == 0), "A sound pack bypassed zero volume.");
+        Assert(UnlockChime.CreateWave(20, RelayRarityTier.Gold, pack).SequenceEqual(UnlockChime.CreateWave(20, RelayRarityTier.Gold, pack)), "Sound pack is nondeterministic.");
+    }
+}
+
+static void QuietModeContract()
+{
+    RunSta(() =>
+    {
+        var directory = Directory.CreateTempSubdirectory("relay-quiet-test-");
+        try
+        {
+            using var overlay = new AchievementOverlayService(new ActivityLog(new AppPaths(directory.FullName)));
+            overlay.SetQuiet(AchievementOverlayService.QuietMode.Hold, TimeSpan.FromMinutes(30));
+            var settings = new AppSettings { AchievementOverlayEnabled = true };
+            Assert(!overlay.Enqueue(CreateAchievement(1) with { IsHistorical = true }, settings), "Historical entry reached automatic presentation.");
+            for (var i = 0; i < 8; i++) Assert(overlay.Enqueue(CreateAchievement(1) with { Id = "held:" + i }, settings), "Hold dropped an entry before the cap.");
+            Assert(!overlay.Enqueue(CreateAchievement(1) with { Id = "overflow" }, settings), "Hold exceeded its queue cap.");
+            overlay.SetQuiet(AchievementOverlayService.QuietMode.Hide, TimeSpan.FromMinutes(30));
+            Assert(!overlay.Preview(CreateAchievement(1), settings: settings), "Hidden local alerts bypassed quiet mode.");
+            Assert(overlay.QuietStatus.Contains("0 queued"), "Hidden mode failed to clear held alerts.");
+            return true;
+        }
+        finally { directory.Delete(true); }
+    });
 }
 
 static void RareChimeContract()

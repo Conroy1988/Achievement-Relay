@@ -182,5 +182,6 @@
         <Rectangle.RenderTransform><ScaleTransform x:Name="CountdownScale" ScaleX="1"/></Rectangle.RenderTransform>
       </Rectangle>
     </Grid>
+    <Canvas x:Name="CelebrationParticles" Width="520" Height="76" ClipToBounds="True" IsHitTestVisible="False"/>
   </Grid>
 </Window>

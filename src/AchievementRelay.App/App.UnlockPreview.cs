@@ -89,6 +89,8 @@ public partial class App
                 Description = "A complete achievement description with enough space to read every detail.",
                 SourceProvider = "Steam", RarityKnown = true, IsRare = true, RarityPercentage = .4
             }, "Delivered");
+            await services.CompanionLibrary.ObserveAsync("fixture", "Relay Showcase", "Steam", 47, 50, null,
+                new[] { new AchievementEvent { Id = "historic-fixture", Name = "The first signal", GameName = "Relay Showcase", SourceProvider = "Steam", Description = "Imported history stays local.", UnlockedAt = DateTimeOffset.UtcNow.AddDays(-2) } }, true);
             var companion = new CompanionWindow(services, new AppSettings(), _ => { }, () => { }, () => { }, () => { });
             try
             {

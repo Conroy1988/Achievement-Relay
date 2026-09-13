@@ -17,7 +17,7 @@ jobs:
     timeout-minutes: 30
     env:
       TEST_MSIX_VERSION: "0.10.0.${{ github.run_number }}"
-      APPLICATION_VERSION: "0.11.0"
+      APPLICATION_VERSION: "0.12.0"
 
 
     steps:
@@ -219,7 +219,7 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
-          name: AchievementRelay-v0.11.0-r${{ github.run_number }}-windows-test
+          name: AchievementRelay-v0.12.0-r${{ github.run_number }}-windows-test
           path: |
             artifacts/AchievementRelay_Setup.exe
             artifacts/AchievementRelay_${{ env.TEST_MSIX_VERSION }}_x64.msix

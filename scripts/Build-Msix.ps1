@@ -4,7 +4,7 @@ param(
     [string] $Architecture = 'x64',
 
     [ValidatePattern('^\d+\.\d+\.\d+\.\d+$')]
-    [string] $Version = '0.11.0.0',
+    [string] $Version = '0.12.0.0',
 
     [ValidatePattern('^$|^\d+\.\d+\.\d+$')]
     [string] $ApplicationVersion = '',

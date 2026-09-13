@@ -4,6 +4,8 @@ All notable changes to Achievement Relay are documented here. The project follow
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-09-14
+
 ### Usability and polish
 
 - Guided Relay account sign-in, recovery-key backup and pairing, clearer errors, cancellation, account labels and last-sync status.

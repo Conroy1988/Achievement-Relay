@@ -9,6 +9,7 @@ using AchievementRelay.Core.Services;
 var tests = new (string Name, Action Run)[]
 {
     ("Companion preferences preserve global opt-outs and per-game scope", CompanionPreferencesContract),
+    ("Completion requires verified totals and a new eligible transition", CompletionContract),
     ("Relay motion controls are explicit across all Windows and accessibility modes", OverlayMotionControls),
     ("Unlock animation and sound preferences migrate and round trip independently", UnlockPreferencesRoundTrip),
     ("Legacy settings enable the achievement overlay without resetting preferences", LegacySettingsEnableAchievementOverlay),
@@ -113,6 +114,17 @@ static void UnlockPreferencesRoundTrip()
     var preferences = legacy with { AchievementOverlayAnimationEnabled = false, AchievementOverlayReducedMotion = true, AchievementOverlayFollowWindowsMotion = true, AchievementOverlaySoundEnabled = false, AchievementOverlayVolume = 0, AchievementOverlayEnabled = false };
     var restored = JsonSerializer.Deserialize<AppSettings>(JsonSerializer.Serialize(preferences));
     Assert(JsonSerializer.Serialize(restored) == JsonSerializer.Serialize(preferences), "Overlay motion, sound and disabled preferences were not preserved independently.");
+}
+
+static void CompletionContract()
+{
+    Assert(CompletionPolicy.IsVerifiedTransition(1, 2, 2, true, true), "A verified completion was rejected.");
+    Assert(!CompletionPolicy.IsVerifiedTransition(null, 2, 2, true, true), "An initial baseline was celebrated.");
+    Assert(!CompletionPolicy.IsVerifiedTransition(1, 2, null, true, true), "Missing totals were guessed.");
+    Assert(!CompletionPolicy.IsVerifiedTransition(1, 2, 2, false, true), "Historical completion without a live unlock was celebrated.");
+    Assert(!CompletionPolicy.IsVerifiedTransition(1, 2, 2, true, false), "Incomplete provider details were trusted.");
+    Assert(!CompletionPolicy.IsVerifiedTransition(2, 2, 2, true, true), "An already complete game was celebrated again.");
+    Assert(!CompletionPolicy.IsVerifiedTransition(1, 2, 3, true, true), "Partial progress was celebrated.");
 }
 
 static void CompanionPreferencesContract()
@@ -754,6 +766,8 @@ static void ParsesTitleProgress()
     var title = titles.Single(item => item.TitleId == "1842701288");
     Assert(title.Name == "Example PC Game", $"Unexpected title name: {title.Name}");
     Assert(title.CurrentAchievements == 7, "Current achievement count was not parsed.");
+    Assert(title.TotalAchievements == 42 && titles.Single(item => item.TitleId == "1777860928").TotalAchievements is null,
+        "Xbox totals must preserve explicit data and keep missing totals unknown.");
     Assert(title.CurrentGamerscore == 135, "Current Gamerscore was not parsed.");
     Assert(title.Devices.SequenceEqual(new[] { "PC", "XboxOne" }), "Device list was not normalized.");
     Assert(

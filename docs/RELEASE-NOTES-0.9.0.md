@@ -6,7 +6,7 @@ Open **Companion** from the Redline sidebar for a persistent gallery, session re
 
 Replay a Signal Strip overlay locally, preview the Discord card, or explicitly retry pending delivery through the existing delivery checks. Delivered and filtered entries cannot be manually reposted through Retry.
 
-Sessions group unlocks separated by less than 30 minutes and show game count, Gamerscore and the rarest recorded unlock. Sharing a recap to Discord is an explicit action. Steam's final eligible live unlock can carry a verified 100% completion showcase. Xbox completion is not inferred where the provider supplies no total.
+Sessions group unlocks separated by less than 30 minutes and show game count, Gamerscore and the rarest recorded unlock. Sharing a recap to Discord is an explicit action. The final eligible live unlock on Steam or Xbox can carry a verified 100% completion showcase with the rarest unlock in this PC's retained game history. Missing totals are not guessed; completion proof is saved before delivery and survives retries.
 
 ## Presentation controls
 

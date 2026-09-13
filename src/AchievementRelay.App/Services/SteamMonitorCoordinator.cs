@@ -731,8 +731,9 @@ public sealed class SteamMonitorCoordinator(
 
             var completionApiName = previous?.CompletionAchievementApiName;
             var completionTotal = previous?.CompletionAchievementTotal;
-            if (previous is not null && previous.UnlockedAchievementApiNames.Count < snapshot.TotalAchievements &&
-                delta.NewAchievements.Count > 0 && observations.All(item => item.IsUnlocked))
+            if (CompletionPolicy.IsVerifiedTransition(previous?.UnlockedAchievementApiNames.Count,
+                observations.Count(item => item.IsUnlocked), snapshot.TotalAchievements, delta.NewAchievements.Count > 0,
+                observations.Length == snapshot.TotalAchievements))
             {
                 completionApiName = delta.NewAchievements.OrderBy(item => item.UnlockedAt ?? observedAt)
                     .ThenBy(item => item.ApiName, StringComparer.Ordinal).Last().ApiName;

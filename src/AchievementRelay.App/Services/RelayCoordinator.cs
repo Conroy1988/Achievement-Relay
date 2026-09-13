@@ -440,9 +440,24 @@ public sealed class RelayCoordinator(
                         $"Silently baselined {delta.UnidentifiedIncrease} existing achievement{(delta.UnidentifiedIncrease == 1 ? "" : "s")} for {selectedWork.Name ?? "an Xbox title"}. Nothing historical was sent to Discord; only later unlocks are eligible.");
                 }
 
+                if (selectedWork.CompletionEventId is null && CompletionPolicy.IsVerifiedTransition(
+                    hadPreviousSnapshot ? previousCount : null, selectedWork.CurrentAchievements, selectedWork.TotalAchievements,
+                    delta.NewAchievements.Count > 0, delta.IsComplete))
+                {
+                    selectedWork = selectedWork with
+                    {
+                        CompletionEventId = delta.NewAchievements.OrderBy(item => item.UnlockedAt ?? now)
+                            .ThenBy(item => item.Id, StringComparer.Ordinal).Last().Id,
+                        CompletionAchievementTotal = selectedWork.TotalAchievements
+                    };
+                    pendingTitles[selectedWork.TitleId] = selectedWork;
+                    await SaveProgressAsync(state.LastSuccessfulPollUtc);
+                }
+
                 foreach (var achievement in delta.NewAchievements.Select(item =>
                              PrepareForDelivery(
-                                 item,
+                                 item with { IsGameCompletion = item.Id == selectedWork.CompletionEventId,
+                                     VerifiedAchievementTotal = item.Id == selectedWork.CompletionEventId ? selectedWork.CompletionAchievementTotal : null },
                                  selectedWork.Name,
                                  selectedWork.Devices,
                                  selectedWork.DisplayImageUrl,
@@ -634,6 +649,9 @@ public sealed class RelayCoordinator(
         pendingTitles[title.TitleId] = new XboxTitleSyncWork
         {
             TitleId = title.TitleId,
+            TotalAchievements = title.TotalAchievements,
+            CompletionEventId = existing?.CompletionEventId,
+            CompletionAchievementTotal = existing?.CompletionAchievementTotal,
             Name = string.IsNullOrWhiteSpace(title.Name) ? existing?.Name : title.Name,
             CurrentAchievements = Math.Max(
                 Math.Max(0, title.CurrentAchievements),

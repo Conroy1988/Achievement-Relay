@@ -84,7 +84,16 @@ public sealed class AchievementDeliveryService(
                     return AchievementDeliveryResult.RetryRequired;
                 }
             }
-            var post = await postComposer.ComposeAsync(achievement, settings, cancellationToken);
+            var displayAchievement = achievement;
+            if (achievement.IsGameCompletion && journal is not null)
+            {
+                var rarest = journal.Snapshot.Where(x => CompanionPolicy.GameKey(x.Achievement) == CompanionPolicy.GameKey(achievement) &&
+                    x.Achievement.PlayerName == achievement.PlayerName && x.Achievement.RarityPercentage is >= 0 and <= 100)
+                    .MinBy(x => x.Achievement.RarityPercentage);
+                if (rarest is not null) displayAchievement = achievement with { Description =
+                    $"Rarest recorded here: {rarest.Achievement.Name} ({RelayRarityClassifier.FormatPercentage(rarest.Achievement.RarityPercentage)}).\n" + achievement.Description };
+            }
+            var post = await postComposer.ComposeAsync(displayAchievement, settings, cancellationToken);
             if (shared is not null) await Task.Run(() => shared.SetState("sending"));
             var result = shared is null ? await SendWithRetryAsync(webhookUri, post, cancellationToken) :
                 await webhookClient.SendAsync(webhookUri, post.JsonPayload, post.AttachmentBytes,

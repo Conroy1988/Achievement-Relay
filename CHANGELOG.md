@@ -12,7 +12,7 @@ No changes yet.
 
 - Companion gallery, live-unlock history, session recaps and explicit recap sharing.
 - Local replay, delivery recovery, per-game preferences and configurable overlay screen, position, size and duration.
-- Rarity-specific chimes, stronger rare-unlock pulses and verified Steam completion showcases.
+- Rarity-specific chimes, stronger rare-unlock pulses and verified Steam/Xbox completion showcases.
 - Compact/showcase Discord choices, official artwork browsing, connection health, setup checklist and in-app release notes.
 - Optional cross-PC coordination through exclusive claims in a Windows network share, with uncertain-send holds.
 

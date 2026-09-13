@@ -7,6 +7,7 @@ public sealed record XboxTitleProgress
     public string? Name { get; init; }
 
     public int CurrentAchievements { get; init; }
+    public int? TotalAchievements { get; init; }
 
     public int CurrentGamerscore { get; init; }
 

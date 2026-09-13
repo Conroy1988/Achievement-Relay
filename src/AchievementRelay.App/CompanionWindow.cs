@@ -97,7 +97,7 @@ public sealed class CompanionWindow : Window
         var session = Panel(); session.Children.Add(Text("SESSION RECAP", 22)); session.Children.Add(Text("A new session begins after 30 minutes without a recorded unlock. Counts cover unlocks observed by this PC."));
         session.Children.Add(_sessions); session.Children.Add(_recap);
         session.Children.Add(ActionButton("Share this recap to Discord", () => Run(ShareRecapAsync)));
-        session.Children.Add(Text("100% celebrations use verified provider totals. Steam completion is detected on the final eligible live unlock; Xbox completion remains unavailable when no total is supplied."));
+        session.Children.Add(Text("100% celebrations use verified provider totals and a live final unlock on Steam or Xbox. Missing totals remain unknown. Completion proof survives delivery retries."));
         AddTab(tabs, "Sessions", session);
         var controls = Panel(); controls.Children.Add(Text("MAKE THE SIGNAL STRIP YOURS", 22));
         controls.Children.Add(Text("Screen")); controls.Children.Add(_monitor);

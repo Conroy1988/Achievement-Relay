@@ -161,3 +161,17 @@ Select **Update now** on Home or **Help & support**, or let the automatic launch
 | Earn and sync an achievement | The game and Xbox service decide when the unlock is awarded and visible. |
 
 After those choices, polling, baseline protection, filtering, deduplication, formatting, retry, secure storage, startup, and Discord posting are automatic.
+
+
+## Find your way around
+
+- **Home:** monitoring status, your next action and recent achievements.
+- **Connections:** guided Xbox/Steam selection and Discord posting setup.
+- **Account:** optional Discord login and encrypted sync between PCs. Login does not choose a posting channel.
+- **Companion:** achievement gallery, game library, trophies, detailed overlay placement, sound and quiet controls.
+- **Settings:** connections, posting preferences and this PC. Use the section buttons, then **Save settings** or **Discard edits** in the footer. Ctrl+S saves this page.
+- **Help:** connection checks, updates and a private-safe support summary. F1 opens Help.
+
+Closing the main window keeps Relay and unsaved Settings edits in the tray. Choose **Exit** in the tray menu to quit. Save or discard drafts before account sync. Companion's footer saves presentation, sound and history controls together; per-game controls have their own Save button.
+
+For account sync, sign in on the first PC, create a recovery key and save it privately before syncing. On another PC, sign in with the same Discord account and enter the original recovery key. See [Account sync](docs/ACCOUNT-SYNC.md). A new device imports history for browsing, never for automatic posting.

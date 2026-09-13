@@ -56,6 +56,13 @@ public sealed partial class CompanionWindow : Window
     private bool _closed;
     private bool _busy;
     private bool _refreshing;
+    private string? _savedCompanionControls;
+    private string? _savedGameControls;
+    private Row? _editingRow;
+    private string GameControls => $"{_muteGame.IsChecked}/{_hideGame.IsChecked}/{_rareGame.IsChecked}";
+    private bool GameDraft => _savedGameControls is not null && GameControls != _savedGameControls;
+    private string CompanionControls => System.Text.Json.JsonSerializer.Serialize(new object?[] { _x, _y, _scale.Value, _seconds.Value, _monitor.SelectedItem?.ToString(), _presentation.SelectedIndex, _rarity.IsChecked, _shared.Text, _soundPack.SelectedIndex, _rareSoundPack.SelectedIndex, _soundVolume.Value, _soundStudio.IsChecked, _importHistory.IsChecked });
+
     private string? _lastGame;
     private Button? _retryButton;
     private Button? _confirmButton;
@@ -66,18 +73,27 @@ public sealed partial class CompanionWindow : Window
     {
         _services = services; _settings = settings; _saved = saved;
         _connections = connections; _updates = updates; _support = support;
+        Style = (Style)FindResource(typeof(Window));
+        UseLayoutRounding = true; SnapsToDevicePixels = true;
         Title = "Achievement Relay · Companion"; Width = 1020; Height = 820; MinWidth = 760; MinHeight = 620;
+        var workArea = SystemParameters.WorkArea;
+        MinWidth = Math.Min(MinWidth, workArea.Width); MinHeight = Math.Min(MinHeight, workArea.Height);
+        Width = Math.Min(Width, workArea.Width); Height = Math.Min(Height, workArea.Height);
         Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("/AchievementRelay.App;component/CompanionStyles.xaml", UriKind.Relative) });
         Background = (Brush)FindResource("BackgroundBrush"); Foreground = (Brush)FindResource("TextBrush");
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        var root = new DockPanel { Margin = new Thickness(22) };
-        var heading = Text("YOUR ACHIEVEMENTS. YOUR WAY.", 25);
+        var root = new DockPanel { Background = (Brush)FindResource("WindowSurfaceBrush"), Margin = new Thickness(22) };
+        var heading = Text("Your achievements", 25);
         DockPanel.SetDock(heading, Dock.Top); root.Children.Add(heading);
         DockPanel.SetDock(_notice, Dock.Bottom); root.Children.Add(_notice);
+        var footer = new WrapPanel();
+        footer.Children.Add(ActionButton("Save presentation, sound and history", () => Run(SaveControlsAsync)));
+        footer.Children.Add(ActionButton("Discard presentation, sound and history edits", () => { LoadControls(); _savedCompanionControls = CompanionControls; _notice.Text = "Saved presentation, sound and history controls restored."; }));
+        DockPanel.SetDock(footer, Dock.Bottom); root.Children.Add(footer);
         var tabs = new TabControl { TabStripPlacement = Dock.Left }; root.Children.Add(tabs); Content = root;
         var gallery = Panel();
         gallery.Children.Add(Text("GALLERY", 20));
-        gallery.Children.Add(Text("Your latest 300 live unlocks on this PC."));
+        gallery.Children.Add(Text("Your latest 300 recorded unlocks. Synced and imported history is labelled and never reposted."));
         gallery.Children.Add(Text("Search game or achievement"));
         gallery.Children.Add(_search); gallery.Children.Add(_platform); gallery.Children.Add(_period);
         _gallery.Height = 360; _gallery.DisplayMemberPath = "";
@@ -95,6 +111,7 @@ public sealed partial class CompanionWindow : Window
         detail.Children.Add(actions);
         detail.Children.Add(Text("PER-GAME CONTROLS", 16)); detail.Children.Add(_muteGame); detail.Children.Add(_hideGame); detail.Children.Add(_rareGame);
         detail.Children.Add(ActionButton("Save this game's preferences", () => Run(SaveGameAsync)));
+        detail.Children.Add(ActionButton("Discard game edits", DiscardGameEdits));
         var galleryGrid = new Grid(); galleryGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(280) }); galleryGrid.ColumnDefinitions.Add(new ColumnDefinition());
         galleryGrid.Children.Add(new ScrollViewer { Content = gallery, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
         var detailScroll = new ScrollViewer { Content = detail, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }; Grid.SetColumn(detailScroll, 1); galleryGrid.Children.Add(detailScroll);
@@ -111,14 +128,16 @@ public sealed partial class CompanionWindow : Window
         foreach (var preset in new[] { ("Top left", 0d, 0d), ("Top centre", .5, 0d), ("Top right", 1d, 0d), ("Bottom left", 0d, 1d), ("Bottom right", 1d, 1d) })
             positions.Children.Add(ActionButton(preset.Item1, () => { _x = preset.Item2; _y = preset.Item3; PositionStrip(); }));
         controls.Children.Add(positions);
-        controls.Children.Add(Text("Size · 75%–150%")); controls.Children.Add(_scale);
-        controls.Children.Add(Text("Display time · 3–12 seconds")); controls.Children.Add(_seconds); controls.Children.Add(_rarity);
+        controls.Children.Add(Text("Size · 75%–150%")); controls.Children.Add(_scale); controls.Children.Add(SliderValue(_scale, "Scale: {0:0.00}×"));
+        controls.Children.Add(Text("Display time · 3–12 seconds")); controls.Children.Add(_seconds); controls.Children.Add(SliderValue(_seconds, "Display: {0:0} seconds")); controls.Children.Add(_rarity);
         controls.Children.Add(Text("Discord appearance")); controls.Children.Add(_presentation);
         _testButton = ActionButton("Test unsaved controls locally", ReplayControls); controls.Children.Add(_testButton);
-        controls.Children.Add(Text("CROSS-PC DELIVERY", 18));
-        controls.Children.Add(Text(@"Optional: enter the same Windows network folder on both PCs, for example \\server\Relay. The folder must already exist and be writable. OneDrive and other sync folders are not supported. Both PCs must use this option for the same webhook. If the share is unavailable, posting waits. An interrupted send remains uncertain to avoid a duplicate; check Discord before investigating."));
-        controls.Children.Add(_shared);
-        controls.Children.Add(ActionButton("Save presentation preferences", () => Run(SaveControlsAsync)));
+        var coordination = Panel();
+        controls.Children.Add(new Expander { Header = "Advanced: shared-folder delivery coordination", Content = coordination });
+        coordination.Children.Add(Text("CROSS-PC DELIVERY", 18));
+        coordination.Children.Add(Text(@"Optional alternative to cloud pairing: enter the same Windows network folder on both PCs, for example \\server\Relay. The folder must already exist and be writable. OneDrive and other sync folders are not supported. Both PCs must use this option for the same webhook. If the share is unavailable, posting waits. An interrupted send remains uncertain to avoid a duplicate; check Discord before investigating."));
+        coordination.Children.Add(_shared);
+        coordination.Children.Add(Text("If you also sign in to Relay account sync, both cloud and shared-folder checks apply. Prefer one coordination method across your PCs."));
         AddTab(tabs, "Presentation", controls);
         var health = Panel(); health.Children.Add(Text("CONNECTION HEALTH", 22)); health.Children.Add(_health);
         health.Children.Add(ActionButton("Open connections", _connections)); health.Children.Add(ActionButton("Updates and release notes", _updates)); health.Children.Add(ActionButton("Copy support summary", _support));
@@ -129,6 +148,12 @@ public sealed partial class CompanionWindow : Window
         AddTab(tabs, "Getting started", setup);
         BuildShowcaseTabs(tabs, controls, health);
         LoadControls();
+        LabelControls();
+        _savedCompanionControls = CompanionControls;
+        Closing += (_, e) => {
+            if (GameDraft || (_savedCompanionControls is not null && CompanionControls != _savedCompanionControls))
+                e.Cancel = System.Windows.MessageBox.Show(this, "Discard your unsaved Companion edits and close? Choose No to return and save them.", "Unsaved changes", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes;
+        };
         _search.TextChanged += (_, _) => RefreshGallery(); _platform.SelectionChanged += (_, _) => RefreshGallery(); _period.SelectionChanged += (_, _) => RefreshGallery();
         _gallery.SelectionChanged += (_, _) => SelectAchievement(); _sessions.SelectionChanged += (_, _) => RefreshRecap();
         _position.SizeChanged += (_, _) => PositionStrip();
@@ -141,12 +166,47 @@ public sealed partial class CompanionWindow : Window
         RefreshGallery(); RefreshSessions(); RefreshHealth();
     }
 
+    public void SelectSection(string title)
+    {
+        var tabs = ((DockPanel)Content).Children.OfType<TabControl>().Single();
+        foreach (TabItem tab in tabs.Items) if (tab.Header?.ToString() == title) { tabs.SelectedItem = tab; return; }
+    }
+    private void LabelControls()
+    {
+        foreach (var list in new[] { _gallery, _libraryGames, _libraryHistory, _trophies })
+            ScrollViewer.SetHorizontalScrollBarVisibility(list, ScrollBarVisibility.Disabled);
+        System.Windows.Automation.AutomationProperties.SetName(_gallery, "Recorded achievements");
+        System.Windows.Automation.AutomationProperties.SetName(_sessions, "Choose a local play session");
+        System.Windows.Automation.AutomationProperties.SetName(_libraryGames, "Games matching your search");
+        System.Windows.Automation.AutomationProperties.SetName(_libraryHistory, "Earned history for the selected game");
+        System.Windows.Automation.AutomationProperties.SetName(_trophies, "Pinned and rare achievements");
+        System.Windows.Automation.AutomationProperties.SetName(_search, "Search achievements or games");
+        System.Windows.Automation.AutomationProperties.SetName(_platform, "Filter by platform");
+        System.Windows.Automation.AutomationProperties.SetName(_period, "Filter by date or delivery status");
+        System.Windows.Automation.AutomationProperties.SetName(_monitor, "Overlay screen");
+        System.Windows.Automation.AutomationProperties.SetName(_scale, "Overlay size");
+        System.Windows.Automation.AutomationProperties.SetName(_seconds, "Overlay display time in seconds");
+        System.Windows.Automation.AutomationProperties.SetName(_shared, "Shared network folder for delivery coordination");
+        System.Windows.Automation.AutomationProperties.SetLiveSetting(_notice, System.Windows.Automation.AutomationLiveSetting.Polite);
+        System.Windows.Automation.AutomationProperties.SetName(_soundVolume, "Sound Studio volume percent");
+        System.Windows.Automation.AutomationProperties.SetName(_soundPack, "Standard unlock sound pack");
+        System.Windows.Automation.AutomationProperties.SetName(_rareSoundPack, "Rare unlock sound pack");
+        _scale.ToolTip = "75% to 150%. Use arrow keys for small adjustments.";
+        _seconds.ToolTip = "3 to 12 seconds. Use arrow keys to adjust.";
+        _presentation.ToolTip = "Choose the Discord card format. Preview it in Gallery before sharing.";
+    }
+    private static TextBlock SliderValue(Slider slider, string format)
+    {
+        var label = Text("");
+        label.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding("Value") { Source = slider, StringFormat = format });
+        return label;
+    }
     private static TextBlock Text(string text, double size = 13) => new() { Text = text, FontSize = size, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 7, 0, 7) };
     private static StackPanel Panel() => new() { Margin = new Thickness(12) };
     private static Button ActionButton(string title, Action action)
     { var button = new Button { Content = title, Margin = new Thickness(0, 8, 10, 8), HorizontalAlignment = HorizontalAlignment.Left }; button.Click += (_, _) => action(); return button; }
     private static void AddTab(TabControl tabs, string title, FrameworkElement content, bool scroll = true) => tabs.Items.Add(new TabItem { Header = title, Content = scroll ? new ScrollViewer { Content = content, VerticalScrollBarVisibility = ScrollBarVisibility.Auto } : content });
-    private sealed record Row(JournalEntry Entry) { public string Label => $"{Entry.Achievement.GameName} · {Entry.Achievement.Name}  |  {Entry.Delivery}  |  {Entry.ObservedAt.ToLocalTime():g}"; }
+    private sealed record Row(JournalEntry Entry) { public string Kind => Entry.Achievement.IsHistorical ? "Imported or synced history · no new post" : "Live unlock recorded on this PC"; public string Label => $"{Entry.Achievement.GameName} · {Entry.Achievement.Name}  |  {Entry.Delivery}  |  {Entry.ObservedAt.ToLocalTime():g}"; }
     private sealed record SessionRow(string Id, DateTimeOffset Start) { public string Label => Start.ToLocalTime().ToString("f"); public override string ToString() => Label; }
     private sealed record MonitorRow(string Id, string Label) { public override string ToString() => Label; }
     private Row? Selected => _gallery.SelectedItem as Row;
@@ -155,6 +215,7 @@ public sealed partial class CompanionWindow : Window
     private void RefreshGallery()
     {
         if (_refreshing) return;
+        if (GameDraft) { _notice.Text = "Save this game’s preferences before filtering or refreshing the gallery."; return; }
         _refreshing = true;
         try
         {
@@ -178,17 +239,25 @@ public sealed partial class CompanionWindow : Window
     private async void SelectAchievement()
     {
         if (_refreshing) return;
+        if (GameDraft && Selected?.Entry.Achievement.Id != _editingRow?.Entry.Achievement.Id) {
+            _gallery.SelectedItem = _editingRow; _notice.Text = "Save this game’s preferences before choosing another achievement."; return;
+        }
+        var preserveGameDraft = GameDraft;
+        _editingRow = Selected;
         _artworkCancellation?.Cancel(); _artworkCancellation?.Dispose(); _artworkCancellation = new();
         var token = _artworkCancellation.Token;
-        if (_retryButton is not null) _retryButton.IsEnabled = Selected is { } pending && !pending.Entry.Delivery.StartsWith("Delivered", StringComparison.Ordinal) && pending.Entry.Delivery != "Filtered";
-        if (_confirmButton is not null) _confirmButton.IsEnabled = Selected?.Entry.Delivery.StartsWith("Delivery uncertain", StringComparison.Ordinal) == true;
-        if (Selected is not { } row) { _details.Text = "No matching live unlocks recorded yet."; _artwork.Source = null; return; }
+        if (_retryButton is not null) _retryButton.IsEnabled = Selected is { } pending && !pending.Entry.Achievement.IsHistorical && !pending.Entry.Delivery.StartsWith("Delivered", StringComparison.Ordinal) && pending.Entry.Delivery != "Filtered";
+        if (_confirmButton is not null) _confirmButton.IsEnabled = Selected is { } uncertain && !uncertain.Entry.Achievement.IsHistorical && uncertain.Entry.Delivery.StartsWith("Delivery uncertain", StringComparison.Ordinal);
+        if (Selected is not { } row) { _details.Text = "No matching achievements. Clear the filters or play a monitored game to start your collection."; _artwork.Source = null; _savedGameControls = null; return; }
         var a = row.Entry.Achievement;
-        _details.Text = $"{a.Name}\n{a.GameName} · {a.Platform ?? a.SourceProvider}\n{a.Description}\n{RelayRarityClassifier.FormatPercentage(a.RarityPercentage)} · {row.Entry.Delivery}\n\n" +
+        _details.Text = row.Kind + "\n\n" + $"{a.Name}\n{a.GameName} · {a.Platform ?? a.SourceProvider}\n{a.Description}\n{RelayRarityClassifier.FormatPercentage(a.RarityPercentage)} · {row.Entry.Delivery}\n\n" +
             string.Join("\n", (row.Entry.Transitions ?? []).Select(x => $"{x.At.ToLocalTime():HH:mm:ss}  {x.Status}"));
         _artwork.Source = MainWindow.DecodeRedlineImage(a.ImageBytes, 600) ?? new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/AchievementRelay.App;component/Assets/RelayCommandDeck.png"));
         var rule = (_settings.Companion.Games ?? []).FirstOrDefault(x => x.GameKey == CompanionPolicy.GameKey(a));
-        _muteGame.IsChecked = rule?.MuteSound == true; _hideGame.IsChecked = rule?.HideOverlay == true; _rareGame.IsChecked = rule?.RareCelebrationsOnly == true;
+        if (!preserveGameDraft) {
+            _muteGame.IsChecked = rule?.MuteSound == true; _hideGame.IsChecked = rule?.HideOverlay == true; _rareGame.IsChecked = rule?.RareCelebrationsOnly == true;
+            _savedGameControls = GameControls;
+        }
         try
         {
             var art = await _services.ArtworkClient.GetAsync(a, token);
@@ -200,7 +269,7 @@ public sealed partial class CompanionWindow : Window
     }
     private void Replay() => Run(async () =>
     {
-        if (Selected is not { } row) return;
+        if (Selected is not { } row) { _notice.Text = "Select an achievement in the gallery first."; return; }
         var settings = await _services.SettingsStore.LoadAsync();
         _services.AchievementOverlayService.Preview(row.Entry.Achievement, settings: CompanionPolicy.ForGame(row.Entry.Achievement, settings));
         _notice.Text = "Local replay queued. No Discord post was sent.";
@@ -214,21 +283,21 @@ public sealed partial class CompanionWindow : Window
     });
     private async Task RetryAsync()
     {
-        if (Selected is not { } row || row.Entry.Delivery.StartsWith("Delivered", StringComparison.Ordinal) || row.Entry.Delivery == "Filtered") return;
+        if (Selected is not { } row || row.Entry.Achievement.IsHistorical || row.Entry.Delivery.StartsWith("Delivered", StringComparison.Ordinal) || row.Entry.Delivery == "Filtered") return;
         var settings = await _services.SettingsStore.LoadAsync();
         var result = await _services.AchievementDeliveryService.DeliverAsync(row.Entry.Achievement, settings);
         _notice.Text = result == AchievementDeliveryResult.Posted ? "Discord accepted the post." : "Delivery checks completed. See the current delivery status.";
     }
     private async Task PreviewCardAsync()
     {
-        if (Selected is not { } row) return;
+        if (Selected is not { } row) { _notice.Text = "Select an achievement in the gallery first."; return; }
         var post = await _services.AchievementPostComposer.ComposeAsync(row.Entry.Achievement, _settings with { Companion = ReadControls() });
         _artwork.Source = MainWindow.DecodeRedlineImage(post.AttachmentBytes, 1200);
         _notice.Text = post.UsesCollectorCard ? "Local preview of your Discord showcase. Nothing sent." : "Compact card selected: achievement name, description, platform, rarity and available icon. Nothing sent.";
     }
     private async Task ConfirmUncertainAsync()
     {
-        if (Selected is not { } row || !row.Entry.Delivery.StartsWith("Delivery uncertain", StringComparison.Ordinal)) return;
+        if (Selected is not { } row || row.Entry.Achievement.IsHistorical || !row.Entry.Delivery.StartsWith("Delivery uncertain", StringComparison.Ordinal)) return;
         if (System.Windows.MessageBox.Show(this,
             "Only continue if you have checked Discord and this achievement post is already present. This records your confirmation and prevents a retry; it does not send a post.",
             "Confirm existing Discord post", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
@@ -245,10 +314,10 @@ public sealed partial class CompanionWindow : Window
     private void RefreshSessions()
     {
         var id = (_sessions.SelectedItem as SessionRow)?.Id;
-        var rows = _services.CompanionJournal.Snapshot.GroupBy(x => x.SessionId).Select(g => new SessionRow(g.Key, g.Min(x => x.ObservedAt))).OrderByDescending(x => x.Start).ToArray();
+        var rows = _services.CompanionJournal.Snapshot.Where(x => !x.Achievement.IsHistorical).GroupBy(x => x.SessionId).Select(g => new SessionRow(g.Key, g.Min(x => x.ObservedAt))).OrderByDescending(x => x.Start).ToArray();
         _sessions.ItemsSource = rows; _sessions.SelectedItem = rows.FirstOrDefault(x => x.Id == id) ?? rows.FirstOrDefault(); RefreshRecap();
     }
-    private JournalEntry[] SessionEntries => _sessions.SelectedItem is SessionRow row ? _services.CompanionJournal.Snapshot.Where(x => x.SessionId == row.Id).ToArray() : [];
+    private JournalEntry[] SessionEntries => _sessions.SelectedItem is SessionRow row ? _services.CompanionJournal.Snapshot.Where(x => !x.Achievement.IsHistorical && x.SessionId == row.Id).ToArray() : [];
     private void RefreshRecap()
     {
         var entries = SessionEntries;
@@ -293,19 +362,25 @@ public sealed partial class CompanionWindow : Window
     }
     private async Task SaveControlsAsync()
     {
+        var savedControls = CompanionControls;
         var preferences = ReadControls();
         if (!string.IsNullOrEmpty(preferences.SharedDeliveryFolder))
         {
             using var probe = await Task.Run(() => SharedDeliveryClaim.Acquire(preferences.SharedDeliveryFolder, "configuration-check", new Uri("https://discord.com/")));
         }
         await SaveAsync(preferences);
+        _savedCompanionControls = savedControls;
+        if (CompanionControls != savedControls) _notice.Text = "Preferences saved. Your newer edits still need saving.";
     }
     private async Task SaveGameAsync()
     {
-        if (Selected is not { } row) return;
+        if (Selected is not { } row) { _notice.Text = "Select an achievement in the gallery first."; return; }
         var key = CompanionPolicy.GameKey(row.Entry.Achievement);
+        var savedControls = GameControls;
         var rule = new GamePreferences { GameKey = key, MuteSound = _muteGame.IsChecked == true, HideOverlay = _hideGame.IsChecked == true, RareCelebrationsOnly = _rareGame.IsChecked == true };
         await SaveAsync(_settings.Companion with { Games = (_settings.Companion.Games ?? []).Where(x => x.GameKey != key).Append(rule).TakeLast(300).ToArray() });
+        if (Selected?.Entry.Achievement.Id == row.Entry.Achievement.Id) _savedGameControls = savedControls;
+        RefreshGallery();
     }
     private async Task SaveAsync(CompanionPreferences preferences)
     {
@@ -349,6 +424,7 @@ public sealed partial class CompanionWindow : Window
 
     internal async Task VerifyCustomPreviewAsync()
     {
+        var original = (_scale.Value, Seconds: _seconds.Value, X: _x, Y: _y);
         _scale.Value = 1.35; _seconds.Value = 3; _x = 1; _y = 1;
         var started = new TaskCompletionSource<AchievementOverlayWindow>(TaskCreationOptions.RunContinuationsAsynchronously);
         var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -364,7 +440,13 @@ public sealed partial class CompanionWindow : Window
                 throw new InvalidOperationException("Custom size and corner placement did not reach the real overlay.");
             await closed.Task.WaitAsync(TimeSpan.FromSeconds(4));
         }
-        finally { _services.AchievementOverlayService.PresentationStarted -= Observe; _services.AchievementOverlayService.Clear(); }
+        finally
+        {
+            _services.AchievementOverlayService.PresentationStarted -= Observe;
+            _services.AchievementOverlayService.Clear();
+            _scale.Value = original.Value; _seconds.Value = original.Seconds;
+            _x = original.X; _y = original.Y; PositionStrip();
+        }
     }
     private async void Run(Func<Task> action)
     {

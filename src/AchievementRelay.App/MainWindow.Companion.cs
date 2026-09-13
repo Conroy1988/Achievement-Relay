@@ -12,7 +12,7 @@ public partial class MainWindow
         var latestXbox = _services.CompanionLibrary.Snapshot.Where(x => x.Provider == "Xbox").MaxBy(x => x.ObservedAt);
         NowPlayingTitle.Text = name ?? (latestXbox is not null ? latestXbox.Name + " · last observed on Xbox" : "Waiting for your next game");
         var shown = game ?? (name is null ? latestXbox : null);
-        var entries = _services.CompanionJournal.Snapshot;
+        var entries = _services.CompanionJournal.Snapshot.Where(x => !x.Achievement.IsHistorical).ToArray();
         var latest = entries.MaxBy(x => x.ObservedAt);
         var count = latest is not null && DateTimeOffset.UtcNow - latest.ObservedAt < TimeSpan.FromMinutes(30)
             ? entries.Count(x => x.SessionId == latest.SessionId) : 0;

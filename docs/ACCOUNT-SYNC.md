@@ -1,10 +1,10 @@
 # Optional Relay account sync (beta)
 
-Open **Settings → Relay account** and choose **Continue with Discord**. Relay uses a system browser, authorization code with PKCE, and a loopback callback. Neither a Discord password nor the Discord application's client secret is shipped in Relay. The public Supabase publishable key is intentionally included in the desktop client.
+Open **Account** in the sidebar (also available from Settings) and choose **Continue with Discord**. Relay uses a system browser, authorization code with PKCE, and a loopback callback. Neither a Discord password nor the Discord application's client secret is shipped in Relay. The public Supabase publishable key is intentionally included in the desktop client.
 
 On the first device, create a recovery key, copy it to a private password manager, and select **Sync now**. On a second device, sign in with the same Discord account, enter that recovery key, and sync. A new device adopts the existing account settings and merges its recent history and pins. The recovery key cannot be recovered from Supabase. Keep a local backup before changing devices.
 
-Sync runs manually and every five minutes while the main window is hidden and the Companion window is closed. Visible settings editors are not refreshed underneath the user. Save edits before syncing. After a restored connection, monitoring starts using the existing silent-baseline rules.
+Sync runs manually and every five minutes while the main window is hidden and the Companion window is closed. Visible settings editors are not refreshed underneath the user. Save or discard Settings edits before opening Account. Unsaved drafts also pause automatic account sync. After a restored connection, monitoring starts using the existing silent-baseline rules.
 
 ## What moves between devices
 
@@ -36,3 +36,6 @@ Project: `vniujteastkitrmucebv` in London (`eu-west-2`). Apply `supabase/migrati
 
 For live verification, check real Discord sign-in and refresh, recovery on a second device, wrong-key rejection, two-user RLS isolation, concurrent changes, offline recovery, and duplicate-delivery claims with synthetic events and a dedicated test webhook. Never test by publishing old achievements to a real channel.
 
+
+
+The account dialog guides sign-in, recovery and sync in order, and shows only available actions. Cancel sign-in returns control without clearing local data. Last successful sync is read from the local merge baseline after a restart. Discord display names are optional, bounded labels from user metadata; authenticated user IDs remain the sole ownership identity.

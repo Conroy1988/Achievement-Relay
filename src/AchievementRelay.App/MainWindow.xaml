@@ -5,7 +5,7 @@
         Icon="Assets/AchievementRelay.ico"
         Width="1440"
         Height="920"
-        MinWidth="1100"
+        MinWidth="900"
         MinHeight="640"
         WindowStartupLocation="CenterScreen"
         UseLayoutRounding="True"
@@ -25,14 +25,14 @@
     <Grid Grid.ColumnSpan="2">
       <Grid.Background><LinearGradientBrush StartPoint="0,0" EndPoint="1,0.4"><GradientStop Color="#16090F"/><GradientStop Color="#08090B" Offset="0.5"/><GradientStop Color="#260510" Offset="1"/></LinearGradientBrush></Grid.Background>
       <Path Data="M 0,0 L 65,0 0,65 Z M 20,0 L 82,0 0,82 Z" Fill="#B90022" HorizontalAlignment="Left" Width="82" Stretch="Fill"/>
-      <StackPanel Orientation="Horizontal" Margin="55,12,20,12"><Image Source="Assets/AchievementRelay.png" Width="48" Height="48" Margin="0,0,16,0"/><StackPanel VerticalAlignment="Center"><TextBlock Text="ACHIEVEMENT RELAY" Foreground="{StaticResource TextBrush}" FontSize="23" FontWeight="Bold"/><TextBlock Text="X B O X  A N D  S T E A M  A C H I E V E M E N T S  T O  D I S C O R D" FontSize="11" Foreground="#B2B8BF"/></StackPanel></StackPanel>
-      <TextBlock Text="PLAY MORE. SHARE FURTHER." HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="#B9A8AF" FontSize="11" Margin="0,0,25,0"/>
+      <StackPanel Orientation="Horizontal" Margin="55,12,20,12"><Image Source="Assets/AchievementRelay.png" Width="48" Height="48" Margin="0,0,16,0"/><StackPanel VerticalAlignment="Center"><TextBlock Text="ACHIEVEMENT RELAY" Foreground="{StaticResource TextBrush}" FontSize="23" FontWeight="Bold"/><TextBlock Text="Xbox and Steam achievements, shared with Discord" FontSize="11" Foreground="#B2B8BF"/></StackPanel></StackPanel>
+      <TextBlock Text="" HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="#B9A8AF" FontSize="11" Margin="0,0,25,0"/>
     </Grid>
     <Border Grid.Row="1" Grid.Column="0"
             Background="{StaticResource SidebarSurfaceBrush}"
             BorderBrush="{StaticResource BorderBrush}"
             BorderThickness="0,0,1,0">
-      <Grid Margin="7,8,7,14">
+      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><Grid Margin="7,8,7,14">
         <Grid.RowDefinitions>
           <RowDefinition Height="Auto" />
           <RowDefinition Height="*" />
@@ -59,6 +59,7 @@
               <TextBlock Text="Connections" VerticalAlignment="Center" FontSize="12"/>
             </StackPanel>
           </Button>
+          <Button Style="{StaticResource NavButton}" Click="ShowAccount_Click" AutomationProperties.Name="Relay account and sync"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE77B;" Style="{StaticResource RedlineGlyph}"/><TextBlock Text="Account"/></StackPanel></Button>
           <Button x:Name="PresentationNavButton" Style="{StaticResource NavButton}" Click="ShowPresentation_Click" AutomationProperties.Name="Presentation"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE91B;" Style="{StaticResource RedlineGlyph}"/><TextBlock Text="Presentation" FontSize="12"/></StackPanel></Button>
           <Button Style="{StaticResource NavButton}" Click="ShowCompanion_Click" AutomationProperties.Name="Achievement companion"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8B9;" Style="{StaticResource RedlineGlyph}"/><TextBlock Text="Companion" FontSize="12"/></StackPanel></Button>
           <Button x:Name="SettingsNavButton" Style="{StaticResource NavButton}" Click="ShowSettings_Click" AutomationProperties.Name="Settings">
@@ -102,7 +103,7 @@
                   AutomationProperties.Name="Support Achievement Relay on Ko-fi" />
           <TextBlock Text="Runs quietly in your tray" Foreground="{StaticResource MutedTextBrush}" FontSize="11" HorizontalAlignment="Center" Margin="0,10,0,1" />
         </StackPanel>
-      </Grid>
+      </Grid></ScrollViewer>
     </Border>
 
     <TabControl x:Name="MainTabs"
@@ -142,9 +143,11 @@
             </Border>
 
 
-            <Grid>
+
+            <Grid x:Name="HomeLayout" SizeChanged="HomeLayout_SizeChanged">
+              <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
               <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="310"/></Grid.ColumnDefinitions>
-              <StackPanel>
+              <StackPanel x:Name="HomeMainColumn">
                 <Border Style="{StaticResource RedlinePanel}" Margin="0,0,0,10">
                   <StackPanel>
                     <WrapPanel VerticalAlignment="Center">
@@ -152,6 +155,8 @@
                       <Border Style="{StaticResource StatusPill}" Margin="0,0,0,6"><TextBlock x:Name="RelayStatusText" Text="Checking…" FontSize="12"/></Border>
                     </WrapPanel>
                     <TextBlock x:Name="HomeSummaryText" Text="Listening for new achievements from your connected accounts." Foreground="{StaticResource MutedTextBrush}" FontSize="12" Margin="0,0,0,14"/>
+                    <Button x:Name="HomePrimaryActionButton" Content="Send Discord test" Click="HomePrimaryAction_Click" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" MinWidth="180" MinHeight="40" Margin="0,0,0,8"/>
+                    <DockPanel Margin="0,0,0,12"><Button DockPanel.Dock="Right" Content="Account and sync" Click="ShowAccount_Click" Margin="12,0,0,0"/><TextBlock x:Name="HomeAccountSummary" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" AutomationProperties.LiveSetting="Polite"/></DockPanel>
                     <Border Background="#10151D" CornerRadius="8" Margin="0,0,0,12" ClipToBounds="True">
                       <Grid MinHeight="120">
                         <Image x:Name="NowPlayingArtwork" Stretch="UniformToFill" Opacity="0.3"/>
@@ -162,7 +167,7 @@
                         </StackPanel>
                       </Grid>
                     </Border>
-                    <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions><Border Grid.Column="0" Style="{StaticResource RedlinePanel}" Padding="12" Margin="0,0,8,0"><DockPanel><Image Source="Assets/Xbox.png" Width="27" Height="27" Margin="0,0,10,0"/><StackPanel><TextBlock Text="Xbox"/><TextBlock Text="{Binding Text, ElementName=XboxStatusText}" Foreground="{Binding Foreground, ElementName=XboxStatusText}" FontSize="12"/></StackPanel></DockPanel></Border><Border Grid.Column="1" Style="{StaticResource RedlinePanel}" Padding="12" Margin="0,0,8,0"><DockPanel><Image Source="Assets/Steam.png" Width="27" Height="27" Margin="0,0,10,0"/><StackPanel><TextBlock Text="Steam"/><TextBlock Text="{Binding Text, ElementName=SteamStatusText}" Foreground="{Binding Foreground, ElementName=SteamStatusText}" FontSize="12"/></StackPanel></DockPanel></Border><Border Grid.Column="2" Style="{StaticResource RedlinePanel}" Padding="12" Margin="0,0,8,0"><DockPanel><Image Source="Assets/Discord.png" Width="27" Height="27" Margin="0,0,10,0"/><StackPanel><TextBlock Text="Discord"/><TextBlock Text="{Binding Text, ElementName=DiscordStatusText}" Foreground="{Binding Foreground, ElementName=DiscordStatusText}" FontSize="12"/></StackPanel></DockPanel></Border></Grid>
+
                     <TextBlock x:Name="RelayStatusDetail" FontSize="11" Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" AutomationProperties.LiveSetting="Polite"/>
                   </StackPanel>
                 </Border>
@@ -203,7 +208,7 @@
                   </StackPanel>
                 </Border>
               </StackPanel>
-              <StackPanel Grid.Column="2">
+              <StackPanel x:Name="HomeConnectionsColumn" Grid.Column="2">
                 <Border Style="{StaticResource RedlinePanel}" Margin="0,0,0,10">
                   <StackPanel><TextBlock Text="CONNECTIONS" FontSize="12" Margin="0,0,0,10"/>
                     <Grid Margin="0,10,0,12"><Grid.ColumnDefinitions><ColumnDefinition Width="48"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><Border Background="#182027" CornerRadius="7" Width="40" Height="40"><Image Source="Assets/Xbox.png" Width="28" Height="28"/></Border><StackPanel Grid.Column="1" Margin="10,0,8,0"><TextBlock Text="Xbox" FontSize="15"/><TextBlock x:Name="XboxStatusText" Text="Checking…" FontSize="12"/><TextBlock x:Name="XboxStatusDetail" Foreground="{StaticResource MutedTextBrush}" FontSize="11" TextWrapping="Wrap"/></StackPanel><Button Grid.Column="2" Content="Manage" Click="GoToXboxSetup_Click" Padding="9,5" FontSize="11" MinHeight="32"/></Grid><Grid Margin="0,10,0,12"><Grid.ColumnDefinitions><ColumnDefinition Width="48"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><Border Background="#182027" CornerRadius="7" Width="40" Height="40"><Image Source="Assets/Steam.png" Width="28" Height="28"/></Border><StackPanel Grid.Column="1" Margin="10,0,8,0"><TextBlock Text="Steam" FontSize="15"/><TextBlock x:Name="SteamStatusText" Text="Checking…" FontSize="12"/><TextBlock x:Name="SteamStatusDetail" Foreground="{StaticResource MutedTextBrush}" FontSize="11" TextWrapping="Wrap"/></StackPanel><Button Grid.Column="2" Content="Manage" Click="GoToSteamSetup_Click" Padding="9,5" FontSize="11" MinHeight="32"/></Grid><Grid Margin="0,10,0,12"><Grid.ColumnDefinitions><ColumnDefinition Width="48"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><Border Background="#182027" CornerRadius="7" Width="40" Height="40"><Image Source="Assets/Discord.png" Width="28" Height="28"/></Border><StackPanel Grid.Column="1" Margin="10,0,8,0"><TextBlock Text="Discord" FontSize="15"/><TextBlock x:Name="DiscordStatusText" Text="Checking…" FontSize="12"/><TextBlock x:Name="DiscordStatusDetail" Foreground="{StaticResource MutedTextBrush}" FontSize="11" TextWrapping="Wrap"/></StackPanel><Button Grid.Column="2" Content="Manage" Click="GoToDiscordSetup_Click" Padding="9,5" FontSize="11" MinHeight="32"/></Grid>
@@ -215,7 +220,7 @@
                     <DockPanel><CheckBox x:Name="RedlineOverlayToggle" DockPanel.Dock="Right" Style="{StaticResource RedlineToggle}" Click="RedlineOverlayToggle_Click" AutomationProperties.Name="Show Signal Strip overlay" HorizontalAlignment="Right"/><TextBlock Text="Signal Strip" FontSize="18" VerticalAlignment="Center"/></DockPanel>
                     <TextBlock Text="Show a compact notification when you unlock an achievement." FontSize="12" Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,20"/>
                     <Button Content="Preview overlay" Click="PreviewAchievementOverlay_Click" Margin="0,0,0,10"/>
-                    <Button x:Name="HomePrimaryActionButton" Content="Send Discord test" Click="HomePrimaryAction_Click" Style="{StaticResource PrimaryButton}" MinHeight="48" Margin="0,0,0,8"/>
+
                     <TextBlock Text="A test sends a sample post to your configured Discord channel." FontSize="11" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,18"/>
                     <Border Style="{StaticResource RedlinePanel}" Padding="10">
                       <StackPanel><TextBlock Text="LOCAL SIGNAL STRIP PREVIEW" FontSize="11" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,8"/><Border BorderBrush="#FF1638" BorderThickness="3,0,0,0" Padding="10,5"><DockPanel><Image Source="Assets/AchievementRelay.png" Width="38" Height="38" Margin="0,0,10,0"/><StackPanel><TextBlock Text="Achievement unlocked" FontSize="11" Foreground="{StaticResource MutedTextBrush}"/><TextBlock Text="{Binding Text, ElementName=RedlineAchievementText}" FontSize="13" FontWeight="SemiBold"/><TextBlock Text="{Binding Text, ElementName=RedlinePlatformText}" FontSize="11"/></StackPanel></DockPanel></Border></StackPanel>
@@ -489,7 +494,7 @@
             <RowDefinition Height="*" />
           </Grid.RowDefinitions>
           <TextBlock Style="{StaticResource PageTitle}" Text="Activity" />
-          <TextBlock Grid.Row="1" Style="{StaticResource PageSubtitle}" Text="A plain-language history of what the relay has done. Newest events appear first." />
+          <StackPanel Grid.Row="1"><TextBlock Style="{StaticResource PageSubtitle}" Text="What Relay has done, newest first. Warnings include the next step where one is needed."/><TextBox x:Name="ActivitySearchBox" AutomationProperties.Name="Search relay activity" ToolTip="Search the activity messages" TextChanged="ActivityFilterChanged"/><CheckBox x:Name="ActivityAttentionOnly" Content="Only show warnings and errors" Checked="ActivityFilterChanged" Unchecked="ActivityFilterChanged" Margin="0,8,0,12"/></StackPanel>
           <Border Grid.Row="2" Style="{StaticResource Card}" Padding="8">
             <ListBox x:Name="ActivityList" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Relay activity history">
               <ListBox.ItemTemplate>
@@ -515,11 +520,14 @@
 
       <!-- Settings -->
       <TabItem>
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <DockPanel LastChildFill="True"><Border DockPanel.Dock="Bottom" Background="{StaticResource PanelRaisedBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="16,8">            <StackPanel><TextBlock x:Name="SettingsSaveStatus" Foreground="{StaticResource TextBrush}" Text="Your settings are saved." AutomationProperties.LiveSetting="Polite" Margin="0,8"/><WrapPanel HorizontalAlignment="Right"><Button Content="Discard edits" Click="DiscardSettings_Click" Margin="0,0,10,0"/>
+              <Button x:Name="SavePreferencesButton" Content="Save settings" Style="{StaticResource PrimaryButton}" Click="SaveSettings_Click" MinWidth="145" />
+            </WrapPanel></StackPanel></Border><ScrollViewer VerticalScrollBarVisibility="Auto">
           <StackPanel Margin="34,28,34,46">
             <TextBlock Style="{StaticResource PageTitle}" Text="Settings" />
+            <WrapPanel><Button Content="Xbox" Tag="xbox" Click="SettingsSection_Click" Margin="0,0,8,8"/><Button Content="Discord posting" Tag="discord" Click="SettingsSection_Click" Margin="0,0,8,8"/><Button Content="Windows" Tag="windows" Click="SettingsSection_Click" Margin="0,0,8,8"/><Button Content="Overlay and sound" Tag="overlay" Click="SettingsSection_Click" Margin="0,0,8,8"/></WrapPanel>
             <Button Content="Relay account — Discord login and encrypted sync" Click="ShowAccount_Click" HorizontalAlignment="Left" Margin="0,8,0,12" />
-            <TextBlock Style="{StaticResource PageSubtitle}" Text="Change a connection or preference. Nothing is applied until you select Save settings." />
+            <TextBlock Style="{StaticResource PageSubtitle}" Text="Change a connection or preference. Preferences apply when you select Save settings. Connection checks and disconnect actions are labelled separately." />
 
             <Border Style="{StaticResource Card}" Margin="0,0,0,14">
               <Grid>
@@ -533,7 +541,7 @@
                 <StackPanel Grid.Column="1">
                   <TextBlock Text="Xbox" FontSize="18" FontWeight="SemiBold" />
                   <TextBlock x:Name="SettingsXboxStatus" Text="Not configured" Foreground="{StaticResource MutedTextBrush}" Margin="0,4,0,6" />
-                  <TextBlock Text="More than one PC? Keep Xbox monitoring active on one at a time. Starting another PC later safely baselines earlier unlocks." Foreground="{StaticResource MutedTextBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,12" />
+                  <TextBlock Text="For multiple PCs, use Account sync to coordinate Discord posts. Without coordination, each PC posts independently." Foreground="{StaticResource MutedTextBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,12" />
                   <TextBlock Text="OpenXBL API key" Style="{StaticResource FieldLabel}" />
                   <Grid>
                     <PasswordBox x:Name="SettingsXboxApiKeyPasswordBox" PasswordChar="●" AutomationProperties.Name="Saved OpenXBL API key" />
@@ -542,7 +550,7 @@
                   <WrapPanel Margin="0,10,0,0">
                     <Button x:Name="SettingsXboxApiKeyRevealButton" Content="Reveal Key" Click="ToggleSettingsXboxApiKeyVisibility_Click" Margin="0,0,8,8" />
                     <Button Content="Get API key" Click="OpenOpenXbl_Click" Margin="0,0,8,8" />
-                    <Button Content="Retry or replace" Click="SaveAndTestSettingsOpenXbl_Click" Margin="0,0,8,8" />
+                    <Button Content="Verify and save key" Click="SaveAndTestSettingsOpenXbl_Click" Margin="0,0,8,8" />
                     <Button Content="Disconnect Xbox" Style="{StaticResource DangerButton}" Click="RemoveOpenXbl_Click" Margin="0,0,0,8" />
                   </WrapPanel>
                 </StackPanel>
@@ -612,7 +620,7 @@
               </Border>
               <Border Grid.Column="2" Style="{StaticResource Card}">
                 <StackPanel>
-                  <TextBlock Text="Windows" Style="{StaticResource SectionTitle}" />
+                  <TextBlock Text="This PC · Windows" Style="{StaticResource SectionTitle}" />
                   <CheckBox x:Name="SettingsStartWithWindowsCheckBox" Content="Start Achievement Relay with Windows" />
                   <CheckBox x:Name="SettingsStartMinimizedCheckBox" Content="Start quietly in the notification area" />
                   <TextBlock Text="Closing the window keeps monitoring active in the tray." Foreground="{StaticResource MutedTextBrush}" FontSize="11" Margin="0,10,0,0" />
@@ -650,6 +658,7 @@
                     <Slider x:Name="SettingsOverlayVolumeSlider" Minimum="0" Maximum="100" TickFrequency="1" IsSnapToTickEnabled="True" Value="15" AutomationProperties.Name="Unlock chime volume percent"/>
                   </DockPanel>
                   <TextBlock Text="Relay uses your motion controls unless Follow Windows is selected. High-contrast mode always suppresses motion. Test unlock is local only and uses these controls without saving them." Foreground="{StaticResource MutedTextBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                  <Button Content="Restore overlay and sound defaults" Click="ResetOverlayDefaults_Click" HorizontalAlignment="Left" Margin="0,0,0,8"/>
                   <Button x:Name="TestUnlockButton" Content="Test unlock — animation and sound"
                           Click="PreviewAchievementOverlay_Click"
                           HorizontalAlignment="Left" />
@@ -657,11 +666,9 @@
               </Grid>
             </Border>
 
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-              <Button Content="Save settings" Style="{StaticResource PrimaryButton}" Click="SaveSettings_Click" MinWidth="145" />
-            </StackPanel>
+
           </StackPanel>
-        </ScrollViewer>
+        </ScrollViewer></DockPanel>
       </TabItem>
 
       <!-- Help and support -->
@@ -669,6 +676,7 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <StackPanel Margin="34,28,34,46">
             <TextBlock Style="{StaticResource PageTitle}" Text="Help &amp; support" />
+            <Border Style="{StaticResource Card}"><StackPanel><TextBlock Text="Find your way around" Style="{StaticResource SectionTitle}"/><TextBlock Text="Home shows monitoring and recent activity. Connections guides you through setup. Companion contains your library, trophies, sound and detailed overlay controls. Settings manages posting and this PC. Account pairs your PCs using Discord login; it does not choose the channel where achievements are posted."/><TextBlock Text="F1 opens Help. Ctrl+S saves Settings. Closing this window keeps Relay in the tray; choose Exit in the tray menu to stop it." Margin="0,10,0,0"/><TextBlock Text="For another PC: sign in with the same Discord account, enter your saved recovery key, then sync. If the key is lost, copy it from a PC that is still unlocked. The cloud service cannot recover it." Margin="0,10,0,0"/></StackPanel></Border>
             <TextBlock Style="{StaticResource PageSubtitle}" Text="Quick checks first, technical detail only when you need it." />
 
             <Border Style="{StaticResource Card}" BorderBrush="{StaticResource AccentOutlineBrush}" Margin="0,0,0,14">
@@ -794,8 +802,8 @@
             </Border>
             <Border Style="{StaticResource RedlinePanel}" Margin="0,14,0,0">
               <StackPanel><TextBlock Text="Signal Strip" FontSize="20" FontWeight="SemiBold"/>
-                <TextBlock Text="Silent, click-through and on screen for five seconds. This local preview does not post to Discord." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,16"/>
-                <WrapPanel><Button Content="Preview Signal Strip" Click="PreviewAchievementOverlay_Click" Style="{StaticResource PrimaryButton}" Margin="0,0,12,8"/><Button Content="Edit presentation preferences" Click="ShowSettings_Click" Margin="0,0,0,8"/></WrapPanel>
+                <TextBlock Text="A local preview of your overlay and sound settings. It does not post to Discord. Duration and placement are configurable." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,16"/>
+                <WrapPanel><Button Content="Preview Signal Strip" Click="PreviewAchievementOverlay_Click" Style="{StaticResource PrimaryButton}" Margin="0,0,12,8"/><Button Content="Size, screen and appearance" Click="OpenPresentationControls_Click" Margin="0,0,0,8"/></WrapPanel>
               </StackPanel>
             </Border>
           </StackPanel>

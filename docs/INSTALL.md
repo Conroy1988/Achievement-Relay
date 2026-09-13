@@ -86,3 +86,6 @@ Use **Settings → Apps → Installed apps → Achievement Relay → Uninstall**
 ```
 
 If uninstalling directly through Windows Settings, manually remove a desktop shortcut if Windows leaves it behind. An obsolete development/test certificate may be removed from **Manage computer certificates → Trusted People → Certificates** after all packages signed by it are gone. Remove the **Achievement Relay Open Source** publisher certificate only after uninstalling Achievement Relay and deciding not to accept future updates signed by that identity.
+
+
+Uninstalling Relay does not delete your encrypted cloud profile. Save your recovery key before removing local data: deleting every local copy and losing the recovery backup makes the cloud profile unreadable. Cloud deletion and account switching are not available in this version.

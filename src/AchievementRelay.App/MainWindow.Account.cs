@@ -12,7 +12,7 @@ public partial class MainWindow
         _accountTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(5) };
         _accountTimer.Tick += async (_, _) =>
         {
-            if (_isExiting || IsVisible || _companion is not null || !_services.AccountCloud.HasRecoveryKey || _accountSyncRunning) return;
+            if (_isExiting || IsVisible || HasSettingsDraft || _companion is not null || !_services.AccountCloud.HasRecoveryKey || _accountSyncRunning) return;
             try { await SyncAccountAsync(); }
             catch (Exception) { _services.ActivityLog.Warning("Account sync unavailable. Local settings and history are kept; Relay will retry later."); }
         };
@@ -21,13 +21,18 @@ public partial class MainWindow
     }
     private void ShowAccount_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new AccountWindow(_services, SyncAccountAsync) { Owner = this };
+        if (HasSettingsDraft) { NavigateTo(3); SettingsSaveStatus.Text = "Save or discard your edits before opening account sync."; return; }
+        var dialog = new AccountWindow(_services, SyncAccountAsync, () => HomeAccountSummary.Text) { Owner = this };
         dialog.ShowDialog();
+        RefreshAccountSummary();
     }
     private async Task SyncAccountAsync()
     {
         if (_accountSyncRunning) return;
+        if (HasSettingsDraft) throw new InvalidOperationException("Save your settings edits before syncing.");
         _accountSyncRunning = true;
+        _accountSyncProblem = null;
+        RefreshAccountSummary();
         try
         {
             _settings = await _services.AccountSync.SyncAsync();
@@ -40,7 +45,9 @@ public partial class MainWindow
             PopulateControls();
             RefreshStatus();
             _services.ActivityLog.Success("Relay account synced.");
+            _lastAccountSync = DateTimeOffset.Now;
         }
-        finally { _accountSyncRunning = false; }
+        catch { _accountSyncProblem = "Sync needs attention. Open Account to retry; local data is kept."; throw; }
+        finally { _accountSyncRunning = false; RefreshAccountSummary(); }
     }
 }

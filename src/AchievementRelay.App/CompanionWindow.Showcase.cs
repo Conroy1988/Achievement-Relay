@@ -45,6 +45,10 @@ public sealed partial class CompanionWindow
 
     private void BuildShowcaseTabs(TabControl tabs, StackPanel controls, StackPanel health)
     {
+        _libraryGames.DisplayMemberPath = ""; _libraryGames.ItemTemplate = (DataTemplate)FindResource("LibraryRowTemplate");
+        _libraryGames.ItemContainerStyle = (Style)FindResource("GalleryItemStyle");
+        _trophies.DisplayMemberPath = ""; _trophies.ItemTemplate = (DataTemplate)FindResource("TrophyRowTemplate");
+        _trophies.ItemContainerStyle = (Style)FindResource("GalleryItemStyle");
         var sound = Panel(); sound.Children.Add(Text("SOUND STUDIO", 22));
         sound.Children.Add(_soundStudio); sound.Children.Add(Text("Standard unlock")); sound.Children.Add(_soundPack);
         sound.Children.Add(Text("Rare unlock")); sound.Children.Add(_rareSoundPack);
@@ -126,6 +130,7 @@ public sealed partial class CompanionWindow
         if (_libraryRevision == revision) return; _libraryRevision = revision;
         var key = (_libraryGames.SelectedItem as GameRow)?.Game.Key;
         var rows = games.OrderByDescending(x => x.ObservedAt).Select(x => new GameRow(x)).ToArray();
+        _libraryGames.Height = Math.Clamp(rows.Length * 75, 75, 210);
         _libraryGames.ItemsSource = rows; _libraryGames.SelectedItem = rows.FirstOrDefault(x => x.Game.Key == key) ?? rows.FirstOrDefault();
         var close = games.Where(x => x.Total > x.Earned).OrderBy(x => x.Total - x.Earned).Take(3);
         _closest.Text = "CLOSEST TO COMPLETION\n" + string.Join("\n", close.Select(x => $"{x.Name} · {x.Total - x.Earned} remaining"));
@@ -150,6 +155,7 @@ public sealed partial class CompanionWindow
         var historical = _services.CompanionLibrary.Snapshot.SelectMany(x => x.History).Select(x => new TrophyRow(x, pins.Contains(x.Id), true));
         _trophies.ItemsSource = live.Concat(historical).DistinctBy(x => x.Achievement.Id).OrderByDescending(x => x.Pinned)
             .ThenBy(x => x.Achievement.RarityPercentage is >= 0 and <= 100 ? x.Achievement.RarityPercentage : double.MaxValue).Take(300).ToArray();
+        _trophies.Height = Math.Clamp(_trophies.Items.Count * 85, 100, 400);
     }
     private async Task TogglePinAsync(AchievementEvent? achievement)
     {

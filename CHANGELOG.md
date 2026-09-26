@@ -4,6 +4,11 @@ All notable changes to Achievement Relay are documented here. The project follow
 
 ## [Unreleased]
 
+### Home status
+
+- Reserve "Now playing" for a detected Steam game. Saved Xbox progress is labelled "Last observed", and the empty state says "No active game".
+- Remove the live session count from the saved Xbox and empty states so historical progress does not imply a running game.
+
 ## [0.12.1] - 2026-09-26
 
 ### Steam monitoring

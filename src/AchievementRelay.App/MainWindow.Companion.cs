@@ -10,6 +10,7 @@ public partial class MainWindow
         var name = _services.SteamMonitorCoordinator.CurrentGameName;
         var game = _services.CompanionLibrary.Snapshot.Where(x => name is not null && x.Provider == "Steam" && x.Name == name).MaxBy(x => x.ObservedAt);
         var latestXbox = _services.CompanionLibrary.Snapshot.Where(x => x.Provider == "Xbox").MaxBy(x => x.ObservedAt);
+        NowPlayingHeading.Text = name is not null ? "NOW PLAYING" : latestXbox is not null ? "LAST OBSERVED" : "NO ACTIVE GAME";
         NowPlayingTitle.Text = name ?? (latestXbox is not null ? latestXbox.Name + " · last observed on Xbox" : "Waiting for your next game");
         var shown = game ?? (name is null ? latestXbox : null);
         var entries = _services.CompanionJournal.Snapshot.Where(x => !x.Achievement.IsHistorical).ToArray();
@@ -17,7 +18,8 @@ public partial class MainWindow
         var count = latest is not null && DateTimeOffset.UtcNow - latest.ObservedAt < TimeSpan.FromMinutes(30)
             ? entries.Count(x => x.SessionId == latest.SessionId) : 0;
         NowPlayingProgress.Text = (shown is null ? "Progress appears after a verified game snapshot." :
-            $"{shown.Earned}/{shown.Total?.ToString() ?? "?"} earned" + (shown.Total is > 0 ? $" · {100d * shown.Earned / shown.Total:0.#}% complete" : "")) + $" · {count} unlocks this session";
+            $"{shown.Earned}/{shown.Total?.ToString() ?? "?"} earned" + (shown.Total is > 0 ? $" · {100d * shown.Earned / shown.Total:0.#}% complete" : "")) +
+            (name is not null ? $" · {count} unlocks this session" : latestXbox is not null ? " · Saved Xbox progress; not live presence" : "");
         var artKey = shown?.Artwork;
         if (_nowPlayingArtworkKey == artKey) return;
         _nowPlayingArtworkKey = artKey; NowPlayingArtwork.Source = null;

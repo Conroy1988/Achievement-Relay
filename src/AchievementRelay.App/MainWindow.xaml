@@ -161,7 +161,7 @@
                       <Grid MinHeight="120">
                         <Image x:Name="NowPlayingArtwork" Stretch="UniformToFill" Opacity="0.3"/>
                         <StackPanel Margin="16">
-                          <TextBlock Text="NOW PLAYING" Foreground="#FF657B" FontSize="11" FontWeight="Bold"/>
+                          <TextBlock x:Name="NowPlayingHeading" Text="NO ACTIVE GAME" Foreground="#FF657B" FontSize="11" FontWeight="Bold"/>
                           <TextBlock x:Name="NowPlayingTitle" Text="Waiting for your next game" FontSize="21" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,5"/>
                           <TextBlock x:Name="NowPlayingProgress" Text="Steam game detection · Xbox progress from verified snapshots" FontSize="12" TextWrapping="Wrap"/>
                         </StackPanel>

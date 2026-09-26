@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AchievementRelay.Core.Models;
@@ -373,7 +374,9 @@ public sealed class SteamMonitorCoordinator(
                 CreateNoWindow = true,
                 RedirectStandardInput = true,
                 RedirectStandardOutput = true,
-                RedirectStandardError = true
+                RedirectStandardError = true,
+                StandardOutputEncoding = Encoding.UTF8,
+                StandardErrorEncoding = Encoding.UTF8
             };
             startInfo.ArgumentList.Add("--app-id");
             startInfo.ArgumentList.Add(game.AppId.ToString(CultureInfo.InvariantCulture));
@@ -492,9 +495,9 @@ public sealed class SteamMonitorCoordinator(
                 {
                     throw;
                 }
-                catch (InvalidDataException)
+                catch (InvalidDataException exception)
                 {
-                    SetError("The Steam monitoring component returned unreadable or oversized data. Nothing was posted; Achievement Relay will restart it.");
+                    SetError($"{exception.Message} Nothing unverified was posted; Achievement Relay will restart the observer.");
                     TryTerminateBridge(process);
                     return;
                 }
@@ -555,27 +558,13 @@ public sealed class SteamMonitorCoordinator(
 
     private async Task HandleBridgeMessageAsync(string line, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(line))
+        var message = SteamBridgeProtocol.ReadMessage<SteamBridgeMessage>(line, JsonOptions);
+        if (message is null)
         {
             return;
         }
 
-        if (line.Length > 8_000_000)
-        {
-            throw new InvalidDataException("Steam bridge message exceeded the protocol limit.");
-        }
-
-        SteamBridgeMessage? message;
-        try
-        {
-            message = JsonSerializer.Deserialize<SteamBridgeMessage>(line, JsonOptions);
-        }
-        catch (JsonException)
-        {
-            throw new InvalidDataException("Steam bridge returned unreadable JSON.");
-        }
-
-        if (message is null || message.ProtocolVersion != ProtocolVersion)
+        if (message.ProtocolVersion != ProtocolVersion)
         {
             SetError("The Steam monitoring component is incompatible with this app version. Reinstall Achievement Relay.");
             return;

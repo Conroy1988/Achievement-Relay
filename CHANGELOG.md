@@ -4,6 +4,8 @@ All notable changes to Achievement Relay are documented here. The project follow
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-09-26
+
 ### Steam monitoring
 
 - Ignore non-JSON Steam helper diagnostic lines instead of restarting the observer and losing its in-memory live baseline.

@@ -24,6 +24,8 @@ internal static class Program
 
     public static int Main(string[] args)
     {
+        // Match the parent pipe decoder regardless of the Windows code page.
+        Console.OutputEncoding = new UTF8Encoding(false);
         if (args.Any(value => string.Equals(value, "--self-test", StringComparison.OrdinalIgnoreCase)))
         {
             var passed = RunSelfTest();

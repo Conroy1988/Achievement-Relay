@@ -8,6 +8,7 @@ using AchievementRelay.Core.Services;
 
 var tests = new (string Name, Action Run)[]
 {
+    ("Steam diagnostics cannot interrupt protocol records; corrupt records still fail closed", SteamBridgeProtocolTests.Run),
     ("Account encryption, field merges and device isolation", AccountTests.Run),
     ("Companion preferences preserve global opt-outs and per-game scope", CompanionPreferencesContract),
     ("Completion requires verified totals and a new eligible transition", CompletionContract),

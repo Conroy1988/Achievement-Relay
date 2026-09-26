@@ -4,6 +4,12 @@ All notable changes to Achievement Relay are documented here. The project follow
 
 ## [Unreleased]
 
+### Steam monitoring
+
+- Ignore non-JSON Steam helper diagnostic lines instead of restarting the observer and losing its in-memory live baseline.
+- Use explicit UTF-8 on both ends of the helper output pipe, preserving non-ASCII achievement and player text.
+- Distinguish oversized helper output from invalid JSON/field types without logging raw player or provider data. Malformed achievement records still fail closed; historical unlocks are not replayed.
+
 ## [0.12.0] - 2026-09-14
 
 ### Usability and polish

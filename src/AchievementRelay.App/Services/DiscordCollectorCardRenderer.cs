@@ -28,7 +28,7 @@ public sealed class DiscordCollectorCardRenderer
     public const float AchievementTitleMaximumFontSize = 88;
     public const float AchievementTitleMinimumFontSize = 46;
     public const float AchievementDescriptionFontSize = 32;
-    public const float RarityPercentageMaximumFontSize = 28;
+    public const float RarityPercentageMaximumFontSize = 44;
     public const string CardFileName = "achievement-relay-card.png";
     public const string CardContentType = "image/png";
     private const int MaximumCardBytes = 7_500_000;
@@ -313,7 +313,7 @@ public sealed class DiscordCollectorCardRenderer
         graphics.FillRectangle(background, 0, 660, CardWidth, 90);
         using var red = new Pen(Color.FromArgb(180, 229, 39, 53), 2);
         graphics.DrawLine(red, 42, 660, 1158, 660);
-        var iconBounds = new RectangleF(42, 682, 46, 46);
+        var iconBounds = new RectangleF(42, 673, 64, 64);
         using var circle = new GraphicsPath();
         circle.AddEllipse(iconBounds);
         using var iconBack = new SolidBrush(Color.FromArgb(30, 32, 38));
@@ -327,31 +327,34 @@ public sealed class DiscordCollectorCardRenderer
         }
         else
         {
-            DrawBrandBars(graphics, 52, 695, 0.5f);
+            DrawBrandBars(graphics, 57, 692, 0.7f);
         }
-        using var font = CreateFont(28, FontStyle.Bold, condensed: false);
+        using var font = CreateFont(42, FontStyle.Bold, condensed: false);
         using var white = new SolidBrush(Color.FromArgb(238, 236, 230));
         using var format = CreateSingleLineFormat();
         var player = string.IsNullOrWhiteSpace(settings.DisplayName) ? achievement.PlayerName : settings.DisplayName;
-        graphics.DrawString(Sanitize(player, "Player"), font, white, new RectangleF(102, 678, 280, 54), format);
+        graphics.DrawString(Sanitize(player, "Player"), font, white, new RectangleF(122, 671, achievement.Gamerscore is null ? 450 : 264, 66), format);
         if (achievement.Gamerscore is { } score)
         {
-            graphics.DrawString($"+{score}G", font, white, new RectangleF(392, 678, 142, 54), format);
+            graphics.DrawString($"+{score}G", font, white, new RectangleF(400, 671, 192, 66), format);
         }
 
         // Existing tier artwork uses a 140px coordinate system. Scale the whole
         // drawing so its internal geometry stays correct at medallion size.
         var emblemState = graphics.Save();
-        graphics.TranslateTransform(588, 681);
-        graphics.ScaleTransform(0.34f, 0.34f);
+        graphics.TranslateTransform(620, 674);
+        graphics.ScaleTransform(0.44f, 0.44f);
         DrawTierEmblem(graphics, new RectangleF(0, 0, 140, 140), tier, palette);
         graphics.Restore(emblemState);
         var population = string.Equals(achievement.SourceProvider, "Steam", StringComparison.OrdinalIgnoreCase)
             ? "Steam players" : "players";
-        var rarity = tier == RelayRarityTier.Unranked ? "Rarity unavailable"
-            : $"{RelayRarityClassifier.FormatPercentage(achievement.RarityPercentage)} of {population}";
-        using var rarityFont = CreateFont(RarityPercentageMaximumFontSize, FontStyle.Regular, condensed: false);
-        graphics.DrawString(rarity, rarityFont, white, new RectangleF(650, 678, 454, 54), format);
+        var rarity = tier == RelayRarityTier.Unranked ? "Unranked"
+            : RelayRarityClassifier.FormatPercentage(achievement.RarityPercentage);
+        using var rarityFont = CreateFont(RarityPercentageMaximumFontSize, FontStyle.Bold, condensed: false);
+        graphics.DrawString(rarity, rarityFont, white, new RectangleF(710, 662, 390, 55), format);
+        using var populationFont = CreateFont(30, FontStyle.Regular, condensed: false);
+        graphics.DrawString(tier == RelayRarityTier.Unranked ? "Rarity unavailable" : $"of {population}",
+            populationFont, white, new RectangleF(712, 712, 390, 36), format);
         DrawBrandBars(graphics, 1114, 693, 0.7f);
     }
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.13.1] - 2026-09-27
+
+- Enlarge Collector Card player names, achievement icons, rarity medallions and Xbox gamerscore for normal Discord display sizes.
+- Give rarity percentages their own bold line above the population label, preserving the v0.13.0 artwork and title layout.
+
+
 ## [0.13.0] - 2026-09-27
 
 - Redesign Discord Collector Cards as artwork-first 1200×750 posters for Steam and Xbox, with large achievement titles, red-bar branding and compact player/rarity footers.

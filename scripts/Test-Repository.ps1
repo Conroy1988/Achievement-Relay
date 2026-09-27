@@ -886,13 +886,13 @@ if (-not $releaseWorkflowText.Contains("'.exe'") -or
     -not $releaseWorkflowText.Contains('Start-Process') -or
     -not $releaseWorkflowText.Contains('$previewProcess.ExitCode') -or
     -not $releaseWorkflowText.Contains('$previewWidth -ne 1200') -or
-    -not $releaseWorkflowText.Contains('$previewHeight -ne 675') -or
+    -not $releaseWorkflowText.Contains('$previewHeight -ne 750') -or
     -not $releaseWorkflowText.Contains('--export-collector-card-artwork-preview') -or
     -not $releaseWorkflowText.Contains('AchievementRelay_CollectorCard_Artwork_Preview.png') -or
     -not $releaseWorkflowText.Contains('$artworkPreviewProcess.ExitCode') -or
     -not $releaseWorkflowText.Contains('$artworkPreviewBytes.Length -le 10KB') -or
     -not $releaseWorkflowText.Contains('$artworkPreviewWidth -ne 1200') -or
-    -not $releaseWorkflowText.Contains('$artworkPreviewHeight -ne 675') -or
+    -not $releaseWorkflowText.Contains('$artworkPreviewHeight -ne 750') -or
     -not $releaseWorkflowText.Contains('--export-signal-strip-preview') -or
     -not $releaseWorkflowText.Contains('AchievementRelay_SignalStrip_Preview.png') -or
     -not $releaseWorkflowText.Contains('$signalPreviewProcess.ExitCode') -or
@@ -1085,13 +1085,13 @@ if (-not $ciWorkflowText.Contains('0.10.0.${{ github.run_number }}') -or
     -not $ciWorkflowText.Contains('Start-Process') -or
     -not $ciWorkflowText.Contains('$previewProcess.ExitCode') -or
     -not $ciWorkflowText.Contains('$previewWidth -ne 1200') -or
-    -not $ciWorkflowText.Contains('$previewHeight -ne 675') -or
+    -not $ciWorkflowText.Contains('$previewHeight -ne 750') -or
     -not $ciWorkflowText.Contains('--export-collector-card-artwork-preview') -or
     -not $ciWorkflowText.Contains('artifacts/AchievementRelay_CollectorCard_Artwork_Preview.png') -or
     -not $ciWorkflowText.Contains('$artworkPreviewProcess.ExitCode') -or
     -not $ciWorkflowText.Contains('$artworkPreviewBytes.Length -le 10KB') -or
     -not $ciWorkflowText.Contains('$artworkPreviewWidth -ne 1200') -or
-    -not $ciWorkflowText.Contains('$artworkPreviewHeight -ne 675') -or
+    -not $ciWorkflowText.Contains('$artworkPreviewHeight -ne 750') -or
     -not $ciWorkflowText.Contains('--export-signal-strip-preview') -or
     -not $ciWorkflowText.Contains('artifacts/AchievementRelay_SignalStrip_Preview.png') -or
     -not $ciWorkflowText.Contains('$signalPreviewProcess.ExitCode') -or

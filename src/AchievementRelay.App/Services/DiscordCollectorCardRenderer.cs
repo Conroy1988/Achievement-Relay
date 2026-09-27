@@ -280,7 +280,7 @@ public sealed class DiscordCollectorCardRenderer
             gameFont, gameBrush, new RectangleF(42, 326, 1116, 43), singleLine);
 
         DrawFittedTitle(graphics, Sanitize(achievement.Name, "Achievement unlocked"),
-            new RectangleF(36, 372, 760, 202), Color.FromArgb(255, 248, 245, 239));
+            new RectangleF(36, 368, 760, 196), Color.FromArgb(255, 248, 245, 239));
 
         if (settings.IncludeRawDetailsWhenUncertain && !string.IsNullOrWhiteSpace(achievement.Description))
         {
@@ -288,7 +288,7 @@ public sealed class DiscordCollectorCardRenderer
             using var brush = new SolidBrush(Color.FromArgb(222, 223, 225));
             using var format = new StringFormat { Trimming = StringTrimming.EllipsisWord, FormatFlags = StringFormatFlags.LineLimit };
             graphics.DrawString(Sanitize(achievement.Description, string.Empty), font, brush,
-                new RectangleF(42, 572, 800, 78), format);
+                new RectangleF(42, 566, 800, 90), format);
         }
     }
 
@@ -470,14 +470,14 @@ public sealed class DiscordCollectorCardRenderer
         using var format = new StringFormat
         {
             Alignment = centered ? StringAlignment.Center : StringAlignment.Near,
-            LineAlignment = StringAlignment.Center,
+            LineAlignment = StringAlignment.Near,
             Trimming = centered ? StringTrimming.EllipsisCharacter : StringTrimming.EllipsisWord,
             FormatFlags = centered ? StringFormatFlags.NoWrap : StringFormatFlags.LineLimit
         };
 
         for (var size = maximumSize; size >= minimumSize; size -= 2)
         {
-            using var font = CreateFont(size, FontStyle.Bold);
+            using var font = new Font("Arial Black", size, FontStyle.Bold, GraphicsUnit.Pixel);
             var measured = centered
                 ? graphics.MeasureString(text, font)
                 : graphics.MeasureString(text, font, (int)bounds.Width);

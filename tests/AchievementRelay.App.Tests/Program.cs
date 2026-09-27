@@ -470,6 +470,14 @@ static void CollectorCardReadableTypographyContract()
         DiscordCollectorCardRenderer.AchievementDescriptionFontSize >= 30 &&
         DiscordCollectorCardRenderer.RarityPercentageMaximumFontSize >= 28,
         "Description or rarity typography no longer survives normal Discord downscaling.");
+    using var canvas = new Bitmap(1200, 750);
+    using var graphics = Graphics.FromImage(canvas);
+    using var font = new Font("Segoe UI", DiscordCollectorCardRenderer.AchievementDescriptionFontSize,
+        FontStyle.Regular, GraphicsUnit.Pixel);
+    var measured = graphics.MeasureString(
+        "Throw something into something else with the saucer’s Abducto Beam.", font, 800);
+    Assert(measured.Height <= 90, "The approved Steam description no longer fits its two-line area.");
+
 }
 
 static void CollectorCardUnrankedState()

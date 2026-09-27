@@ -461,45 +461,47 @@ public sealed class DiscordCollectorCardRenderer
         }
     }
 
-    private static void DrawFittedTitle(Graphics graphics, string text, RectangleF bounds, Color color) =>
-        DrawFittedText(
-            graphics,
-            text,
-            bounds,
-            AchievementTitleMaximumFontSize,
-            AchievementTitleMinimumFontSize,
-            color,
-            centered: false);
-
-    private static void DrawFittedText(
-        Graphics graphics,
-        string text,
-        RectangleF bounds,
-        float maximumSize,
-        float minimumSize,
-        Color color,
-        bool centered)
+    private static void DrawFittedTitle(Graphics graphics, string text, RectangleF bounds, Color color)
     {
         using var brush = new SolidBrush(color);
-        using var format = new StringFormat
+        using var format = new StringFormat(StringFormat.GenericTypographic)
         {
-            Alignment = centered ? StringAlignment.Center : StringAlignment.Near,
-            LineAlignment = StringAlignment.Near,
-            Trimming = centered ? StringTrimming.EllipsisCharacter : StringTrimming.EllipsisWord,
-            FormatFlags = centered ? StringFormatFlags.NoWrap : StringFormatFlags.LineLimit
+            Trimming = StringTrimming.EllipsisCharacter,
+            FormatFlags = StringFormatFlags.NoWrap
         };
-
-        for (var size = maximumSize; size >= minimumSize; size -= 2)
+        // GDI's default multiline leading is much larger than the approved
+        // poster typography. Fit at most two lines, with deliberate tight
+        // leading, rather than shrinking an ordinary title to fill that gap.
+        for (var size = AchievementTitleMaximumFontSize; size >= AchievementTitleMinimumFontSize; size -= 2)
         {
             using var font = new Font("Arial Black", size, FontStyle.Bold, GraphicsUnit.Pixel);
-            var measured = centered
-                ? graphics.MeasureString(text, font)
-                : graphics.MeasureString(text, font, (int)bounds.Width);
-            if ((measured.Width <= bounds.Width && measured.Height <= bounds.Height) || size <= minimumSize)
+            var lines = new List<string>();
+            var line = string.Empty;
+            foreach (var word in text.Split(' ', StringSplitOptions.RemoveEmptyEntries))
             {
-                graphics.DrawString(text, font, brush, bounds, format);
-                return;
+                var candidate = line.Length == 0 ? word : line + " " + word;
+                if (line.Length > 0 && graphics.MeasureString(candidate, font, PointF.Empty, format).Width > bounds.Width)
+                {
+                    lines.Add(line);
+                    line = word;
+                }
+                else line = candidate;
             }
+            if (line.Length > 0) lines.Add(line);
+            var fits = lines.Count <= 2 && lines.All(value =>
+                graphics.MeasureString(value, font, PointF.Empty, format).Width <= bounds.Width);
+            if (!fits && size > AchievementTitleMinimumFontSize) continue;
+
+            var state = graphics.Save();
+            graphics.SetClip(bounds, CombineMode.Intersect);
+            for (var index = 0; index < Math.Min(2, lines.Count); index++)
+            {
+                var value = index == 1 && lines.Count > 2 ? string.Join(" ", lines.Skip(1)) : lines[index];
+                graphics.DrawString(value, font, brush,
+                    new RectangleF(bounds.Left, bounds.Top + index * size * 1.06f, bounds.Width, size * 1.6f), format);
+            }
+            graphics.Restore(state);
+            return;
         }
     }
 

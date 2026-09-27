@@ -33,7 +33,9 @@ public sealed class DiscordCollectorCardRenderer
     public const string CardContentType = "image/png";
     private const int MaximumCardBytes = 7_500_000;
 
-    private static readonly Lazy<byte[]?> BrandImageBytes = new(LoadBrandImageBytes);
+    private static readonly Lazy<byte[]?> BrandImageBytes = new(() => LoadAssetBytes("AchievementRelay"));
+    private static readonly Lazy<byte[]?> SteamImageBytes = new(() => LoadAssetBytes("Steam"));
+    private static readonly Lazy<byte[]?> XboxImageBytes = new(() => LoadAssetBytes("Xbox"));
 
     /// <summary>
     /// Creates the canonical, anonymized Gold-tier fallback preview. Windows
@@ -251,15 +253,24 @@ public sealed class DiscordCollectorCardRenderer
     private static void DrawHeader(Graphics graphics, AchievementEvent achievement, TierPalette palette)
     {
         DrawBrandBars(graphics, 42, 37);
-        using var labelFont = CreateFont(23, FontStyle.Bold);
+        using var labelFont = CreateFont(21, FontStyle.Bold, condensed: false);
         using var white = new SolidBrush(Color.FromArgb(248, 245, 239));
         var completion = achievement.IsGameCompletion && achievement.VerifiedAchievementTotal > 0;
-        graphics.DrawString(completion ? "100% COMPLETE" : "ACHIEVEMENT UNLOCKED",
-            labelFont, white, new PointF(104, 39));
+        var labelX = 104f;
+        foreach (var character in completion ? "100% COMPLETE" : "ACHIEVEMENT UNLOCKED")
+        {
+            var text = character.ToString();
+            graphics.DrawString(text, labelFont, white, new PointF(labelX, 39), StringFormat.GenericTypographic);
+            labelX += graphics.MeasureString(text, labelFont, PointF.Empty, StringFormat.GenericTypographic).Width + 2.2f;
+        }
 
         var platform = LimitText(ResolvePlatform(achievement).ToUpperInvariant(), 32);
-        using var platformFont = CreateFont(23, FontStyle.Bold);
-        var width = Math.Clamp(graphics.MeasureString(platform, platformFont).Width + 42, 124, 440);
+        using var platformFont = CreateFont(23, FontStyle.Bold, condensed: false);
+        var isSteam = string.Equals(achievement.SourceProvider, "Steam", StringComparison.OrdinalIgnoreCase);
+        var isXbox = string.Equals(achievement.SourceProvider, "OpenXBL", StringComparison.OrdinalIgnoreCase);
+        using var platformIcon = TryDecodeImage(isSteam ? SteamImageBytes.Value : isXbox ? XboxImageBytes.Value : null, 4_000_000);
+        var iconSpace = platformIcon is null ? 0 : 42;
+        var width = Math.Clamp(graphics.MeasureString(platform, platformFont).Width + 42 + iconSpace, 124, 440);
         var pill = new RectangleF(CardWidth - width - 42, 29, width, 50);
         using var path = CreateRoundedRectangle(pill, 16);
         using var dark = new SolidBrush(Color.FromArgb(200, 8, 11, 13));
@@ -267,13 +278,16 @@ public sealed class DiscordCollectorCardRenderer
         using var format = CreateCenteredFormat();
         graphics.FillPath(dark, path);
         graphics.DrawPath(border, path);
-        graphics.DrawString(platform, platformFont, white, pill, format);
+        if (platformIcon is not null)
+            DrawImageContain(graphics, platformIcon, new RectangleF(pill.Left + 14, pill.Top + 9, 32, 32));
+        graphics.DrawString(platform, platformFont, white,
+            new RectangleF(pill.Left + iconSpace, pill.Top, pill.Width - iconSpace, pill.Height), format);
     }
 
     private static void DrawAchievementDetails(
         Graphics graphics, AchievementEvent achievement, AppSettings settings, TierPalette palette)
     {
-        using var gameFont = CreateFont(28, FontStyle.Bold);
+        using var gameFont = CreateFont(28, FontStyle.Bold, condensed: false);
         using var gameBrush = new SolidBrush(Color.FromArgb(225, 222, 213));
         using var singleLine = CreateSingleLineFormat();
         graphics.DrawString(Sanitize(achievement.GameName, "Unknown game").ToUpperInvariant(),
@@ -315,7 +329,7 @@ public sealed class DiscordCollectorCardRenderer
         {
             DrawBrandBars(graphics, 52, 695, 0.5f);
         }
-        using var font = CreateFont(28, FontStyle.Bold);
+        using var font = CreateFont(28, FontStyle.Bold, condensed: false);
         using var white = new SolidBrush(Color.FromArgb(238, 236, 230));
         using var format = CreateSingleLineFormat();
         var player = string.IsNullOrWhiteSpace(settings.DisplayName) ? achievement.PlayerName : settings.DisplayName;
@@ -722,13 +736,13 @@ public sealed class DiscordCollectorCardRenderer
         }
     }
 
-    private static byte[]? LoadBrandImageBytes()
+    private static byte[]? LoadAssetBytes(string name)
     {
         try
         {
             var resource = System.Windows.Application.GetResourceStream(
                 new Uri(
-                    "pack://application:,,,/AchievementRelay.App;component/Assets/AchievementRelay.png",
+                    $"pack://application:,,,/AchievementRelay.App;component/Assets/{name}.png",
                     UriKind.Absolute));
             if (resource is null)
             {

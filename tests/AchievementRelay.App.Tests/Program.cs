@@ -584,7 +584,7 @@ static void AssertPngDimensions(
 }
 
 static byte[] HashTierEmblem(byte[] pngBytes) =>
-    HashRegion(pngBytes, new Rectangle(585, 678, 55, 55));
+    HashRegion(pngBytes, new Rectangle(616, 670, 72, 76));
 
 static byte[] HashRegion(byte[] pngBytes, Rectangle region)
 {

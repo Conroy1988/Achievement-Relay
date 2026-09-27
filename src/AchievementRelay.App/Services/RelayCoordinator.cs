@@ -442,11 +442,14 @@ public sealed class RelayCoordinator(
                 }
 
                 if (Library is not null)
+                {
+                    await Library.Activity.RecordAsync(selectedWork.TitleId, selectedWork.Name ?? "Xbox title", "Xbox", selectedWork.LastPlayedAt);
                     await Library.ObserveAsync("Xbox:" + state.AccountXuid + ":" + selectedWork.TitleId,
                         selectedWork.Name ?? "Xbox title", "Xbox", selectedWork.CurrentAchievements,
                         selectedWork.TotalAchievements, selectedWork.DisplayImageUrl,
                         detailFetch.Achievements.Select(x => x with { GameName = selectedWork.Name, HeroImageUrl = selectedWork.DisplayImageUrl }),
                         settings.Companion.ImportHistory);
+                }
 
                 if (selectedWork.CompletionEventId is null && CompletionPolicy.IsVerifiedTransition(
                     hadPreviousSnapshot ? previousCount : null, selectedWork.CurrentAchievements, selectedWork.TotalAchievements,

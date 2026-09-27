@@ -275,6 +275,8 @@ public sealed class SteamMonitorCoordinator(
             var now = DateTimeOffset.UtcNow;
             if (detected is not null)
             {
+                if (Library is not null)
+                    await Library.Activity.RecordAsync(detected.AppId.ToString(System.Globalization.CultureInfo.InvariantCulture), detected.Name, "Steam", now);
                 lock (_statusGate)
                 {
                     _gameMissingSinceUtc = null;

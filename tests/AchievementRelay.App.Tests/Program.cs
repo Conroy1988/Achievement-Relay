@@ -11,6 +11,7 @@ using AchievementRelay.Core.Models;
 
 var tests = new (string Name, Action Run)[]
 {
+    ("Recent game survives exit, restart and stale Xbox polling", RecentGameActivityContract),
     ("Account imports preserve delivery isolation and concurrent local edits", AccountStoreTests.Run),
     ("Imported history is opt-in, bounded and isolated from delivery state", LibraryHistoryContract),
     ("Sound Studio packs are deterministic, distinct and respect zero", SoundStudioContract),
@@ -111,6 +112,33 @@ static void CompanionHistoryContract()
         var broken = new CompanionJournal(paths, log);
         broken.RecordAsync(achievement, "Pending").GetAwaiter().GetResult();
         Assert(broken.StorageError is not null && File.ReadAllText(Path.Combine(paths.DataDirectory, "companion-journal.json")) == "invalid", "Invalid history was overwritten.");
+    }
+    finally { directory.Delete(true); }
+}
+
+static void RecentGameActivityContract()
+{
+    var directory = Directory.CreateTempSubdirectory("relay-recent-game-");
+    try
+    {
+        var paths = new AppPaths(directory.FullName);
+        var store = new RecentGameActivityStore(paths);
+        var now = DateTimeOffset.UtcNow;
+        store.RecordAsync("old", "Aniimo", "Xbox", now.AddDays(-7)).GetAwaiter().GetResult();
+        store.RecordAsync("123", "Steam game", "Steam", now.AddMinutes(-2)).GetAwaiter().GetResult();
+        // Polling an old title now must not turn its observation time into play time.
+        store.RecordAsync("old", "Aniimo", "Xbox", now.AddDays(-7)).GetAwaiter().GetResult();
+        store.RecordAsync("unknown", "Unknown", "Xbox", null).GetAwaiter().GetResult();
+        Assert(store.Latest?.Name == "Steam game", "Stale Xbox polling replaced the latest Steam game.");
+        store = new RecentGameActivityStore(paths);
+        Assert(store.Latest?.GameId == "123", "Last game was lost after restart without an achievement snapshot.");
+        store.RecordAsync("next", "Next game", "Steam", now.AddMinutes(-1)).GetAwaiter().GetResult();
+        Assert(store.Latest?.Name == "Next game", "Switching Steam games did not update the last game.");
+        store.RecordAsync("new", "New Xbox game", "Xbox", now).GetAwaiter().GetResult();
+        Assert(store.Latest?.Provider == "Xbox", "Newer Xbox play evidence did not replace Steam.");
+        store.RecordAsync("future", "Bad clock", "Xbox", now.AddDays(1)).GetAwaiter().GetResult();
+        Assert(store.Latest?.GameId == "new", "Future provider timestamp replaced valid play evidence.");
+        Assert(!File.Exists(paths.EventLedgerFile), "Recent game tracking changed delivery state.");
     }
     finally { directory.Delete(true); }
 }

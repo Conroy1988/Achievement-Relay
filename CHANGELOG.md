@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.2] - 2026-09-27
+
+### Fixed
+- Home remembers the most recently played Steam or Xbox game after Steam closes and across Relay restarts.
+- Xbox background progress checks no longer replace recent Steam activity. Xbox ordering uses reported last-played time.
+- Steam game activity is recorded before achievement snapshots arrive; unknown or future play timestamps cannot override it.
+
 ## [0.13.1] - 2026-09-27
 
 - Enlarge Collector Card player names, achievement icons, rarity medallions and Xbox gamerscore for normal Discord display sizes.

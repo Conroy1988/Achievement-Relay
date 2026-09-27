@@ -376,10 +376,10 @@ static void CollectorCardArtworkComposition()
     var artworkHeroRegion = HashRegion(artworkCard.Bytes, new Rectangle(60, 148, 376, 226));
     Assert(
         !fallbackHeroRegion.SequenceEqual(artworkHeroRegion),
-        "The 400x250 artwork showcase did not contain evidence of the supplied hero image.");
+        "The full-bleed artwork showcase did not contain evidence of the supplied hero image.");
 
-    var heroOnlyIconRegion = HashRegion(heroOnlyCard.Bytes, new Rectangle(74, 256, 106, 106));
-    var artworkIconRegion = HashRegion(artworkCard.Bytes, new Rectangle(74, 256, 106, 106));
+    var heroOnlyIconRegion = HashRegion(heroOnlyCard.Bytes, new Rectangle(42, 682, 46, 46));
+    var artworkIconRegion = HashRegion(artworkCard.Bytes, new Rectangle(42, 682, 46, 46));
     Assert(
         !heroOnlyIconRegion.SequenceEqual(artworkIconRegion),
         "The foreground achievement icon did not remain visible over the hero artwork.");
@@ -424,8 +424,8 @@ static void CollectorCardTinyIconIsNotPromoted()
             HashRegion(tinyCard.Bytes, new Rectangle(520, 20, 250, 70))),
         "A tiny square achievement icon was stretched into the full-card backdrop.");
     Assert(
-        !HashRegion(fallback.Bytes, new Rectangle(160, 210, 128, 128)).SequenceEqual(
-            HashRegion(tinyCard.Bytes, new Rectangle(160, 210, 128, 128))),
+        !HashRegion(fallback.Bytes, new Rectangle(894, 112, 214, 198)).SequenceEqual(
+            HashRegion(tinyCard.Bytes, new Rectangle(894, 112, 214, 198))),
         "A tiny icon was discarded instead of being shown at a safe contained size.");
 
     var tinyHeroCard = new DiscordCollectorCardRenderer().Render(
@@ -456,7 +456,7 @@ static void CollectorCardReadableTypographyContract()
 {
     Assert(
         DiscordCollectorCardRenderer.CardWidth == 1200 &&
-        DiscordCollectorCardRenderer.CardHeight == 675,
+        DiscordCollectorCardRenderer.CardHeight == 750,
         "The approved full-width Collector Card aspect ratio changed.");
     Assert(
         DiscordCollectorCardRenderer.ArtworkShowcaseWidth >= 400 &&
@@ -468,8 +468,16 @@ static void CollectorCardReadableTypographyContract()
         "Achievement title typography can shrink back to the unreadable v0.5 size.");
     Assert(
         DiscordCollectorCardRenderer.AchievementDescriptionFontSize >= 30 &&
-        DiscordCollectorCardRenderer.RarityPercentageMaximumFontSize >= 90,
+        DiscordCollectorCardRenderer.RarityPercentageMaximumFontSize >= 28,
         "Description or rarity typography no longer survives normal Discord downscaling.");
+    using var canvas = new Bitmap(1200, 750);
+    using var graphics = Graphics.FromImage(canvas);
+    using var font = new Font("Segoe UI", DiscordCollectorCardRenderer.AchievementDescriptionFontSize,
+        FontStyle.Regular, GraphicsUnit.Pixel);
+    var measured = graphics.MeasureString(
+        "Throw something into something else with the saucer’s Abducto Beam.", font, 800);
+    Assert(measured.Height <= 90, "The approved Steam description no longer fits its two-line area.");
+
 }
 
 static void CollectorCardUnrankedState()
@@ -576,7 +584,7 @@ static void AssertPngDimensions(
 }
 
 static byte[] HashTierEmblem(byte[] pngBytes) =>
-    HashRegion(pngBytes, new Rectangle(930, 126, 180, 180));
+    HashRegion(pngBytes, new Rectangle(585, 678, 55, 55));
 
 static byte[] HashRegion(byte[] pngBytes, Rectangle region)
 {

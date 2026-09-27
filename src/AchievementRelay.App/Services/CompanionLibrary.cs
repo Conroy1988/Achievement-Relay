@@ -16,8 +16,10 @@ public sealed class CompanionLibrary
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     public LibraryGame[] Snapshot => Volatile.Read(ref _games).ToArray();
     public string? Error { get; private set; }
+    public RecentGameActivityStore Activity { get; }
     public CompanionLibrary(AppPaths paths)
     {
+        Activity = new RecentGameActivityStore(paths);
         _path = Path.Combine(paths.DataDirectory, "companion-library.json");
         try
         {

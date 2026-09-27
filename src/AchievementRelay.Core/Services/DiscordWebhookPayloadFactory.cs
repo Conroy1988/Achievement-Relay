@@ -129,6 +129,26 @@ public static class DiscordWebhookPayloadFactory
 
         if (achievement.IsCollectorCard && hasAttachment)
         {
+            // Image-led posts carry their accessible details in attachment alt
+            // text. Do not repeat the entire card as native fields above it.
+            embed.Remove("title");
+            embed.Remove("description");
+            embed.Remove("fields");
+            embed.Remove("color");
+            embed.Remove("footer");
+            embed.Remove("timestamp");
+            var player = string.IsNullOrWhiteSpace(playerName) ? "A player" : playerName;
+            var game = string.IsNullOrWhiteSpace(achievement.GameName) ? "a game" : achievement.GameName;
+            payload["content"] = $"{EscapeInline(player, 120)} unlocked an achievement in **{EscapeInline(game, 240)}**.";
+            // Discord renders an embed image after its text. A separate small
+            // link embed keeps the real project link below the poster.
+            payload["embeds"] = new object[]
+            {
+                embed,
+                new { description = $"[Get Achievement Relay]({ProjectUrl})",
+                    footer = new { text = unlockTimeEstimated ? "Detected time shown • platform unlock time unavailable" : "Achievement unlocked" },
+                    timestamp = (achievement.UnlockedAt ?? DateTimeOffset.UtcNow).ToUniversalTime().ToString("O") }
+            };
             payload["attachments"] = new[]
             {
                 new
@@ -215,7 +235,7 @@ public static class DiscordWebhookPayloadFactory
     {
         var game = string.IsNullOrWhiteSpace(achievement.GameName)
             ? string.Empty
-            : $" in {achievement.GameName.Trim()}";
+            : $" in {Truncate(achievement.GameName, 200)}";
         var rarity = tier == RelayRarityTier.Unranked
             ? "Global rarity percentage unavailable."
             : $"Relay {RelayRarityClassifier.DisplayName(tier)} tier; " +
@@ -225,13 +245,30 @@ public static class DiscordWebhookPayloadFactory
             : settings.DisplayName;
         var playerText = string.IsNullOrWhiteSpace(player)
             ? string.Empty
-            : $" Player: {player.Trim()}.";
+            : $" Player: {Truncate(player, 80)}.";
         var platformText = string.IsNullOrWhiteSpace(platform)
             ? string.Empty
-            : $" Platform: {platform.Trim()}.";
+            : $" Platform: {Truncate(platform, 60)}.";
         return Truncate(
-            $"Achievement unlocked: {achievement.Name}{game}. {rarity}{playerText}{platformText}",
+            $"Achievement unlocked: {Truncate(achievement.Name, 240)}{game}. {rarity}{playerText}{platformText}" +
+            (achievement.Gamerscore is { } score ? $" Gamerscore: +{score}G." : string.Empty) +
+            (achievement.IsGameCompletion && achievement.VerifiedAchievementTotal > 0
+                ? $" 100% complete: all {achievement.VerifiedAchievementTotal} achievements unlocked." : string.Empty) +
+            (settings.IncludeRawDetailsWhenUncertain && !string.IsNullOrWhiteSpace(achievement.Description)
+                ? $" {achievement.Description}" : string.Empty),
             1024);
+    }
+
+    private static string EscapeInline(string value, int limit)
+    {
+        var text = Truncate(value, limit).Replace('\r', ' ').Replace('\n', ' ');
+        var escaped = new StringBuilder(text.Length);
+        foreach (var character in text)
+        {
+            if ("\\`*_{}[]()<>#|~".Contains(character)) escaped.Append('\\');
+            escaped.Append(character);
+        }
+        return escaped.ToString();
     }
 
     private static string Truncate(string? value, int maximumLength)

@@ -1953,23 +1953,13 @@ static void CollectorCardPayloadIsFullWidthAndAccessible()
         "The Collector Card was not referenced as the embed's full-width image.");
     Assert(!embed.TryGetProperty("thumbnail", out _),
         "The full Collector Card was reduced to a Discord thumbnail.");
-    Assert(embed.GetProperty("title").GetString()?.Contains("Against All Odds", StringComparison.Ordinal) == true,
-        "The visual card did not retain a textual achievement title for assistive technology.");
-
-    var fields = embed.GetProperty("fields").EnumerateArray().ToArray();
-    Assert(fields.Any(field => field.GetProperty("name").GetString() == "Game" &&
-                               field.GetProperty("value").GetString() == "Relay Showcase"),
-        "The visual card did not retain a textual game name.");
-    Assert(fields.Any(field => field.GetProperty("name").GetString() == "Rarity" &&
-                               field.GetProperty("value").GetString()?.Contains("Platinum tier", StringComparison.Ordinal) == true &&
-                               field.GetProperty("value").GetString()?.Contains("2.5% of players", StringComparison.Ordinal) == true),
-        "The visual card did not retain its textual rarity tier and percentage.");
-    Assert(fields.Any(field => field.GetProperty("name").GetString() == "Player" &&
-                               field.GetProperty("value").GetString() == "Relay Player"),
-        "The visual card did not retain a textual player label.");
-    Assert(fields.Any(field => field.GetProperty("name").GetString() == "Platform" &&
-                               field.GetProperty("value").GetString() == "Xbox PC"),
-        "The visual card did not retain a textual platform label.");
+    Assert(!embed.TryGetProperty("title", out _) && !embed.TryGetProperty("fields", out _) &&
+           !embed.TryGetProperty("description", out _),
+        "The image-led post duplicated card content above the artwork.");
+    Assert(root.GetProperty("content").GetString() == "Relay Player unlocked an achievement in **Relay Showcase**.",
+        "The compact post lost player/game context.");
+    Assert(root.GetProperty("embeds")[1].GetProperty("description").GetString()?.Contains("[Get Achievement Relay](https://github.com/Conroy1988/Achievement-Relay)", StringComparison.Ordinal) == true,
+        "The poster lost its working project link.");
 
     var attachment = root.GetProperty("attachments")[0];
     Assert(attachment.GetProperty("id").GetInt32() == 0,
@@ -1986,7 +1976,25 @@ static void CollectorCardPayloadIsFullWidthAndAccessible()
     Assert(description.Contains("Player: Relay Player.", StringComparison.Ordinal) &&
            description.Contains("Platform: Xbox PC.", StringComparison.Ordinal),
         "The Collector Card attachment omitted accessible player or platform context.");
+    Assert(description.Contains("Gamerscore: +50G.", StringComparison.Ordinal), "Xbox alt text lost gamerscore.");
     Assert(description.Length <= 1024, "The Collector Card attachment description exceeds Discord's limit.");
+
+    using var steam = JsonDocument.Parse(DiscordWebhookPayloadFactory.Create(achievement with
+    {
+        SourceProvider = "Steam", Platform = "Steam", Gamerscore = null,
+        RarityPercentage = null, IsRare = false, GameName = "Game **title**\nnext"
+    }, new AppSettings { DisplayName = "@everyone" }));
+    var steamRoot = steam.RootElement;
+    Assert(steamRoot.GetProperty("allowed_mentions").GetProperty("parse").GetArrayLength() == 0,
+        "A player label enabled mentions.");
+    Assert(!steamRoot.GetProperty("content").GetString()!.Contains('\n'), "Provider text injected a new line.");
+    var steamAlt = steamRoot.GetProperty("attachments")[0].GetProperty("description").GetString()!;
+    Assert(steamAlt.Contains("Platform: Steam.") && !steamAlt.Contains("Gamerscore:") &&
+        steamAlt.Contains("Global rarity percentage unavailable."), "Steam card invented Xbox or rarity details.");
+
+    using var noAttachment = JsonDocument.Parse(DiscordWebhookPayloadFactory.Create(achievement with { ImageBytes = null }, new AppSettings()));
+    Assert(noAttachment.RootElement.GetProperty("embeds")[0].TryGetProperty("fields", out _),
+        "Missing card bytes removed the standard text fallback.");
 }
 
 static void XboxPayloadUsesPlatformLabel()

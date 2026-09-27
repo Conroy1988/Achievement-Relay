@@ -22,13 +22,13 @@ public sealed record DiscordCollectorCard(
 public sealed class DiscordCollectorCardRenderer
 {
     public const int CardWidth = 1200;
-    public const int CardHeight = 675;
-    public const int ArtworkShowcaseWidth = 400;
-    public const int ArtworkShowcaseHeight = 250;
-    public const float AchievementTitleMaximumFontSize = 68;
+    public const int CardHeight = 750;
+    public const int ArtworkShowcaseWidth = 1200;
+    public const int ArtworkShowcaseHeight = 660;
+    public const float AchievementTitleMaximumFontSize = 88;
     public const float AchievementTitleMinimumFontSize = 46;
     public const float AchievementDescriptionFontSize = 32;
-    public const float RarityPercentageMaximumFontSize = 96;
+    public const float RarityPercentageMaximumFontSize = 28;
     public const string CardFileName = "achievement-relay-card.png";
     public const string CardContentType = "image/png";
     private const int MaximumCardBytes = 7_500_000;
@@ -82,6 +82,18 @@ public sealed class DiscordCollectorCardRenderer
         new AppSettings { DisplayName = "Relay Player", IncludeRawDetailsWhenUncertain = true },
         new AchievementCardArtwork(null, CreatePreviewArtwork()));
 
+    public DiscordCollectorCard RenderSteamPreview() => Render(
+        new AchievementEvent
+        {
+            Id = "steam-poster-preview", Name = "Rejected for Probing",
+            Description = "Throw something into something else with the saucer’s Abducto Beam.",
+            GameName = "Destroy All Humans!", PlayerName = "Relay Player",
+            SourceProvider = "Steam", Platform = "Steam", RarityPercentage = 75.2,
+            RarityKnown = true
+        },
+        new AppSettings { DisplayName = "Relay Player", IncludeRawDetailsWhenUncertain = true },
+        new AchievementCardArtwork(CreatePreviewArtwork(), null));
+
     public DiscordCollectorCard Render(
         AchievementEvent achievement,
         AppSettings settings,
@@ -106,16 +118,15 @@ public sealed class DiscordCollectorCardRenderer
                 ? achievementIcon
                 : null;
         DrawBackground(graphics, ambientArtwork, brand);
-        DrawChrome(graphics);
-
         var tier = RelayRarityClassifier.Classify(achievement.RarityPercentage);
         var palette = GetTierPalette(tier);
-        DrawContentPanels(graphics, palette);
         DrawHeader(graphics, achievement, palette);
-        DrawArtworkShowcase(graphics, hero, achievementIcon, brand, palette);
         DrawAchievementDetails(graphics, achievement, settings, palette);
-        DrawRarityPanel(graphics, achievement, tier, palette);
-        DrawFooter(graphics);
+        DrawPosterFooter(graphics, achievement, settings, achievementIcon, tier, palette);
+        if (ambientArtwork is null)
+        {
+            DrawFallbackArtwork(graphics, hero ?? achievementIcon, palette);
+        }
 
         using var output = new MemoryStream();
         canvas.Save(output, ImageFormat.Png);
@@ -145,50 +156,38 @@ public sealed class DiscordCollectorCardRenderer
 
     private static void DrawBackground(Graphics graphics, Image? artwork, Image? brand)
     {
-        using (var baseGradient = new LinearGradientBrush(
-                   new Rectangle(0, 0, CardWidth, CardHeight),
-                   Color.FromArgb(5, 7, 8),
-                   Color.FromArgb(42, 7, 10),
-                   24f))
-        {
-            graphics.FillRectangle(baseGradient, 0, 0, CardWidth, CardHeight);
-        }
-
+        graphics.Clear(Color.FromArgb(9, 10, 14));
         if (artwork is not null)
         {
-            DrawSoftFocusCover(graphics, artwork, new RectangleF(0, 0, CardWidth, CardHeight));
-
-            using var artWash = new LinearGradientBrush(
-                new Rectangle(0, 0, CardWidth, CardHeight),
-                Color.FromArgb(126, 5, 7, 8),
-                Color.FromArgb(76, 5, 7, 8),
-                LinearGradientMode.Horizontal)
-            {
-                InterpolationColors = new ColorBlend
-                {
-                    Colors =
-                    [
-                        Color.FromArgb(126, 5, 7, 8),
-                        Color.FromArgb(92, 5, 7, 8),
-                        Color.FromArgb(68, 5, 7, 8),
-                        Color.FromArgb(142, 17, 5, 8)
-                    ],
-                    Positions = [0f, 0.3f, 0.7f, 1f]
-                }
-            };
-            graphics.FillRectangle(artWash, 0, 0, CardWidth, CardHeight);
+            // Keep the provider artwork sharp and dominant. Text contrast comes
+            // from the gradient, never from blurring the entire game image.
+            DrawImageCover(graphics, artwork, new RectangleF(0, 0, CardWidth, ArtworkShowcaseHeight));
         }
         else
         {
             DrawFallbackPattern(graphics, brand);
         }
 
-        using var bottomWash = new LinearGradientBrush(
-            new Rectangle(0, 410, CardWidth, 265),
-            Color.FromArgb(0, 3, 4, 5),
-            Color.FromArgb(188, 3, 4, 5),
-            LinearGradientMode.Vertical);
-        graphics.FillRectangle(bottomWash, 0, 410, CardWidth, 265);
+        using var wash = new LinearGradientBrush(
+            new Rectangle(0, 0, CardWidth, 660), Color.Transparent, Color.Black,
+            LinearGradientMode.Vertical)
+        {
+            InterpolationColors = new ColorBlend
+            {
+                Colors = [Color.FromArgb(65, 6, 7, 10), Color.FromArgb(0, 6, 7, 10),
+                    Color.FromArgb(90, 6, 7, 10), Color.FromArgb(65, 6, 7, 10), Color.FromArgb(110, 6, 7, 10)],
+                Positions = [0f, 0.24f, 0.46f, 0.73f, 1f]
+            }
+        };
+        graphics.FillRectangle(wash, 0, 0, CardWidth, 660);
+        // A feathered vertical mask avoids a visible horizontal panel edge.
+        for (var y = 280; y < 660; y++)
+        {
+            var opacity = Math.Clamp((y - 280) / 70f, 0f, 1f);
+            using var row = new LinearGradientBrush(new Rectangle(0, y, 1120, 1),
+                Color.FromArgb((int)(240 * opacity), 6, 7, 10), Color.Transparent, LinearGradientMode.Horizontal);
+            graphics.FillRectangle(row, 0, y, 1120, 1);
+        }
     }
 
     private static void DrawFallbackPattern(Graphics graphics, Image? brand)
@@ -237,239 +236,120 @@ public sealed class DiscordCollectorCardRenderer
         }
     }
 
-    private static void DrawChrome(Graphics graphics)
+    private static void DrawBrandBars(Graphics graphics, float x, float y, float scale = 1f)
     {
-        using var borderPen = new Pen(Color.FromArgb(228, 215, 35, 43), 3f);
-        graphics.DrawRectangle(borderPen, 2, 2, CardWidth - 5, CardHeight - 5);
-
-        using var topPen = new Pen(Color.FromArgb(255, 255, 71, 79), 5f);
-        graphics.DrawLine(topPen, 54, 2, 358, 2);
-
-        using var railBrush = new LinearGradientBrush(
-            new Rectangle(0, 0, 18, CardHeight),
-            Color.FromArgb(226, 208, 28, 36),
-            Color.FromArgb(0, 208, 28, 36),
-            LinearGradientMode.Vertical);
-        graphics.FillRectangle(railBrush, 0, 0, 16, CardHeight);
-    }
-
-    private static void DrawContentPanels(Graphics graphics, TierPalette palette)
-    {
-        var details = new RectangleF(458, 104, 410, 462);
-        using var detailsPath = CreateRoundedRectangle(details, 26);
-        using var detailsBrush = new LinearGradientBrush(
-            details,
-            Color.FromArgb(218, 7, 10, 12),
-            Color.FromArgb(232, 5, 7, 8),
-            LinearGradientMode.Vertical);
-        using var detailsBorder = new Pen(Color.FromArgb(105, palette.Mid), 1.5f);
-        graphics.FillPath(detailsBrush, detailsPath);
-        graphics.DrawPath(detailsBorder, detailsPath);
+        using var red = new SolidBrush(Color.FromArgb(244, 46, 60));
+        for (var i = 0; i < 2; i++)
+        {
+            var left = x + i * 23 * scale;
+            graphics.FillPolygon(red, [new PointF(left + 12 * scale, y),
+                new PointF(left + 25 * scale, y), new PointF(left + 13 * scale, y + 34 * scale),
+                new PointF(left, y + 34 * scale)]);
+        }
     }
 
     private static void DrawHeader(Graphics graphics, AchievementEvent achievement, TierPalette palette)
     {
-        using var eyebrowFont = CreateFont(25, FontStyle.Bold);
-        using var eyebrowBrush = new SolidBrush(Color.FromArgb(255, 255, 112, 118));
-        graphics.DrawString("ACHIEVEMENT UNLOCKED", eyebrowFont, eyebrowBrush, new PointF(58, 42));
+        DrawBrandBars(graphics, 42, 37);
+        using var labelFont = CreateFont(23, FontStyle.Bold);
+        using var white = new SolidBrush(Color.FromArgb(248, 245, 239));
+        var completion = achievement.IsGameCompletion && achievement.VerifiedAchievementTotal > 0;
+        graphics.DrawString(completion ? "100% COMPLETE" : "ACHIEVEMENT UNLOCKED",
+            labelFont, white, new PointF(104, 39));
 
-        var platform = LimitText(ResolvePlatform(achievement), 42);
-        using var platformFont = CreateFont(24, FontStyle.Bold);
-        var measured = graphics.MeasureString(platform.ToUpperInvariant(), platformFont);
-        var pill = new RectangleF(CardWidth - measured.Width - 104, 31, measured.Width + 52, 48);
-        using var pillPath = CreateRoundedRectangle(pill, 18);
-        using var pillBrush = new SolidBrush(Color.FromArgb(205, 8, 11, 13));
-        using var pillBorder = new Pen(Color.FromArgb(210, palette.Light), 2f);
-        graphics.FillPath(pillBrush, pillPath);
-        graphics.DrawPath(pillBorder, pillPath);
-        using var platformBrush = new SolidBrush(Color.FromArgb(255, 245, 242, 236));
-        using var pillFormat = new StringFormat
-        {
-            Alignment = StringAlignment.Center,
-            LineAlignment = StringAlignment.Center,
-            Trimming = StringTrimming.EllipsisCharacter,
-            FormatFlags = StringFormatFlags.NoWrap
-        };
-        graphics.DrawString(platform.ToUpperInvariant(), platformFont, platformBrush, pill, pillFormat);
-    }
-
-    private static void DrawArtworkShowcase(
-        Graphics graphics,
-        Image? hero,
-        Image? achievementIcon,
-        Image? brand,
-        TierPalette palette)
-    {
-        var outer = new RectangleF(48, 136, ArtworkShowcaseWidth, ArtworkShowcaseHeight);
-        using var glowPath = CreateRoundedRectangle(RectangleF.Inflate(outer, 8, 8), 31);
-        using var glowBrush = new SolidBrush(Color.FromArgb(38, palette.Light));
-        graphics.FillPath(glowBrush, glowPath);
-
-        using var framePath = CreateRoundedRectangle(outer, 24);
-        using var frameBrush = new LinearGradientBrush(
-            outer,
-            Color.FromArgb(245, 26, 29, 31),
-            Color.FromArgb(245, 7, 9, 10),
-            LinearGradientMode.ForwardDiagonal);
-        graphics.FillPath(frameBrush, framePath);
-
-        var state = graphics.Save();
-        graphics.SetClip(framePath);
-        var primaryArtwork = IsWideShowcaseArtwork(hero)
-            ? hero
-            : IsWideShowcaseArtwork(achievementIcon)
-                ? achievementIcon
-                : hero ?? achievementIcon;
-        if (primaryArtwork is not null)
-        {
-            if (IsWideShowcaseArtwork(primaryArtwork))
-            {
-                DrawImageCoverWithOpacity(graphics, primaryArtwork, outer, 0.42f);
-                using var ambientWash = new SolidBrush(Color.FromArgb(42, 4, 6, 7));
-                graphics.FillRectangle(ambientWash, outer);
-            }
-
-            DrawImageContain(
-                graphics,
-                primaryArtwork,
-                new RectangleF(60, 148, ArtworkShowcaseWidth - 24, ArtworkShowcaseHeight - 24),
-                MaximumSafeUpscale(primaryArtwork));
-        }
-        else if (brand is not null)
-        {
-            DrawImageContain(graphics, brand, new RectangleF(122, 151, 252, 220), 1f);
-        }
-        else
-        {
-            DrawFallbackTrophy(graphics, new RectangleF(148, 158, 200, 200), palette);
-        }
-
-        graphics.Restore(state);
-        using var framePen = new Pen(Color.FromArgb(230, palette.Light), 4f);
-        graphics.DrawPath(framePen, framePath);
-
-        if (hero is null || achievementIcon is null || ReferenceEquals(primaryArtwork, achievementIcon))
-        {
-            return;
-        }
-
-        var iconFrame = new RectangleF(66, 248, 122, 122);
-        using var iconPath = CreateRoundedRectangle(iconFrame, 20);
-        using var iconBackground = new SolidBrush(Color.FromArgb(238, 7, 9, 10));
-        using var iconBorder = new Pen(Color.FromArgb(245, palette.Light), 3f);
-        graphics.FillPath(iconBackground, iconPath);
-        var iconState = graphics.Save();
-        graphics.SetClip(iconPath);
-        DrawImageContain(
-            graphics,
-            achievementIcon,
-            new RectangleF(74, 256, 106, 106),
-            1f);
-        graphics.Restore(iconState);
-        graphics.DrawPath(iconBorder, iconPath);
+        var platform = LimitText(ResolvePlatform(achievement).ToUpperInvariant(), 32);
+        using var platformFont = CreateFont(23, FontStyle.Bold);
+        var width = Math.Clamp(graphics.MeasureString(platform, platformFont).Width + 42, 124, 440);
+        var pill = new RectangleF(CardWidth - width - 42, 29, width, 50);
+        using var path = CreateRoundedRectangle(pill, 16);
+        using var dark = new SolidBrush(Color.FromArgb(200, 8, 11, 13));
+        using var border = new Pen(Color.FromArgb(95, 245, 242, 236), 1);
+        using var format = CreateCenteredFormat();
+        graphics.FillPath(dark, path);
+        graphics.DrawPath(border, path);
+        graphics.DrawString(platform, platformFont, white, pill, format);
     }
 
     private static void DrawAchievementDetails(
-        Graphics graphics,
-        AchievementEvent achievement,
-        AppSettings settings,
-        TierPalette palette)
+        Graphics graphics, AchievementEvent achievement, AppSettings settings, TierPalette palette)
     {
-        var gameName = Sanitize(achievement.GameName, "Unknown game").ToUpperInvariant();
-        using var gameFont = CreateFont(30, FontStyle.Bold);
-        using var gameBrush = new SolidBrush(Color.FromArgb(255, palette.Light));
-        using var gameFormat = CreateSingleLineFormat();
-        graphics.DrawString(gameName, gameFont, gameBrush, new RectangleF(486, 126, 354, 44), gameFormat);
+        using var gameFont = CreateFont(28, FontStyle.Bold);
+        using var gameBrush = new SolidBrush(Color.FromArgb(225, 222, 213));
+        using var singleLine = CreateSingleLineFormat();
+        graphics.DrawString(Sanitize(achievement.GameName, "Unknown game").ToUpperInvariant(),
+            gameFont, gameBrush, new RectangleF(42, 326, 1116, 43), singleLine);
 
-        DrawFittedTitle(
-            graphics,
-            Sanitize(achievement.Name, "Achievement unlocked"),
-            new RectangleF(482, 174, 362, 150),
-            Color.FromArgb(255, 248, 245, 239));
+        DrawFittedTitle(graphics, Sanitize(achievement.Name, "Achievement unlocked"),
+            new RectangleF(36, 372, 760, 202), Color.FromArgb(255, 248, 245, 239));
 
         if (settings.IncludeRawDetailsWhenUncertain && !string.IsNullOrWhiteSpace(achievement.Description))
         {
-            using var descriptionFont = CreateFont(AchievementDescriptionFontSize, FontStyle.Regular, condensed: false);
-            using var descriptionBrush = new SolidBrush(Color.FromArgb(255, 211, 216, 218));
-            using var descriptionFormat = new StringFormat
-            {
-                Trimming = StringTrimming.EllipsisWord,
-                FormatFlags = StringFormatFlags.LineLimit
-            };
-            graphics.DrawString(
-                Sanitize(achievement.Description, string.Empty),
-                descriptionFont,
-                descriptionBrush,
-                new RectangleF(486, 337, 354, 174),
-                descriptionFormat);
-        }
-
-        var player = string.IsNullOrWhiteSpace(settings.DisplayName)
-            ? achievement.PlayerName
-            : settings.DisplayName;
-        var chipX = 48f;
-        if (!string.IsNullOrWhiteSpace(player))
-        {
-            chipX += DrawChip(graphics, chipX, 420, $"PLAYER  {Sanitize(player, "Player")}", palette) + 12;
-        }
-
-        if (achievement.Gamerscore is { } gamerscore)
-        {
-            DrawChip(graphics, chipX, 420, $"+{gamerscore}G", palette);
+            using var font = CreateFont(AchievementDescriptionFontSize, FontStyle.Regular, condensed: false);
+            using var brush = new SolidBrush(Color.FromArgb(222, 223, 225));
+            using var format = new StringFormat { Trimming = StringTrimming.EllipsisWord, FormatFlags = StringFormatFlags.LineLimit };
+            graphics.DrawString(Sanitize(achievement.Description, string.Empty), font, brush,
+                new RectangleF(42, 572, 800, 78), format);
         }
     }
 
-    private static void DrawRarityPanel(
-        Graphics graphics,
-        AchievementEvent achievement,
-        RelayRarityTier tier,
-        TierPalette palette)
+    private static void DrawPosterFooter(Graphics graphics, AchievementEvent achievement,
+        AppSettings settings, Image? icon, RelayRarityTier tier, TierPalette palette)
     {
-        var panel = new RectangleF(886, 96, 266, 470);
-        using var panelPath = CreateRoundedRectangle(panel, 26);
-        using var panelBrush = new LinearGradientBrush(
-            panel,
-            Color.FromArgb(225, 16, 19, 21),
-            Color.FromArgb(238, 5, 7, 8),
-            LinearGradientMode.Vertical);
-        using var panelPen = new Pen(Color.FromArgb(190, palette.Mid), 2f);
-        graphics.FillPath(panelBrush, panelPath);
-        graphics.DrawPath(panelPen, panelPath);
+        using var background = new SolidBrush(Color.FromArgb(6, 7, 10));
+        graphics.FillRectangle(background, 0, 660, CardWidth, 90);
+        using var red = new Pen(Color.FromArgb(180, 229, 39, 53), 2);
+        graphics.DrawLine(red, 42, 660, 1158, 660);
+        var iconBounds = new RectangleF(42, 682, 46, 46);
+        using var circle = new GraphicsPath();
+        circle.AddEllipse(iconBounds);
+        using var iconBack = new SolidBrush(Color.FromArgb(30, 32, 38));
+        graphics.FillPath(iconBack, circle);
+        if (icon is not null)
+        {
+            var state = graphics.Save();
+            graphics.SetClip(circle);
+            DrawImageCover(graphics, icon, iconBounds);
+            graphics.Restore(state);
+        }
+        else
+        {
+            DrawBrandBars(graphics, 52, 695, 0.5f);
+        }
+        using var font = CreateFont(28, FontStyle.Bold);
+        using var white = new SolidBrush(Color.FromArgb(238, 236, 230));
+        using var format = CreateSingleLineFormat();
+        var player = string.IsNullOrWhiteSpace(settings.DisplayName) ? achievement.PlayerName : settings.DisplayName;
+        graphics.DrawString(Sanitize(player, "Player"), font, white, new RectangleF(102, 678, 280, 54), format);
+        if (achievement.Gamerscore is { } score)
+        {
+            graphics.DrawString($"+{score}G", font, white, new RectangleF(392, 678, 142, 54), format);
+        }
 
-        DrawTierEmblem(graphics, new RectangleF(949, 126, 140, 140), tier, palette);
-
-        var percentage = RelayRarityClassifier.FormatPercentage(achievement.RarityPercentage);
-        DrawCenteredFittedText(
-            graphics,
-            percentage,
-            new RectangleF(903, 278, 232, 108),
-            RarityPercentageMaximumFontSize,
-            58,
-            Color.FromArgb(255, palette.Light));
-
+        // Existing tier artwork uses a 140px coordinate system. Scale the whole
+        // drawing so its internal geometry stays correct at medallion size.
+        var emblemState = graphics.Save();
+        graphics.TranslateTransform(588, 681);
+        graphics.ScaleTransform(0.34f, 0.34f);
+        DrawTierEmblem(graphics, new RectangleF(0, 0, 140, 140), tier, palette);
+        graphics.Restore(emblemState);
         var population = string.Equals(achievement.SourceProvider, "Steam", StringComparison.OrdinalIgnoreCase)
-            ? "OF STEAM PLAYERS"
-            : "OF PLAYERS";
-        using var populationFont = CreateFont(20, FontStyle.Bold);
-        using var mutedBrush = new SolidBrush(Color.FromArgb(255, 180, 187, 190));
-        using var centeredFormat = CreateCenteredFormat();
-        graphics.DrawString(population, populationFont, mutedBrush, new RectangleF(903, 385, 232, 30), centeredFormat);
+            ? "Steam players" : "players";
+        var rarity = tier == RelayRarityTier.Unranked ? "Rarity unavailable"
+            : $"{RelayRarityClassifier.FormatPercentage(achievement.RarityPercentage)} of {population}";
+        using var rarityFont = CreateFont(RarityPercentageMaximumFontSize, FontStyle.Regular, condensed: false);
+        graphics.DrawString(rarity, rarityFont, white, new RectangleF(650, 678, 454, 54), format);
+        DrawBrandBars(graphics, 1114, 693, 0.7f);
+    }
 
-        DrawCenteredFittedText(
-            graphics,
-            $"RELAY {RelayRarityClassifier.DisplayName(tier).ToUpperInvariant()} TIER",
-            new RectangleF(903, 432, 232, 44),
-            28,
-            18,
-            Color.FromArgb(255, palette.Light));
-
-        using var descriptionFont = CreateFont(19, FontStyle.Regular, condensed: false);
-        graphics.DrawString(
-            RelayRarityClassifier.Description(tier),
-            descriptionFont,
-            mutedBrush,
-            new RectangleF(903, 486, 232, 30),
-            centeredFormat);
+    private static void DrawFallbackArtwork(Graphics graphics, Image? artwork, TierPalette palette)
+    {
+        // A tiny/square icon remains an honest contained asset, never a stretched
+        // poster. The full layout is still usable when provider art is absent.
+        var bounds = new RectangleF(894, 112, 214, 198);
+        if (artwork is not null)
+            DrawImageContain(graphics, artwork, bounds, MaximumSafeUpscale(artwork));
+        else
+            DrawFallbackTrophy(graphics, bounds, palette);
     }
 
     private static void DrawTierEmblem(
@@ -567,47 +447,6 @@ public sealed class DiscordCollectorCardRenderer
         }
     }
 
-    private static void DrawFooter(Graphics graphics)
-    {
-        using var linePen = new Pen(Color.FromArgb(105, 126, 133, 136), 1f);
-        graphics.DrawLine(linePen, 58, 584, 1145, 584);
-
-        using var brandFont = CreateFont(18, FontStyle.Bold);
-        using var brandBrush = new SolidBrush(Color.FromArgb(255, 245, 242, 236));
-        graphics.DrawString("ACHIEVEMENT RELAY", brandFont, brandBrush, new PointF(58, 609));
-
-        using var taglineFont = CreateFont(15, FontStyle.Regular, condensed: false);
-        using var taglineBrush = new SolidBrush(Color.FromArgb(255, 169, 176, 179));
-        graphics.DrawString("EVERY UNLOCK, ELEVATED", taglineFont, taglineBrush, new PointF(252, 613));
-
-        using var getFont = CreateFont(16, FontStyle.Bold);
-        using var getBrush = new SolidBrush(Color.FromArgb(255, 255, 112, 118));
-        using var right = new StringFormat { Alignment = StringAlignment.Far };
-        graphics.DrawString("GET THE RELAY", getFont, getBrush, new RectangleF(895, 610, 250, 28), right);
-    }
-
-    private static float DrawChip(
-        Graphics graphics,
-        float x,
-        float y,
-        string text,
-        TierPalette palette)
-    {
-        using var font = CreateFont(21, FontStyle.Bold);
-        var size = graphics.MeasureString(text, font);
-        var width = Math.Min(250, size.Width + 34);
-        var bounds = new RectangleF(x, y, width, 46);
-        using var path = CreateRoundedRectangle(bounds, 12);
-        using var background = new SolidBrush(Color.FromArgb(210, 12, 15, 17));
-        using var border = new Pen(Color.FromArgb(145, palette.Mid), 1.5f);
-        using var foreground = new SolidBrush(Color.FromArgb(255, 226, 225, 221));
-        using var format = CreateCenteredFormat();
-        graphics.FillPath(background, path);
-        graphics.DrawPath(border, path);
-        graphics.DrawString(text, font, foreground, bounds, format);
-        return width;
-    }
-
     private static void DrawFittedTitle(Graphics graphics, string text, RectangleF bounds, Color color) =>
         DrawFittedText(
             graphics,
@@ -617,15 +456,6 @@ public sealed class DiscordCollectorCardRenderer
             AchievementTitleMinimumFontSize,
             color,
             centered: false);
-
-    private static void DrawCenteredFittedText(
-        Graphics graphics,
-        string text,
-        RectangleF bounds,
-        float maximumSize,
-        float minimumSize,
-        Color color) =>
-        DrawFittedText(graphics, text, bounds, maximumSize, minimumSize, color, centered: true);
 
     private static void DrawFittedText(
         Graphics graphics,
@@ -793,53 +623,6 @@ public sealed class DiscordCollectorCardRenderer
     {
         var source = CalculateCoverSource(image, destination);
         graphics.DrawImage(image, destination, source, GraphicsUnit.Pixel);
-    }
-
-    private static void DrawSoftFocusCover(Graphics graphics, Image image, RectangleF destination)
-    {
-        const int reductionFactor = 5;
-        var reducedWidth = Math.Max(1, (int)Math.Ceiling(destination.Width / reductionFactor));
-        var reducedHeight = Math.Max(1, (int)Math.Ceiling(destination.Height / reductionFactor));
-        using var reduced = new Bitmap(reducedWidth, reducedHeight, PixelFormat.Format32bppArgb);
-        using (var reducedGraphics = Graphics.FromImage(reduced))
-        {
-            reducedGraphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
-            reducedGraphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
-            reducedGraphics.CompositingQuality = CompositingQuality.HighQuality;
-            DrawImageCover(
-                reducedGraphics,
-                image,
-                new RectangleF(0, 0, reducedWidth, reducedHeight));
-        }
-
-        graphics.DrawImage(reduced, destination);
-    }
-
-    private static void DrawImageCoverWithOpacity(
-        Graphics graphics,
-        Image image,
-        RectangleF destination,
-        float opacity)
-    {
-        var source = CalculateCoverSource(image, destination);
-        using var attributes = new ImageAttributes();
-        attributes.SetColorMatrix(new ColorMatrix
-        {
-            Matrix00 = 1f,
-            Matrix11 = 1f,
-            Matrix22 = 1f,
-            Matrix33 = Math.Clamp(opacity, 0f, 1f),
-            Matrix44 = 1f
-        });
-        graphics.DrawImage(
-            image,
-            Rectangle.Round(destination),
-            source.X,
-            source.Y,
-            source.Width,
-            source.Height,
-            GraphicsUnit.Pixel,
-            attributes);
     }
 
     private static RectangleF CalculateCoverSource(Image image, RectangleF destination)

@@ -33,9 +33,6 @@ public sealed class DiscordAchievementPostComposer(
     {
         ArgumentNullException.ThrowIfNull(achievement);
         ArgumentNullException.ThrowIfNull(settings);
-        if (achievement.IsGameCompletion && achievement.VerifiedAchievementTotal is > 0)
-            achievement = achievement with { Name = "100% COMPLETE · " + achievement.Name,
-                Description = $"All {achievement.VerifiedAchievementTotal} achievements unlocked.\n" + achievement.Description };
         if (settings.Companion.DiscordPresentation == DiscordPresentation.Compact)
             return CreateLegacyPost(achievement, settings, achievement.ImageBytes);
 
@@ -80,6 +77,9 @@ public sealed class DiscordAchievementPostComposer(
         AppSettings settings,
         byte[]? achievementIconBytes)
     {
+        if (achievement.IsGameCompletion && achievement.VerifiedAchievementTotal is > 0)
+            achievement = achievement with { Name = "100% COMPLETE · " + achievement.Name,
+                Description = $"All {achievement.VerifiedAchievementTotal} achievements unlocked.\n" + achievement.Description };
         var legacyAchievement = achievement.IsCollectorCard
             ? achievement with
             {

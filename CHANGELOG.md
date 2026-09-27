@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.13.0] - 2026-09-27
+
+- Redesign Discord Collector Cards as artwork-first 1200×750 posters for Steam and Xbox, with large achievement titles, red-bar branding and compact player/rarity footers.
+- Keep Xbox gamerscore and earned-platform labels; retain honest unknown-rarity and missing-art states.
+- Remove duplicate native fields above poster images while preserving accessible attachment text, the project link and unlock/detected timestamps.
+- Retain compact delivery and safe fallback if optional card rendering fails.
+
+
 All notable changes to Achievement Relay are documented here. The project follows semantic versioning after the initial alpha series.
 
 ## [Unreleased]

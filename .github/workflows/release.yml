@@ -9,7 +9,7 @@ on:
       version:
         description: Release tag in vX.Y.Z format
         required: true
-        default: v0.12.2
+        default: v0.13.0
         type: string
       publish_release:
         description: Publish the immutable GitHub Release after signing checks pass
@@ -71,8 +71,8 @@ jobs:
               $previewSignature -cne '89504E470D0A1A0A' -or
               $previewChunk -cne 'IHDR' -or
               $previewWidth -ne 1200 -or
-              $previewHeight -ne 675) {
-            throw 'The Collector Card preview must be the real 1200x675 PNG output.'
+              $previewHeight -ne 750) {
+            throw 'The Collector Card preview must be the real 1200x750 PNG output.'
           }
           $artworkPreviewPath = Join-Path $PWD 'artifacts\AchievementRelay_CollectorCard_Artwork_Preview.png'
           $artworkPreviewArguments = "--export-collector-card-artwork-preview `"$artworkPreviewPath`""
@@ -102,8 +102,8 @@ jobs:
               $artworkPreviewSignature -cne '89504E470D0A1A0A' -or
               $artworkPreviewChunk -cne 'IHDR' -or
               $artworkPreviewWidth -ne 1200 -or
-              $artworkPreviewHeight -ne 675) {
-            throw 'The artwork-backed Collector Card preview must be the real 1200x675 PNG output.'
+              $artworkPreviewHeight -ne 750) {
+            throw 'The artwork-backed Collector Card preview must be the real 1200x750 PNG output.'
           }
           $signalPreviewPath = Join-Path $PWD 'artifacts\AchievementRelay_SignalStrip_Preview.png'
           $signalPreviewArguments = "--export-signal-strip-preview `"$signalPreviewPath`""

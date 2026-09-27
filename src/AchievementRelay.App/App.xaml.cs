@@ -175,8 +175,10 @@ public partial class App : System.Windows.Application
                 value,
                 "--export-collector-card-artwork-preview",
                 StringComparison.OrdinalIgnoreCase));
+        var steamOptionIndex = Array.FindIndex(args, value =>
+            string.Equals(value, "--export-collector-card-steam-preview", StringComparison.OrdinalIgnoreCase));
         var artworkPreview = artworkOptionIndex >= 0;
-        var optionIndex = artworkPreview ? artworkOptionIndex : fallbackOptionIndex;
+        var optionIndex = steamOptionIndex >= 0 ? steamOptionIndex : artworkPreview ? artworkOptionIndex : fallbackOptionIndex;
 
         if (optionIndex < 0)
         {
@@ -201,7 +203,7 @@ public partial class App : System.Windows.Application
 
             Directory.CreateDirectory(directory);
             var renderer = new DiscordCollectorCardRenderer();
-            var card = artworkPreview
+            var card = steamOptionIndex >= 0 ? renderer.RenderSteamPreview() : artworkPreview
                 ? renderer.RenderArtworkShowcasePreview()
                 : renderer.RenderGoldFallbackPreview();
             File.WriteAllBytes(outputPath, card.Bytes);

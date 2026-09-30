@@ -32,7 +32,11 @@ public sealed class PresentationStudioWindow : Window
     private readonly Button _render = new() { Content = "Render preview", Margin = new Thickness(0, 8, 10, 8) };
     private bool _closed;
     private bool _busy;
-    private sealed record SourceRow(string Label, AchievementEvent Achievement);
+    private sealed record SourceRow(string Label, AchievementEvent Achievement)
+    {
+        // The shared ComboBox template displays SelectionBoxItem directly.
+        public override string ToString() => Label;
+    }
 
     public PresentationStudioWindow(DiscordAchievementPostComposer composer, AppSettings settings,
         AchievementEvent? selected, Action<AchievementEvent> preview)
@@ -140,6 +144,8 @@ public sealed class PresentationStudioWindow : Window
     {
         _source.SelectedIndex = source; _format.SelectedIndex = compact ? 1 : 0; _size.SelectedIndex = small ? 1 : 0;
         await RenderAsync();
+        if (_source.SelectedItem is not SourceRow row || row.ToString() != row.Label)
+            throw new InvalidOperationException("Studio source picker exposed an internal record instead of its label.");
         if (_strip.Source is null || (compact ? _embed.Children.Count == 0 : _card.Source is null))
             throw new InvalidOperationException("Studio fixture failed to render the expected card and strip.");
         if (_settings.Companion.DiscordPresentation != DiscordPresentation.Showcase)

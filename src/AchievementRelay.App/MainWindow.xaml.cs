@@ -506,7 +506,7 @@ public partial class MainWindow : Window
             _trayIcon.ShowBalloonTip(
                 2500,
                 "Achievement Relay is still running",
-                "Xbox and Steam monitoring continue in the notification area. Use the tray icon to reopen or exit.",
+                "Relay remains in the notification area. Enabled monitoring continues; stopped monitors stay stopped. Use the tray icon to check status, reopen or exit.",
                 Forms.ToolTipIcon.Info);
             _hasShownTrayHint = true;
         }
@@ -546,7 +546,7 @@ public partial class MainWindow : Window
 
     private void PopulateControls()
     {
-        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.13.2";
+        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.14.0";
         AboutVersionText.Text = $"Version {version}";
 
         var xboxConfigured = TryGetOpenXblApiKey(out _) && !string.IsNullOrWhiteSpace(_settings.XboxUserId);

@@ -67,6 +67,9 @@ public partial class App
         catch (Exception exception)
         {
             Console.Error.WriteLine(exception);
+            // WinExe runners may not attach stderr. Preserve fixture-only diagnostics for CI.
+            try { File.WriteAllText(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(args[1]))!, "redline-preview-error.txt"), exception.ToString()); }
+            catch (IOException) { }
             exitCode = 1;
         }
         finally

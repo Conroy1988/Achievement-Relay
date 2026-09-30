@@ -67,6 +67,7 @@ public sealed partial class CompanionWindow : Window
     private Button? _retryButton;
     private Button? _confirmButton;
     private Button? _testButton;
+    private PresentationStudioWindow? _studio;
 
     public CompanionWindow(AppServices services, AppSettings settings, Action<CompanionPreferences> saved,
         Action connections, Action updates, Action support)
@@ -136,6 +137,7 @@ public sealed partial class CompanionWindow : Window
         controls.Children.Add(Text("Size · 75%–150%")); controls.Children.Add(_scale); controls.Children.Add(SliderValue(_scale, "Scale: {0:0.00}×"));
         controls.Children.Add(Text("Display time · 3–12 seconds")); controls.Children.Add(_seconds); controls.Children.Add(SliderValue(_seconds, "Display: {0:0} seconds")); controls.Children.Add(_rarity);
         controls.Children.Add(Text("Discord appearance")); controls.Children.Add(_presentation);
+        controls.Children.Add(ActionButton("Open presentation studio", () => Run(PreviewCardAsync)));
         _testButton = ActionButton("Test unsaved controls locally", ReplayControls); controls.Children.Add(_testButton);
         var coordination = Panel();
         controls.Children.Add(new Expander { Header = "Advanced: shared-folder delivery coordination", Content = coordination });
@@ -293,12 +295,19 @@ public sealed partial class CompanionWindow : Window
         var result = await _services.AchievementDeliveryService.DeliverAsync(row.Entry.Achievement, settings);
         _notice.Text = result == AchievementDeliveryResult.Posted ? "Discord accepted the post." : "Delivery checks completed. See the current delivery status.";
     }
-    private async Task PreviewCardAsync()
+    private Task PreviewCardAsync()
     {
-        if (Selected is not { } row) { _notice.Text = "Select an achievement in the gallery first."; return; }
-        var post = await _services.AchievementPostComposer.ComposeAsync(row.Entry.Achievement, _settings with { Companion = ReadControls() });
-        _artwork.Source = MainWindow.DecodeRedlineImage(post.AttachmentBytes, 1200);
-        _notice.Text = post.UsesCollectorCard ? "Local preview of your Discord showcase. Nothing sent." : "Compact card selected: achievement name, description, platform, rarity and available icon. Nothing sent.";
+        if (_studio is not null) { _studio.Activate(); return Task.CompletedTask; }
+        var draft = ReadControls();
+        _studio = new PresentationStudioWindow(_services.AchievementPostComposer, _settings with { Companion = draft },
+            Selected?.Entry.Achievement, achievement => Run(async () => {
+                var current = await _services.SettingsStore.LoadAsync();
+                _services.AchievementOverlayService.Preview(achievement, settings: current with { Companion = draft });
+            })) { Owner = this };
+        _studio.Closed += (_, _) => _studio = null;
+        _studio.Show();
+        _notice.Text = "Studio opened with a snapshot of your presentation draft. No settings saved and nothing sent.";
+        return Task.CompletedTask;
     }
     private async Task ConfirmUncertainAsync()
     {

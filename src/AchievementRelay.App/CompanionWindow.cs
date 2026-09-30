@@ -80,10 +80,16 @@ public sealed partial class CompanionWindow : Window
         MinWidth = Math.Min(MinWidth, workArea.Width); MinHeight = Math.Min(MinHeight, workArea.Height);
         Width = Math.Min(Width, workArea.Width); Height = Math.Min(Height, workArea.Height);
         Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("/AchievementRelay.App;component/CompanionStyles.xaml", UriKind.Relative) });
+        Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("/AchievementRelay.App;component/Redline.xaml", UriKind.Relative) });
         Background = (Brush)FindResource("BackgroundBrush"); Foreground = (Brush)FindResource("TextBrush");
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         var root = new DockPanel { Background = (Brush)FindResource("WindowSurfaceBrush"), Margin = new Thickness(22) };
-        var heading = Text("Your achievements", 25);
+        var heading = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 14) };
+        heading.Children.Add(new System.Windows.Shapes.Path { Data = (Geometry)FindResource("TkbBarsGeometry"), Fill = (Brush)FindResource("AccentBrush"),
+            Width = 48, Height = 34, Stretch = Stretch.Uniform, Margin = new Thickness(0, 0, 18, 0) });
+        var headingText = new StackPanel(); headingText.Children.Add(Text("YOUR COLLECTION", 25));
+        headingText.Children.Add(new TextBlock { Text = "TKB REDLINE  /  EVERY UNLOCK HAS A STORY", FontSize = 12, Foreground = (Brush)FindResource("MutedTextBrush") });
+        heading.Children.Add(headingText);
         DockPanel.SetDock(heading, Dock.Top); root.Children.Add(heading);
         DockPanel.SetDock(_notice, Dock.Bottom); root.Children.Add(_notice);
         var footer = new WrapPanel();
@@ -119,7 +125,6 @@ public sealed partial class CompanionWindow : Window
         var session = Panel(); session.Children.Add(Text("SESSION RECAP", 22)); session.Children.Add(Text("A new session begins after 30 minutes without a recorded unlock. Counts cover unlocks observed by this PC."));
         session.Children.Add(_sessions); session.Children.Add(_recap);
         session.Children.Add(ActionButton("Share this recap to Discord", () => Run(ShareRecapAsync)));
-        session.Children.Add(Text("100% celebrations use verified provider totals and a live final unlock on Steam or Xbox. Missing totals remain unknown. Completion proof survives delivery retries."));
         AddTab(tabs, "Sessions", session);
         var controls = Panel(); controls.Children.Add(Text("MAKE THE SIGNAL STRIP YOURS", 22));
         controls.Children.Add(Text("Screen")); controls.Children.Add(_monitor);
@@ -161,7 +166,7 @@ public sealed partial class CompanionWindow : Window
         _position.MouseMove += (_, e) => { if (_position.IsMouseCaptured) DragPosition(e); };
         _position.MouseLeftButtonUp += (_, _) => _position.ReleaseMouseCapture();
         _services.CompanionJournal.Changed += JournalChanged;
-        _timer.Tick += (_, _) => { if (IsVisible) { RefreshHealth(); RefreshShowcaseStatus(); } }; _timer.Start();
+        _timer.Tick += (_, _) => { if (IsVisible) { RefreshHealth(); RefreshShowcaseStatus(); RefreshLibrary(); } }; _timer.Start();
         Closed += (_, _) => { _closed = true; _timer.Stop(); _artworkCancellation?.Cancel(); _showcaseCancellation.Cancel(); _soundPreview.Dispose(); _services.CompanionJournal.Changed -= JournalChanged; };
         RefreshGallery(); RefreshSessions(); RefreshHealth();
     }
@@ -201,7 +206,7 @@ public sealed partial class CompanionWindow : Window
         label.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding("Value") { Source = slider, StringFormat = format });
         return label;
     }
-    private static TextBlock Text(string text, double size = 13) => new() { Text = text, FontSize = size, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 7, 0, 7) };
+    private static TextBlock Text(string text, double size = 14) => new() { Text = text, FontSize = size, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 7, 0, 7) };
     private static StackPanel Panel() => new() { Margin = new Thickness(12) };
     private static Button ActionButton(string title, Action action)
     { var button = new Button { Content = title, Margin = new Thickness(0, 8, 10, 8), HorizontalAlignment = HorizontalAlignment.Left }; button.Click += (_, _) => action(); return button; }

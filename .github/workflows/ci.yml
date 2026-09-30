@@ -45,12 +45,17 @@ jobs:
           $appPath = Join-Path $PWD 'src\AchievementRelay.App\bin\Release\net10.0-windows10.0.19041.0\AchievementRelay.App.exe'
           $previewPath = Join-Path $PWD 'artifacts\AchievementRelay_Redline_Preview.png'
           $process = Start-Process -FilePath $appPath -ArgumentList "--export-redline-preview `"$previewPath`"" -Wait -PassThru
-          if ($process.ExitCode -ne 0) { throw 'Redline native rendering failed.' }
+          if ($process.ExitCode -ne 0) {
+            $errorPath = Join-Path $PWD 'artifacts\redline-preview-error.txt'
+            if (Test-Path $errorPath) { Get-Content $errorPath }
+            throw 'Redline native rendering failed.'
+          }
           foreach ($name in @('AchievementRelay_Redline_Preview.png', 'AchievementRelay_Redline_Preview_compact.png')) {
             if ((Get-Item (Join-Path $PWD "artifacts\$name")).Length -lt 10KB) { throw "Missing or empty Redline screenshot: $name" }
           }
 
       - name: Retain native dashboard screenshots
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Redline-native-preview
@@ -61,6 +66,7 @@ jobs:
             artifacts/account.png
             artifacts/home-small.png
             artifacts/home-populated*.png
+            artifacts/redline-preview-error.txt
           if-no-files-found: error
           retention-days: 1
 

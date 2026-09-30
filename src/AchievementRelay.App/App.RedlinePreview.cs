@@ -43,6 +43,8 @@ public partial class App
             Task.Run(async () =>
             {
                 await services.CompanionLibrary.ObserveAsync("Steam:preview:123", "Redline preview game", "Steam", 18, 40, null, [], false);
+                await services.CompanionLibrary.ObserveAsync("Xbox:preview:456", "A completed Xbox adventure", "Xbox", 32, 32, null, [], false);
+                await services.CompanionLibrary.ObserveAsync("Steam:preview:789", "A game with an unknown total", "Steam", 4, null, null, [], false);
                 await services.CompanionLibrary.Activity.RecordAsync("123", "Redline preview game", "Steam", DateTimeOffset.UtcNow.AddMinutes(-5));
                 await services.CompanionJournal.RecordAsync(new AchievementEvent { Id = "preview-delivered", Name = "Beyond the horizon",
                     GameName = "Redline preview game", SourceProvider = "Steam", RarityKnown = true, RarityPercentage = 3.8 }, "Delivered");
@@ -54,10 +56,20 @@ public partial class App
             window = new MainWindow(services, new AppSettings(), previewOnly: true);
             Render(window, Path.Combine(Path.GetDirectoryName(output)!, "home-populated.png"), 1440, 920);
             Render(window, Path.Combine(Path.GetDirectoryName(output)!, "home-populated-compact.png"), 900, 640);
+            var collection = new CompanionWindow(services, new AppSettings(), _ => {}, () => {}, () => {}, () => {});
+            collection.SelectSection("Library");
+            Render(collection, Path.Combine(Path.GetDirectoryName(output)!, "companion-library-populated.png"), 1020, 820);
+            Render(collection, Path.Combine(Path.GetDirectoryName(output)!, "companion-library-compact.png"), 760, 620);
+            collection.SelectSection("Sessions");
+            Render(collection, Path.Combine(Path.GetDirectoryName(output)!, "companion-session-populated.png"), 1020, 820);
+            collection.Close();
         }
         catch (Exception exception)
         {
             Console.Error.WriteLine(exception);
+            // WinExe runners may not attach stderr. Preserve fixture-only diagnostics for CI.
+            try { File.WriteAllText(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(args[1]))!, "redline-preview-error.txt"), exception.ToString()); }
+            catch (IOException) { }
             exitCode = 1;
         }
         finally

@@ -30,16 +30,36 @@ public sealed partial class CompanionWindow
     private readonly TextBlock _closest = Text("");
     private readonly TextBlock _quietStatus = Text("");
     private readonly TextBlock _performance = Text("");
-    private readonly TextBlock _sessionTimeline = Text("");
+    private readonly ItemsControl _sessionTimeline = new();
+    private readonly System.Windows.Controls.TextBox _timelineSearch = new();
+    private readonly TextBlock _timelineSummary = Text("");
     private readonly ListBox _trophies = new() { DisplayMemberPath = "Label", Height = 300 };
     private readonly System.Windows.Controls.Image _libraryArt = new() { Height = 165, Stretch = Stretch.UniformToFill };
     private int _libraryRevision = -1;
     private readonly System.Windows.Controls.TextBox _librarySearch = new();
-    private readonly ComboBox _librarySort = new() { ItemsSource = new[] { "Recently played", "Game name", "Closest to completion" }, SelectedIndex = 0 };
+    private readonly ComboBox _librarySort = new() { ItemsSource = new[] { "Recently observed", "Game name", "Closest to completion" }, SelectedIndex = 0 };
+    private readonly ComboBox _libraryPlatform = new() { ItemsSource = new[] { "All platforms", "Steam", "Xbox" }, SelectedIndex = 0 };
+    private readonly ComboBox _libraryCompletion = new() { ItemsSource = new[] { "All progress", "In progress", "Completed", "Total unknown" }, SelectedIndex = 0 };
+    private readonly TextBlock _librarySummary = Text("");
+    private readonly System.Windows.Controls.TextBox _historySearch = new();
+    private readonly TextBlock _historySummary = Text("");
+    private readonly System.Windows.Controls.ProgressBar _libraryProgress = new() { Maximum = 100, Height = 6, Margin = new Thickness(0, 8, 0, 12) };
 
     private sealed record GameRow(LibraryGame Game)
     {
         public string Label => $"{Game.Name} · {Game.Provider} · {Game.Earned}/{Game.Total?.ToString() ?? "?"}";
+        public string ProgressLabel => LibraryPresentation.HasVerifiedTotal(Game)
+            ? $"{Game.Provider}  ·  {Game.Earned} / {Game.Total} earned  ·  {LibraryPresentation.Percentage(Game):0.#}%"
+            : $"{Game.Provider}  ·  {Game.Earned} earned  ·  Total unknown";
+        public double Percentage => LibraryPresentation.Percentage(Game);
+        public Visibility ProgressVisibility => LibraryPresentation.HasVerifiedTotal(Game) ? Visibility.Visible : Visibility.Collapsed;
+        public string Status => LibraryPresentation.IsComplete(Game) ? "COMPLETE · VERIFIED SNAPSHOT" : "OBSERVED " + Game.ObservedAt.ToLocalTime().ToString("g");
+    }
+    private sealed record TimelineRow(JournalEntry Entry)
+    {
+        public string Time => Entry.ObservedAt.ToLocalTime().ToString("HH:mm");
+        public string Context => $"{Entry.Achievement.GameName} · {Entry.Achievement.Platform ?? Entry.Achievement.SourceProvider}";
+        public string Status => $"{RelayRarityClassifier.FormatPercentage(Entry.Achievement.RarityPercentage)} · {Entry.Delivery}";
     }
     private sealed record TrophyRow(AchievementEvent Achievement, bool Pinned, bool Imported)
     {
@@ -68,16 +88,31 @@ public sealed partial class CompanionWindow
 
         var library = Panel(); library.Children.Add(Text("YOUR GAME LIBRARY", 22));
         library.Children.Add(Text("Verified snapshots observed on this PC—not a complete account library. Unknown totals stay unknown. Last-observed counts can lag behind play."));
-        library.Children.Add(Text("Find a game")); library.Children.Add(_librarySearch);
-        library.Children.Add(Text("Sort games")); library.Children.Add(_librarySort);
-        library.Children.Add(_closest); library.Children.Add(_libraryGames); library.Children.Add(_libraryArt); library.Children.Add(_libraryDetails);
+        var searchSort = new Grid(); searchSort.ColumnDefinitions.Add(new ColumnDefinition()); searchSort.ColumnDefinitions.Add(new ColumnDefinition());
+        var searchColumn = new StackPanel { Margin = new Thickness(0, 0, 8, 0) };
+        searchColumn.Children.Add(Text("Find a game")); searchColumn.Children.Add(_librarySearch);
+        var sortColumn = new StackPanel(); sortColumn.Children.Add(Text("Sort games")); sortColumn.Children.Add(_librarySort);
+        Grid.SetColumn(sortColumn, 1); searchSort.Children.Add(searchColumn); searchSort.Children.Add(sortColumn); library.Children.Add(searchSort);
+        var filters = new Grid(); filters.ColumnDefinitions.Add(new ColumnDefinition()); filters.ColumnDefinitions.Add(new ColumnDefinition());
+        _libraryPlatform.Margin = new Thickness(0, 4, 8, 4); Grid.SetColumn(_libraryCompletion, 1);
+        filters.Children.Add(_libraryPlatform); filters.Children.Add(_libraryCompletion); library.Children.Add(filters);
+        library.Children.Add(_librarySummary); library.Children.Add(_libraryGames);
+        library.Children.Add(_libraryArt); library.Children.Add(_libraryDetails); library.Children.Add(_libraryProgress);
+        library.Children.Add(_closest);
         library.Children.Add(_importHistory);
         System.Windows.Automation.AutomationProperties.SetName(_librarySearch, "Search game library");
         System.Windows.Automation.AutomationProperties.SetName(_librarySort, "Sort game library");
+        System.Windows.Automation.AutomationProperties.SetName(_libraryPlatform, "Filter library by platform");
+        System.Windows.Automation.AutomationProperties.SetName(_libraryCompletion, "Filter library by completion");
+        System.Windows.Automation.AutomationProperties.SetName(_historySearch, "Search selected game's imported achievements");
+        System.Windows.Automation.AutomationProperties.SetName(_libraryProgress, "Selected game's verified completion percent");
         _librarySearch.TextChanged += (_, _) => { _libraryRevision = -1; RefreshLibrary(); };
         _librarySort.SelectionChanged += (_, _) => { _libraryRevision = -1; RefreshLibrary(); };
+        _libraryPlatform.SelectionChanged += (_, _) => { _libraryRevision = -1; RefreshLibrary(); };
+        _libraryCompletion.SelectionChanged += (_, _) => { _libraryRevision = -1; RefreshLibrary(); };
+        _historySearch.TextChanged += (_, _) => RefreshLibraryHistory();
         library.Children.Add(ActionButton("Refresh library", () => { _libraryRevision = -1; RefreshLibrary(); }));
-        library.Children.Add(Text("IMPORTED HISTORY · LOCAL ONLY", 16)); library.Children.Add(_libraryHistory);
+        library.Children.Add(Text("IMPORTED HISTORY · LOCAL ONLY", 16)); library.Children.Add(_historySearch); library.Children.Add(_historySummary); library.Children.Add(_libraryHistory);
         library.Children.Add(Text("Opt-in import captures up to 300 earned achievements per game / 3,000 overall as monitoring naturally fetches complete snapshots. It does not make extra Xbox API calls. Historical entries never enter the delivery queue."));
         library.Children.Add(ActionButton("Export historical poster", () => Run(() => ExportPosterAsync(_libraryHistory.SelectedItem as AchievementEvent))));
         library.Children.Add(ActionButton("Pin / unpin historical trophy", () => Run(() => TogglePinAsync(_libraryHistory.SelectedItem as AchievementEvent))));
@@ -134,7 +169,14 @@ public sealed partial class CompanionWindow
         _position.MouseLeftButtonUp += (_, _) => { _x = Snap(_x); _y = Snap(_y); PositionStrip(); };
         _sessions.SelectionChanged += (_, _) => RefreshSessionTimeline();
         var sessionsTab = (TabItem)tabs.Items[1];
-        if (sessionsTab.Content is ScrollViewer { Content: StackPanel session }) { session.Children.Add(Text("UNLOCK TIMELINE", 18)); session.Children.Add(_sessionTimeline); }
+        _sessionTimeline.ItemTemplate = (DataTemplate)FindResource("TimelineRowTemplate");
+        System.Windows.Automation.AutomationProperties.SetName(_timelineSearch, "Search selected session by game or achievement");
+        _timelineSearch.TextChanged += (_, _) => RefreshSessionTimeline();
+        if (sessionsTab.Content is ScrollViewer { Content: StackPanel session }) {
+            session.Children.Add(Text("UNLOCK TIMELINE", 18)); session.Children.Add(Text("Times show when this PC observed each unlock. Filtering this view does not change the shared recap."));
+            session.Children.Add(_timelineSearch); session.Children.Add(_timelineSummary); session.Children.Add(_sessionTimeline);
+            session.Children.Add(Text("100% celebrations use verified provider totals and a live final unlock on Steam or Xbox. Missing totals remain unknown. Completion proof survives delivery retries."));
+        }
         RefreshLibrary(); RefreshTrophies(); RefreshShowcaseStatus();
     }
     private void PreviewSound(bool rare) => Run(async () => {
@@ -149,34 +191,49 @@ public sealed partial class CompanionWindow
     private void RefreshLibrary()
     {
         var games = _services.CompanionLibrary.Snapshot;
-        var revision = HashCode.Combine(games.Length, games.LastOrDefault()?.ObservedAt);
+        var hash = new HashCode();
+        foreach (var game in games) hash.Add(game);
+        var revision = hash.ToHashCode();
         if (_libraryRevision == revision) return; _libraryRevision = revision;
         var key = (_libraryGames.SelectedItem as GameRow)?.Game.Key;
-        var matching = games.Where(x => x.Name.Contains(_librarySearch.Text.Trim(), StringComparison.OrdinalIgnoreCase));
-        var ordered = _librarySort.SelectedIndex switch {
-            1 => matching.OrderBy(x => x.Name),
-            2 => matching.OrderBy(x => x.Total > x.Earned ? x.Total - x.Earned : int.MaxValue),
-            _ => matching.OrderByDescending(x => x.ObservedAt)
-        };
+        var ordered = LibraryPresentation.Filter(games, _librarySearch.Text,
+            _libraryPlatform.SelectedIndex > 0 ? _libraryPlatform.SelectedItem as string : null,
+            _libraryCompletion.SelectedIndex, _librarySort.SelectedIndex);
         var rows = ordered.Select(x => new GameRow(x)).ToArray();
-        if (rows.Length == 0) { _libraryDetails.Text = "No matching games. Clear your search or play a monitored game to build your library."; _libraryHistory.ItemsSource = null; _libraryArt.Source = null; }
-        _libraryGames.Height = Math.Clamp(rows.Length * 75, 75, 210);
+        _librarySummary.Text = $"{rows.Length} of {games.Length} games · {games.Count(LibraryPresentation.IsComplete)} completed in verified snapshots";
+        if (rows.Length == 0) { _libraryDetails.Text = "No matching games. Clear your filters or play a monitored game to build your library."; _libraryHistory.ItemsSource = null; _libraryArt.Source = null; _libraryArt.Visibility = Visibility.Collapsed; _libraryProgress.Visibility = Visibility.Collapsed; }
+        _libraryGames.Height = Math.Clamp(rows.Length * 120, 120, 300);
         _libraryGames.ItemsSource = rows; _libraryGames.SelectedItem = rows.FirstOrDefault(x => x.Game.Key == key) ?? rows.FirstOrDefault();
-        var close = games.Where(x => x.Total > x.Earned).OrderBy(x => x.Total - x.Earned).Take(3);
+        RefreshLibraryHistory();
+        var close = ordered.Where(x => LibraryPresentation.HasVerifiedTotal(x) && x.Total > x.Earned).OrderBy(x => x.Total - x.Earned).Take(3);
         _closest.Text = "CLOSEST TO COMPLETION\n" + string.Join("\n", close.Select(x => $"{x.Name} · {x.Total - x.Earned} remaining"));
-        if (!close.Any()) _closest.Text += "No incomplete games with verified totals yet.";
+        if (!close.Any()) _closest.Text += "No matching incomplete games with verified totals yet.";
     }
     private async Task SelectLibraryGameAsync()
     {
         if (_libraryGames.SelectedItem is not GameRow row) return;
         var game = row.Game;
-        _libraryDetails.Text = $"{game.Name}\n{game.Earned} earned · {game.Total?.ToString() ?? "Unknown"} total\n" +
-            (game.Total is > 0 ? $"{100d * game.Earned / game.Total:0.#}% complete · " : "") + $"Observed {game.ObservedAt.ToLocalTime():g}";
-        _libraryHistory.ItemsSource = game.History.OrderByDescending(x => x.UnlockedAt).ToArray();
-        _libraryArt.Source = new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/AchievementRelay.App;component/Assets/RelayCommandDeck.png"));
+        _libraryDetails.Text = $"{game.Name}\n{row.ProgressLabel}\nSnapshot observed {game.ObservedAt.ToLocalTime():g} · not a last-played timestamp";
+        _libraryProgress.Value = row.Percentage; _libraryProgress.Visibility = row.ProgressVisibility;
+        RefreshLibraryHistory();
+        _libraryArt.Source = null; _libraryArt.Visibility = Visibility.Collapsed;
+        if (string.IsNullOrWhiteSpace(game.Artwork)) return;
         var art = await _services.ArtworkClient.GetAsync(new AchievementEvent { Id = "library", Name = game.Name, GameName = game.Name, SourceProvider = game.Provider, HeroImageUrl = game.Artwork }, _showcaseCancellation.Token);
-        if (!_closed && (_libraryGames.SelectedItem as GameRow)?.Game.Key == game.Key)
-            _libraryArt.Source = MainWindow.DecodeRedlineImage(art.HeroImageBytes, 850) ?? _libraryArt.Source;
+        if (!_closed && (_libraryGames.SelectedItem as GameRow)?.Game.Key == game.Key) {
+            _libraryArt.Source = MainWindow.DecodeRedlineImage(art.HeroImageBytes, 850);
+            _libraryArt.Visibility = _libraryArt.Source is null ? Visibility.Collapsed : Visibility.Visible;
+        }
+    }
+    private void RefreshLibraryHistory()
+    {
+        var history = (_libraryGames.SelectedItem as GameRow)?.Game.History ?? [];
+        var selected = (_libraryHistory.SelectedItem as AchievementEvent)?.Id;
+        var rows = history.Where(x => x.Name.Contains(_historySearch.Text.Trim(), StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(x => x.UnlockedAt).ToArray();
+        _libraryHistory.ItemsSource = rows;
+        _libraryHistory.SelectedItem = rows.FirstOrDefault(x => x.Id == selected) ?? rows.FirstOrDefault();
+        _historySummary.Text = history.Length == 0 ? "No imported history for this selection. Live unlocks remain in Gallery."
+            : $"{rows.Length} of {history.Length} imported achievements · never reposted";
     }
     private void RefreshTrophies()
     {
@@ -203,8 +260,16 @@ public sealed partial class CompanionWindow
         if (!post.UsesCollectorCard || post.AttachmentBytes is not { Length: > 0 }) { _notice.Text = "The poster could not be rendered. No file was written."; return; }
         await File.WriteAllBytesAsync(dialog.FileName, post.AttachmentBytes); _notice.Text = "Poster saved locally. Nothing sent to Discord.";
     }
-    private void RefreshSessionTimeline() => _sessionTimeline.Text = string.Join("\n", SessionEntries.OrderBy(x => x.ObservedAt)
-        .Select(x => $"{x.ObservedAt.ToLocalTime():HH:mm}   {x.Achievement.Name}\n             {x.Achievement.GameName} · {RelayRarityClassifier.FormatPercentage(x.Achievement.RarityPercentage)}"));
+    private void RefreshSessionTimeline()
+    {
+        var entries = SessionEntries;
+        var rows = entries.Where(x => string.Concat(x.Achievement.GameName, " ", x.Achievement.Name)
+            .Contains(_timelineSearch.Text.Trim(), StringComparison.OrdinalIgnoreCase))
+            .OrderBy(x => x.ObservedAt).Select(x => new TimelineRow(x)).ToArray();
+        _sessionTimeline.ItemsSource = rows;
+        _timelineSummary.Text = entries.Length == 0 ? "No recorded session selected."
+            : $"{rows.Length} of {entries.Length} recorded events in this session";
+    }
     private void RefreshShowcaseStatus()
     {
         _quietStatus.Text = _services.AchievementOverlayService.QuietStatus;

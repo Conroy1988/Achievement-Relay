@@ -1,4 +1,5 @@
 using System.Windows;
+using AchievementRelay.App.Services;
 
 namespace AchievementRelay.App;
 
@@ -16,15 +17,16 @@ public partial class MainWindow
         NowPlayingHeading.Text = name is not null ? "NOW PLAYING" : recent is not null ? "LAST PLAYED" : "NO ACTIVE GAME";
         NowPlayingTitle.Text = name ?? (recent is not null ? recent.Name + " · last played on " + recent.Provider : "Waiting for your next game");
         var shown = game ?? (name is null ? lastGame : null);
-        NowPlayingProgressBar.Visibility = shown?.Total is > 0 ? Visibility.Visible : Visibility.Collapsed;
-        NowPlayingProgressBar.Value = shown?.Total is > 0 ? Math.Clamp(100d * shown.Earned / shown.Total.Value, 0, 100) : 0;
+        var verifiedTotal = shown is not null && LibraryPresentation.HasVerifiedTotal(shown);
+        NowPlayingProgressBar.Visibility = verifiedTotal ? Visibility.Visible : Visibility.Collapsed;
+        NowPlayingProgressBar.Value = verifiedTotal ? LibraryPresentation.Percentage(shown!) : 0;
         RefreshRedlineSummary();
-        var entries = _services.CompanionJournal.Snapshot.Where(x => !x.Achievement.IsHistorical).ToArray();
+        var entries = _services.CompanionJournal.Snapshot.Where(x => !x.Achievement.IsHistorical && !x.Achievement.IsGameCompletion).ToArray();
         var latest = entries.MaxBy(x => x.ObservedAt);
         var count = latest is not null && DateTimeOffset.UtcNow - latest.ObservedAt < TimeSpan.FromMinutes(30)
             ? entries.Count(x => x.SessionId == latest.SessionId) : 0;
         NowPlayingProgress.Text = (shown is null ? "Progress appears after a verified game snapshot." :
-            $"{shown.Earned}/{shown.Total?.ToString() ?? "?"} earned" + (shown.Total is > 0 ? $" · {100d * shown.Earned / shown.Total:0.#}% complete" : "")) +
+            $"{shown.Earned}/{(verifiedTotal ? shown.Total?.ToString() : "?")} earned" + (verifiedTotal ? $" · {LibraryPresentation.Percentage(shown):0.#}% complete" : " · Total unverified")) +
             (name is not null ? $" · {count} unlocks this session" : recent is not null ? " · Saved progress; not live presence" : "");
         var artKey = shown?.Artwork;
         if (_nowPlayingArtworkKey == artKey) return;

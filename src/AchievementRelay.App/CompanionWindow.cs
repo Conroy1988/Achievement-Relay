@@ -258,6 +258,7 @@ public sealed partial class CompanionWindow : Window
         if (Selected is not { } row) { _details.Text = "No matching achievements. Clear the filters or play a monitored game to start your collection."; _artwork.Source = null; _savedGameControls = null; return; }
         var a = row.Entry.Achievement;
         _details.Text = row.Kind + "\n\n" + $"{a.Name}\n{a.GameName} · {a.Platform ?? a.SourceProvider}\n{a.Description}\n{RelayRarityClassifier.FormatPercentage(a.RarityPercentage)} · {row.Entry.Delivery}\n\n" +
+            DeliveryStatusPresentation.Explain(row.Entry) + "\n\n" +
             string.Join("\n", (row.Entry.Transitions ?? []).Select(x => $"{x.At.ToLocalTime():HH:mm:ss}  {x.Status}"));
         _artwork.Source = MainWindow.DecodeRedlineImage(a.ImageBytes, 600) ?? new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/AchievementRelay.App;component/Assets/RelayCommandDeck.png"));
         var rule = (_settings.Companion.Games ?? []).FirstOrDefault(x => x.GameKey == CompanionPolicy.GameKey(a));
@@ -406,10 +407,12 @@ public sealed partial class CompanionWindow : Window
         if (_lastGame is not null && steam.CurrentGameName is null && SessionEntries.Length > 0)
             _notice.Text = "Game session ended. Your recap is ready in Sessions.";
         _lastGame = steam.CurrentGameName;
-        var lastDelivery = _services.CompanionJournal.Snapshot.Where(x => x.Delivery == "Delivered").MaxBy(x => x.UpdatedAt);
+        var lastDelivery = _services.CompanionJournal.Snapshot.Where(x => !x.Achievement.IsHistorical && x.Delivery == "Delivered").MaxBy(x => x.UpdatedAt);
         _health.Text = $"XBOX · {(xbox.IsRunning ? "Monitoring" : "Stopped")}\nLast successful sync: {xbox.LastSuccessfulSync?.ToLocalTime().ToString("g") ?? "Not yet"}\n{xbox.LastSyncError}\n\n" +
             $"STEAM · {steam.Phase}\n{steam.CurrentGameName ?? "Waiting for a game"}\nLast observation: {steam.LastObservationUtc?.ToLocalTime().ToString("g") ?? "Not yet"}\n{steam.LastError}\n\n" +
-            $"DISCORD · Last confirmed delivery: {lastDelivery?.UpdatedAt.ToLocalTime().ToString("g") ?? "Not yet"}\nUse Gallery → Needs attention for pending posts.\n\n" +
+            $"DISCORD · Last accepted post on this PC: {lastDelivery?.UpdatedAt.ToLocalTime().ToString("g") ?? "Not yet"}\nGallery → Needs attention explains each status. Uncertain means check Discord first, not resend.\n\n" +
+            $"BACKGROUND · Start with Windows preference: {(_settings.StartWithWindows ? "On" : "Off")}\nWindows can override startup permission; check Windows Settings → Apps → Startup.\nClosing the main window keeps Relay in the tray; it does not enable stopped monitors. Use the tray menu to check monitoring or exit.\n\n" +
+            "ACCOUNT SYNC · Automatic sync waits while the main window or Companion is open, or settings have unsaved edits. Use Account for the current sync status and manual sync. Local monitoring and Discord delivery are separate from account sync.\n\n" +
             $"UPDATES · {update.Stage}\nInstalled: {update.CurrentVersion} · Latest: {update.LatestVersion ?? "Not checked"}\n{update.Message}\n" +
             (update.DownloadProgress is { } progress ? $"Download: {progress:0}%\n" : "") + (_services.CompanionJournal.StorageError ?? "") +
             (string.IsNullOrWhiteSpace(update.ReleaseNotes) ? "" : "\nRELEASE NOTES\n" + update.ReleaseNotes);

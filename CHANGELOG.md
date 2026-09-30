@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.14.0] - 2026-09-30
+
+### Added
+- TKB Redline dashboard and Companion styling with two-bar branding, larger artwork and readable collection progress.
+- Platform/completion library filters, searchable history and session timelines, and a verified completion shelf.
+- Preview-only Presentation Studio for Steam/Xbox Collector Cards, compact message content and local Signal Strip animations.
+- Explicit preview-and-confirm Discord session recaps with bounded text and disabled mentions.
+- Plain-English delivery explanations and honest tray/startup/account-sync guidance.
+
+### Fixed
+- Completion celebrations no longer count as extra home-session unlocks; invalid totals no longer show a fabricated completion percentage.
+- Health distinguishes accepted local posts from imported history, other-PC delivery and manual confirmation.
+
+### Preserved
+- Existing Collector Card showcase, Xbox PC Game Pass labels, provider/delivery safeguards, account sync, settings and v0.4.0 official update baseline.
+
 ## [0.13.2] - 2026-09-27
 
 ### Fixed

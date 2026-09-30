@@ -11,6 +11,7 @@ using AchievementRelay.Core.Models;
 
 var tests = new (string Name, Action Run)[]
 {
+    ("Delivery explanations distinguish uncertainty, confirmation and history", DeliveryExplanationContract),
     ("Session recap is bounded, platform-aware and excludes synthetic history", SessionRecapContract),
     ("Collection filters preserve platform identity and unknown progress", LibraryPresentationContract),
     ("Redline dashboard summaries are local-date bounded and read-only", RedlineDashboardSummaryContract),
@@ -62,6 +63,19 @@ if (failures.Count > 0)
 else
 {
     Console.WriteLine($"All {tests.Length} app presentation smoke tests passed.");
+}
+
+static void DeliveryExplanationContract()
+{
+    var now = DateTimeOffset.UtcNow;
+    JournalEntry Entry(string status, bool history = false) => new(new AchievementEvent { Id = "status-test", Name = "Example unlock", SourceProvider = "Steam", IsHistorical = history }, now, "session", status, now);
+    Assert(DeliveryStatusPresentation.Explain(Entry("Delivery uncertain — check Discord")).Contains("not permission to resend"), "Uncertainty suggests a blind resend.");
+    Assert(DeliveryStatusPresentation.Explain(Entry("Claimed on another device — check Discord")).Contains("not proof"), "A claim is presented as confirmed delivery.");
+    Assert(DeliveryStatusPresentation.Explain(Entry("Delivered (confirmed by you)")).Contains("without sending again"), "Manual confirmation is presented as a new send.");
+    Assert(DeliveryStatusPresentation.Explain(Entry("Delivered on another PC")).Contains("This PC did not send"), "Shared delivery is presented as local delivery.");
+    Assert(DeliveryStatusPresentation.Explain(Entry("Filtered")).Contains("not a connection failure"), "Filtering is presented as failure.");
+    Assert(DeliveryStatusPresentation.Explain(Entry("Delivered", true)).Contains("will not create"), "Imported status permits a post.");
+    Assert(DeliveryStatusPresentation.Explain(Entry("future-status")).Contains("not confirmed"), "Unknown status invents delivery confirmation.");
 }
 
 static void SessionRecapContract()

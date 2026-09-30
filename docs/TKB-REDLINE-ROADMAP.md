@@ -34,7 +34,7 @@ Deliver this as reviewable stages. Preserve provider detection, deduplication, u
 - Draft presentation snapshot, current master sound settings, existing quiet/reduced-motion protections; no settings or delivery mutations.
 - Native Steam/Xbox/compact fixtures assert that static previews do not play alerts or change journal, settings or delivery state.
 
-## Stage 4 — preview-first recaps and completion shelf (this branch)
+## Stage 4 — preview-first recaps and completion shelf (merged in #28)
 
 - Recap counts exclude imported history and synthetic completion events, deduplicate recorded unlocks and retain Steam/Xbox identity.
 - Bounded, mention-suppressed message built once and previewed before an explicit send. Cancel is the default action; no automatic recap posting or retry.
@@ -42,10 +42,14 @@ Deliver this as reviewable stages. Preserve provider detection, deduplication, u
 - Existing beam reveal, rare/completion particles, countdown and chimes are preserved. Native CI already exercises the real button → queue → overlay path and verifies static/reduced-motion suppression; no duplicate animation system was added.
 - No achievement delivery, baseline, sync or settings schema changes.
 
-## Remaining approved stages
+## Stage 5 — operational polish and v0.14.0 preparation
 
-1. Validate and land recaps and the completion shelf.
-2. Tray, startup, display-scaling and sync-state polish; clearer delivery explanations without unsafe retry controls.
-3. Final release validation and versioning. Installed live-game testing remains separate from CI.
+- Explain delivery states without altering retry, claim or ledger decisions; imported history and other-PC claims are never presented as accepted local posts.
+- Honest tray closure message, startup preference versus Windows permission, and account background-sync conditions.
+- Align home session counts and progress validity with collection/recap rules.
+- Preserve the existing display-change/DPI handling and compact native fixtures; real multi-monitor/high-DPI verification remains a device check, not a screenshot claim.
+- Prepare v0.14.0 metadata and release notes, preserving signing and the v0.4.0 update floor.
 
-Do not represent these remaining stages as shipped with the visual foundation. The foundation does not change persistent settings or enable new Discord posts.
+## Release gate
+
+The overhaul is not shipped until the versioned PR is merged and the signed release workflow publishes its verified assets. Installed live-game, startup, multi-monitor, upgrade and uninstall checks remain separate from CI and must not be claimed as performed by native preview fixtures.

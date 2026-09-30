@@ -125,7 +125,7 @@ public sealed partial class CompanionWindow : Window
         AddTab(tabs, "Gallery", galleryGrid, scroll: false);
         var session = Panel(); session.Children.Add(Text("SESSION RECAP", 22)); session.Children.Add(Text("A new session begins after 30 minutes without a recorded unlock. Counts cover unlocks observed by this PC."));
         session.Children.Add(_sessions); session.Children.Add(_recap);
-        session.Children.Add(ActionButton("Share this recap to Discord", () => Run(ShareRecapAsync)));
+        session.Children.Add(ActionButton("Preview recap for Discord", () => Run(ShareRecapAsync)));
         AddTab(tabs, "Sessions", session);
         var controls = Panel(); controls.Children.Add(Text("MAKE THE SIGNAL STRIP YOURS", 22));
         controls.Children.Add(Text("Screen")); controls.Children.Add(_monitor);
@@ -168,7 +168,7 @@ public sealed partial class CompanionWindow : Window
         _position.MouseMove += (_, e) => { if (_position.IsMouseCaptured) DragPosition(e); };
         _position.MouseLeftButtonUp += (_, _) => _position.ReleaseMouseCapture();
         _services.CompanionJournal.Changed += JournalChanged;
-        _timer.Tick += (_, _) => { if (IsVisible) { RefreshHealth(); RefreshShowcaseStatus(); RefreshLibrary(); } }; _timer.Start();
+        _timer.Tick += (_, _) => { if (IsVisible) { RefreshHealth(); RefreshShowcaseStatus(); RefreshLibrary(); RefreshCompletionShelf(); } }; _timer.Start();
         Closed += (_, _) => { _closed = true; _timer.Stop(); _artworkCancellation?.Cancel(); _showcaseCancellation.Cancel(); _soundPreview.Dispose(); _services.CompanionJournal.Changed -= JournalChanged; };
         RefreshGallery(); RefreshSessions(); RefreshHealth();
     }
@@ -334,23 +334,21 @@ public sealed partial class CompanionWindow : Window
     private JournalEntry[] SessionEntries => _sessions.SelectedItem is SessionRow row ? _services.CompanionJournal.Snapshot.Where(x => !x.Achievement.IsHistorical && x.SessionId == row.Id).ToArray() : [];
     private void RefreshRecap()
     {
-        var entries = SessionEntries;
-        if (entries.Length == 0) { _recap.Text = "No recorded sessions yet."; return; }
-        var rarest = entries.Where(x => x.Achievement.RarityPercentage is >= 0 and <= 100).MinBy(x => x.Achievement.RarityPercentage);
-        _recap.Text = $"{entries.Length} unlocks · {entries.Select(x => CompanionPolicy.GameKey(x.Achievement)).Distinct().Count()} games · {entries.Sum(x => Math.Max(0, x.Achievement.Gamerscore ?? 0))}G\n" +
-            (rarest is null ? "Rarity unavailable." : $"Rarest: {rarest.Achievement.Name} · {RelayRarityClassifier.FormatPercentage(rarest.Achievement.RarityPercentage)}") + "\n\n" +
-            string.Join("\n", entries.GroupBy(x => x.Achievement.GameName).Select(g => $"{g.Key} — {g.Count()} unlocks"));
+        var recap = SessionRecapPresentation.Create(SessionEntries, TimeZoneInfo.Local);
+        _recap.Text = recap.Unlocks == 0 ? recap.Content : $"{recap.Unlocks} unlocks · {recap.Games} game/platform groups · {recap.Gamerscore}G\nPreview the exact message before sharing. Imported history and completion celebration events are excluded.";
     }
     private async Task ShareRecapAsync()
     {
-        if (SessionEntries.Length == 0) return;
+        var recap = SessionRecapPresentation.Create(SessionEntries, TimeZoneInfo.Local);
+        if (recap.Unlocks == 0) { _notice.Text = "This session has no live unlocks to share."; return; }
         var settings = await _services.SettingsStore.LoadAsync();
         var secret = _services.WebhookProtector.TryUnprotect(settings.ProtectedWebhookUrl);
         if (!WebhookUrlValidator.TryNormalize(secret, out var uri, out _) || uri is null) { _notice.Text = "Connect Discord first."; return; }
-        var summary = _recap.Text.Length > 1800 ? _recap.Text[..1800] : _recap.Text;
-        var payload = JsonSerializer.Serialize(new { username = "Achievement Relay", content = "SESSION RECAP\n" + summary, allowed_mentions = new { parse = Array.Empty<string>() } });
-        var result = await _services.WebhookClient.SendAsync(uri, payload, CancellationToken.None);
-        _notice.Text = result.Success ? "Session recap shared to Discord." : result.Message;
+        var preview = new SessionRecapWindow(recap) { Owner = this };
+        if (preview.ShowDialog() != true) { _notice.Text = "Recap kept local. Nothing sent."; return; }
+        var result = await _services.WebhookClient.SendAsync(uri, recap.JsonPayload, CancellationToken.None);
+        _notice.Text = result.Success ? "The previewed session recap was shared to Discord."
+            : "Recap delivery was not confirmed. Check Discord before trying again; another attempt may duplicate the post. " + result.Message;
     }
     private void LoadControls()
     {

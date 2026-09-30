@@ -24,7 +24,7 @@ Deliver this as reviewable stages. Preserve provider detection, deduplication, u
 - Native empty/populated/compact fixtures and projection regression checks.
 - No provider, delivery, account sync, persistent setting or release-version changes.
 
-## Stage 3 — presentation studio (this branch)
+## Stage 3 — presentation studio (merged in #27)
 
 - Separate preview-only window, opened from Gallery or Presentation without replacing game artwork.
 - Real Collector Card renderer at desktop/small/full-artwork logical widths, constrained to the window.
@@ -34,11 +34,18 @@ Deliver this as reviewable stages. Preserve provider detection, deduplication, u
 - Draft presentation snapshot, current master sound settings, existing quiet/reduced-motion protections; no settings or delivery mutations.
 - Native Steam/Xbox/compact fixtures assert that static previews do not play alerts or change journal, settings or delivery state.
 
+## Stage 4 — preview-first recaps and completion shelf (this branch)
+
+- Recap counts exclude imported history and synthetic completion events, deduplicate recorded unlocks and retain Steam/Xbox identity.
+- Bounded, mention-suppressed message built once and previewed before an explicit send. Cancel is the default action; no automatic recap posting or retry.
+- Read-only 100% completion shelf in Trophies, using valid snapshot totals only; inspecting a game opens its Library details.
+- Existing beam reveal, rare/completion particles, countdown and chimes are preserved. Native CI already exercises the real button → queue → overlay path and verifies static/reduced-motion suppression; no duplicate animation system was added.
+- No achievement delivery, baseline, sync or settings schema changes.
+
 ## Remaining approved stages
 
-1. Validate and land the presentation studio; existing positioning/scaling controls remain in Presentation.
-3. Event-driven motion and completion celebration with reduced-motion support.
-4. Optional preview-first session recaps and verified completion shelf.
-5. Tray, startup, display-scaling and sync-state polish; clearer delivery explanations without unsafe retry controls.
+1. Validate and land recaps and the completion shelf.
+2. Tray, startup, display-scaling and sync-state polish; clearer delivery explanations without unsafe retry controls.
+3. Final release validation and versioning. Installed live-game testing remains separate from CI.
 
 Do not represent these remaining stages as shipped with the visual foundation. The foundation does not change persistent settings or enable new Discord posts.

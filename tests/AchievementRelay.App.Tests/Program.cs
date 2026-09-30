@@ -11,6 +11,7 @@ using AchievementRelay.Core.Models;
 
 var tests = new (string Name, Action Run)[]
 {
+    ("Session recap is bounded, platform-aware and excludes synthetic history", SessionRecapContract),
     ("Collection filters preserve platform identity and unknown progress", LibraryPresentationContract),
     ("Redline dashboard summaries are local-date bounded and read-only", RedlineDashboardSummaryContract),
     ("Recent game survives exit, restart and stale Xbox polling", RecentGameActivityContract),
@@ -61,6 +62,26 @@ if (failures.Count > 0)
 else
 {
     Console.WriteLine($"All {tests.Length} app presentation smoke tests passed.");
+}
+
+static void SessionRecapContract()
+{
+    var now = DateTimeOffset.Parse("2026-09-30T12:00:00Z");
+    JournalEntry Entry(string id, string provider, int score = 0, bool historical = false, bool completion = false) =>
+        new(new AchievementEvent { Id = id, Name = "Unlock " + id, GameName = "Same game", SourceProvider = provider,
+            Gamerscore = score, IsHistorical = historical, IsGameCompletion = completion, RarityKnown = true, RarityPercentage = 3.8 }, now, "test", "Delivered", now);
+    var entries = new[] { Entry("steam", "Steam"), Entry("xbox", "Xbox", 50), Entry("history", "Steam", 500, true), Entry("completion", "Xbox", 500, completion: true), Entry("xbox", "Xbox", 50) with { UpdatedAt = now.AddMinutes(1) } };
+    var recap = SessionRecapPresentation.Create(entries, TimeZoneInfo.Utc);
+    Assert(recap.Unlocks == 2 && recap.Games == 2 && recap.Gamerscore == 50, "Recap double-counted an unlock or merged platforms.");
+    Assert(recap.Content.Contains("Same game · Steam") && recap.Content.Contains("Same game · Xbox"), "Recap omitted platform identity.");
+    using var payload = System.Text.Json.JsonDocument.Parse(recap.JsonPayload);
+    Assert(payload.RootElement.GetProperty("content").GetString() == recap.Content && payload.RootElement.GetProperty("allowed_mentions").GetProperty("parse").GetArrayLength() == 0, "Shared message differs from the preview or enables mentions.");
+    var hostile = Enumerable.Range(0, 300).Select(i => Entry(i.ToString(), new string('*', 100)) with {
+        Achievement = Entry(i.ToString(), new string('*', 100)).Achievement with { GameName = i + new string('*', 300), Name = new string('*', 300) } });
+    Assert(SessionRecapPresentation.Create(hostile, TimeZoneInfo.Utc).Content.Length <= 1900, "Recap exceeded its Discord message budget.");
+    var unknown = Entry("unknown", "Steam") with { Achievement = Entry("unknown", "Steam").Achievement with { RarityKnown = false, RarityPercentage = .01 } };
+    Assert(SessionRecapPresentation.Create([unknown], TimeZoneInfo.Utc).Content.Contains("rarity unavailable"), "Unknown rarity was presented as known.");
+    Assert(SessionRecapPresentation.Create([], TimeZoneInfo.Utc).Unlocks == 0 && entries[2].Achievement.IsHistorical, "Empty recap invented data or mutated its inputs.");
 }
 
 static void LibraryPresentationContract()
@@ -286,6 +307,19 @@ static void UnlockEffectsContract()
         Assert(!pulse.HasAnimatedProperties, "Artwork animation survived cleanup.");
         Assert(((System.Windows.Shapes.Rectangle)window.FindName("UnlockSweep")).Opacity == 0, "Sweep survived cleanup.");
         Assert(((System.Windows.Controls.TextBlock)window.FindName("PlatinumSparkle")).Opacity == 0, "Sparkle survived cleanup.");
+        window.Close();
+        foreach (var provider in new[] { "Steam", "Xbox" }) {
+            var complete = new AchievementOverlayWindow(AchievementOverlayPresentation.Create(CreateAchievement(1) with {
+                SourceProvider = provider, IsGameCompletion = true, VerifiedAchievementTotal = 40 }));
+            try {
+                typeof(AchievementOverlayWindow).GetMethod("StartUnlockEffects", flags)!.Invoke(complete, null);
+                var particles = (System.Windows.Controls.Panel)complete.FindName("CelebrationParticles");
+                Assert(particles.Children.Count == 24, "Verified completion did not use its distinct celebration.");
+                typeof(AchievementOverlayWindow).GetMethod("StopUnlockEffects", flags)!.Invoke(complete, null);
+                Assert(particles.Children.Count == 0, "Completion particles survived cleanup.");
+            }
+            finally { complete.Close(); }
+        }
         return true;
     });
 }

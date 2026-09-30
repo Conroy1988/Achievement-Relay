@@ -68,6 +68,7 @@ jobs:
             artifacts/home-populated*.png
             artifacts/redline-preview-error.txt
             artifacts/studio-*.png
+            artifacts/recap-preview*.png
           if-no-files-found: error
           retention-days: 1
 

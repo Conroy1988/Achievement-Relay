@@ -9,8 +9,8 @@
     <Color x:Key="PanelRaisedColor">#151A1D</Color>
     <Color x:Key="BorderColor">#626B6E</Color>
     <Color x:Key="ControlBorderColor">#7D8588</Color>
-    <Color x:Key="TextColor">#F4F1EB</Color>
-    <Color x:Key="MutedTextColor">#AEB4B7</Color>
+    <Color x:Key="TextColor">#F4F5F7</Color>
+    <Color x:Key="MutedTextColor">#B7BDC8</Color>
     <Color x:Key="AccentColor">#E9002D</Color>
     <Color x:Key="AccentDarkColor">#83151B</Color>
     <Color x:Key="AccentHoverColor">#A61922</Color>
@@ -82,7 +82,7 @@
       <Setter Property="Background" Value="{StaticResource WindowSurfaceBrush}" />
       <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
       <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI" />
-      <Setter Property="FontSize" Value="13" />
+      <Setter Property="FontSize" Value="14" />
       <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
       <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
     </Style>
@@ -186,7 +186,6 @@
       <Setter Property="Padding" Value="17,10" />
       <Setter Property="MinHeight" Value="40" />
       <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="FontFamily" Value="Bahnschrift SemiCondensed, Segoe UI" />
       <Setter Property="Cursor" Value="Hand" />
       <Setter Property="Template">
         <Setter.Value>

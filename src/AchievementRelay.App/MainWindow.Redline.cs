@@ -18,6 +18,42 @@ public partial class MainWindow
         RedlineAchievementsList.ItemsSource = _redlineAchievements;
         RedlineOverlayToggle.IsChecked = _settings.AchievementOverlayEnabled;
         _services.AchievementDeliveryService.AchievementPosted += OnRedlineAchievementPosted;
+        _services.CompanionJournal.Changed += OnRedlineJournalChanged;
+        foreach (var entry in _services.CompanionJournal.Snapshot
+            .Where(x => !x.Achievement.IsHistorical && x.Delivery == "Delivered")
+            .OrderByDescending(x => x.ObservedAt).Take(8))
+        {
+            var achievement = entry.Achievement;
+            var presentation = AchievementOverlayPresentation.Create(achievement);
+            var icon = DecodeRedlineImage(achievement.ImageBytes, 80);
+            _redlineAchievements.Add(new RedlineAchievement(presentation.AchievementName,
+                achievement.GameName ?? achievement.SourceProvider, achievement.Description ?? "No description supplied by the provider.",
+                presentation.Platform, presentation.Percentage + " · " + presentation.TierName,
+                achievement.Gamerscore is > 0 ? $"{achievement.Gamerscore} Gamerscore" : "",
+                entry.UpdatedAt.ToLocalTime().ToString("dd MMM HH:mm"), icon, null, null));
+        }
+        if (_redlineAchievements.Count > 0)
+        {
+            RedlineEmptyText.Visibility = Visibility.Collapsed;
+            RedlineAchievementsList.SelectedIndex = 0;
+        }
+        RefreshRedlineSummary();
+    }
+
+    private void OnRedlineJournalChanged()
+    {
+        if (!_isExiting && !Dispatcher.HasShutdownStarted)
+            _ = Dispatcher.InvokeAsync(() => { if (!_isExiting) RefreshRedlineSummary(); });
+    }
+
+    private void RefreshRedlineSummary()
+    {
+        var summary = RedlineDashboardSummary.Create(_services.CompanionJournal.Snapshot, DateTimeOffset.UtcNow, TimeZoneInfo.Local);
+        TodayUnlocksText.Text = summary.TodayUnlocks.ToString();
+        TodayRarestText.Text = summary.RarestPercentage is { } rarity ? $"{rarity:0.#}%" : "—";
+        TodayRarestText.ToolTip = summary.RarestPercentage is null ? "No known rarity recorded today." : "Lowest known platform unlock percentage recorded today.";
+        DeliveryAttentionText.Text = summary.NeedsAttention.ToString();
+        DeliveryAttentionText.ToolTip = "Recorded live unlocks waiting for delivery or needing investigation. Check Activity for details; uncertain deliveries are not automatically resent by this dashboard.";
     }
 
     private void ShowPresentation_Click(object sender, RoutedEventArgs e) => NavigateTo(5);
@@ -90,7 +126,8 @@ public partial class MainWindow
     private void RedlineAchievementSelected(object sender, SelectionChangedEventArgs e)
     {
         if (RedlineAchievementsList.SelectedItem is not RedlineAchievement item) return;
-        RedlineHeroImage.Source = item.Artwork ?? new BitmapImage(new Uri("pack://application:,,,/AchievementRelay.App;component/Assets/RelayCommandDeck.png"));
+        RedlineShowcasePanel.Visibility = Visibility.Visible;
+        RedlineHeroImage.Source = item.Artwork ?? item.Icon;
         RedlinePreviewLabel.Text = "DELIVERED TO DISCORD";
         RedlineGameText.Text = item.Game;
         RedlineAchievementText.Text = item.Name;

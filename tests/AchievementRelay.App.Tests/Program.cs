@@ -11,6 +11,7 @@ using AchievementRelay.Core.Models;
 
 var tests = new (string Name, Action Run)[]
 {
+    ("Redline dashboard summaries are local-date bounded and read-only", RedlineDashboardSummaryContract),
     ("Recent game survives exit, restart and stale Xbox polling", RecentGameActivityContract),
     ("Account imports preserve delivery isolation and concurrent local edits", AccountStoreTests.Run),
     ("Imported history is opt-in, bounded and isolated from delivery state", LibraryHistoryContract),
@@ -114,6 +115,35 @@ static void CompanionHistoryContract()
         Assert(broken.StorageError is not null && File.ReadAllText(Path.Combine(paths.DataDirectory, "companion-journal.json")) == "invalid", "Invalid history was overwritten.");
     }
     finally { directory.Delete(true); }
+}
+
+static void RedlineDashboardSummaryContract()
+{
+    var now = new DateTimeOffset(2026, 9, 30, 0, 30, 0, TimeSpan.Zero);
+    var zone = TimeZoneInfo.CreateCustomTimeZone("Test UTC+1", TimeSpan.FromHours(1), "Test", "Test");
+    JournalEntry Entry(string id, string delivery, DateTimeOffset observed, double? rarity = null) =>
+        new(new AchievementEvent { Id = id, Name = id, SourceProvider = "Steam", RarityKnown = rarity.HasValue,
+            RarityPercentage = rarity }, observed, "session", delivery, observed);
+    var entries = new[] {
+        Entry("delivered", "Delivered", now.AddHours(-1), 5),
+        Entry("pending", "Pending", now, 20),
+        Entry("duplicate", "Pending", now),
+        Entry("duplicate", "Delivered", now) with { UpdatedAt = now.AddSeconds(1) },
+        Entry("older", "Retry pending", now.AddDays(-1), 1),
+        Entry("uncertain", "Delivery uncertain — check Discord", now, double.NaN),
+        Entry("filtered", "Filtered", now, 200),
+        Entry("remote", "Delivered on another PC", now),
+        Entry("imported", "Pending", now) with { Achievement = new AchievementEvent { Id = "imported", Name = "History", SourceProvider = "Xbox", IsHistorical = true } },
+        Entry("completion", "Pending", now) with { Achievement = new AchievementEvent { Id = "completion", Name = "Completion", SourceProvider = "Xbox", IsGameCompletion = true } },
+        Entry("future", "Pending", now.AddDays(1), 0.1)
+    };
+    var result = RedlineDashboardSummary.Create(entries, now, zone);
+    Assert(result.TodayUnlocks == 6, "Local midnight, duplicate or synthetic-event handling is incorrect.");
+    Assert(result.RarestPercentage == 5, "Invalid, old or future rarity was included.");
+    Assert(result.NeedsAttention == 3, "Uncertain/retry states were omitted or successful/filtered states were counted.");
+    Assert(entries[2].Delivery == "Pending", "Dashboard projection mutated delivery state.");
+    var empty = RedlineDashboardSummary.Create([], now, zone);
+    Assert(empty.TodayUnlocks == 0 && empty.RarestPercentage is null && empty.NeedsAttention == 0, "Empty dashboard invented statistics.");
 }
 
 static void RecentGameActivityContract()

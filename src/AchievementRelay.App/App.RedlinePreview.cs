@@ -39,6 +39,19 @@ public partial class App
             Render(window, Path.Combine(Path.GetDirectoryName(output)!, "home-small.png"), 900, 600);
             Render(window, Path.Combine(Path.GetDirectoryName(output)!,
                 Path.GetFileNameWithoutExtension(output) + "_compact.png"), 1100, 640);
+            // Synthetic populated state exercises the real dashboard projection without provider/network access.
+            Task.Run(async () =>
+            {
+                await services.CompanionLibrary.ObserveAsync("Steam:preview:123", "Redline preview game", "Steam", 18, 40, null, [], false);
+                await services.CompanionLibrary.Activity.RecordAsync("123", "Redline preview game", "Steam", DateTimeOffset.UtcNow.AddMinutes(-5));
+                await services.CompanionJournal.RecordAsync(new AchievementEvent { Id = "preview-delivered", Name = "Beyond the horizon",
+                    GameName = "Redline preview game", SourceProvider = "Steam", RarityKnown = true, RarityPercentage = 3.8 }, "Delivered");
+                await services.CompanionJournal.RecordAsync(new AchievementEvent { Id = "preview-waiting", Name = "One more step",
+                    GameName = "Redline preview game", SourceProvider = "Steam" }, "Retry pending");
+            }).GetAwaiter().GetResult();
+            window.RefreshStatus();
+            Render(window, Path.Combine(Path.GetDirectoryName(output)!, "home-populated.png"), 1440, 920);
+            Render(window, Path.Combine(Path.GetDirectoryName(output)!, "home-populated-compact.png"), 900, 640);
         }
         catch (Exception exception)
         {

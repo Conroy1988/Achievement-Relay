@@ -16,6 +16,9 @@ public partial class MainWindow
         NowPlayingHeading.Text = name is not null ? "NOW PLAYING" : recent is not null ? "LAST PLAYED" : "NO ACTIVE GAME";
         NowPlayingTitle.Text = name ?? (recent is not null ? recent.Name + " · last played on " + recent.Provider : "Waiting for your next game");
         var shown = game ?? (name is null ? lastGame : null);
+        NowPlayingProgressBar.Visibility = shown?.Total is > 0 ? Visibility.Visible : Visibility.Collapsed;
+        NowPlayingProgressBar.Value = shown?.Total is > 0 ? Math.Clamp(100d * shown.Earned / shown.Total.Value, 0, 100) : 0;
+        RefreshRedlineSummary();
         var entries = _services.CompanionJournal.Snapshot.Where(x => !x.Achievement.IsHistorical).ToArray();
         var latest = entries.MaxBy(x => x.ObservedAt);
         var count = latest is not null && DateTimeOffset.UtcNow - latest.ObservedAt < TimeSpan.FromMinutes(30)

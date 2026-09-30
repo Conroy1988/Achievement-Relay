@@ -16,16 +16,15 @@
   <Window.Resources><ResourceDictionary><ResourceDictionary.MergedDictionaries><ResourceDictionary Source="Redline.xaml"/></ResourceDictionary.MergedDictionaries></ResourceDictionary></Window.Resources>
   <Border BorderBrush="#BC1630" BorderThickness="1" CornerRadius="8">
   <Grid Background="{StaticResource WindowSurfaceBrush}">
-    <Grid.RowDefinitions><RowDefinition Height="80"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+    <Grid.RowDefinitions><RowDefinition Height="72"/><RowDefinition Height="*"/></Grid.RowDefinitions>
     <Grid.ColumnDefinitions>
-      <ColumnDefinition Width="154" />
+      <ColumnDefinition Width="174" />
       <ColumnDefinition Width="*" />
     </Grid.ColumnDefinitions>
 
     <Grid Grid.ColumnSpan="2">
       <Grid.Background><LinearGradientBrush StartPoint="0,0" EndPoint="1,0.4"><GradientStop Color="#16090F"/><GradientStop Color="#08090B" Offset="0.5"/><GradientStop Color="#260510" Offset="1"/></LinearGradientBrush></Grid.Background>
-      <Path Data="M 0,0 L 65,0 0,65 Z M 20,0 L 82,0 0,82 Z" Fill="#B90022" HorizontalAlignment="Left" Width="82" Stretch="Fill"/>
-      <StackPanel Orientation="Horizontal" Margin="55,12,20,12"><Image Source="Assets/AchievementRelay.png" Width="48" Height="48" Margin="0,0,16,0"/><StackPanel VerticalAlignment="Center"><TextBlock Text="ACHIEVEMENT RELAY" Foreground="{StaticResource TextBrush}" FontSize="23" FontWeight="Bold"/><TextBlock Text="Xbox and Steam achievements, shared with Discord" FontSize="11" Foreground="#B2B8BF"/></StackPanel></StackPanel>
+      <StackPanel Orientation="Horizontal" Margin="24,12,20,12"><Path Data="{StaticResource TkbBarsGeometry}" Fill="{StaticResource AccentBrush}" Width="60" Height="30" Stretch="Uniform" Margin="0,0,22,0" VerticalAlignment="Center"/><StackPanel VerticalAlignment="Center"><TextBlock Text="ACHIEVEMENT RELAY" Foreground="{StaticResource TextBrush}" FontSize="22" FontWeight="Bold"/><TextBlock Text="TKB REDLINE  /  YOUR ACHIEVEMENTS. CONNECTED." FontSize="12" Foreground="#B7BDC8"/></StackPanel></StackPanel>
       <TextBlock Text="" HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="#B9A8AF" FontSize="11" Margin="0,0,25,0"/>
     </Grid>
     <Border Grid.Row="1" Grid.Column="0"
@@ -148,30 +147,37 @@
               <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
               <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="310"/></Grid.ColumnDefinitions>
               <StackPanel x:Name="HomeMainColumn">
-                <Border Style="{StaticResource RedlinePanel}" Margin="0,0,0,10">
+                <Border Style="{StaticResource RedlinePanel}" Margin="0,0,0,12" Padding="20,16">
                   <StackPanel>
                     <WrapPanel VerticalAlignment="Center">
-                      <TextBlock x:Name="HomeTitleText" Text="Ready for your next unlock." FontSize="27" FontWeight="Bold" Margin="0,0,15,6"/>
+                      <TextBlock x:Name="HomeTitleText" Text="Ready for your next unlock." FontSize="20" FontWeight="SemiBold" Margin="0,0,15,6"/>
                       <Border Style="{StaticResource StatusPill}" Margin="0,0,0,6"><TextBlock x:Name="RelayStatusText" Text="Checking…" FontSize="12"/></Border>
                     </WrapPanel>
-                    <TextBlock x:Name="HomeSummaryText" Text="Listening for new achievements from your connected accounts." Foreground="{StaticResource MutedTextBrush}" FontSize="12" Margin="0,0,0,14"/>
-                    <Button x:Name="HomePrimaryActionButton" Content="Send Discord test" Click="HomePrimaryAction_Click" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" MinWidth="180" MinHeight="40" Margin="0,0,0,8"/>
-                    <DockPanel Margin="0,0,0,12"><Button DockPanel.Dock="Right" Content="Account and sync" Click="ShowAccount_Click" Margin="12,0,0,0"/><TextBlock x:Name="HomeAccountSummary" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" AutomationProperties.LiveSetting="Polite"/></DockPanel>
-                    <Border Background="#10151D" CornerRadius="8" Margin="0,0,0,12" ClipToBounds="True">
-                      <Grid MinHeight="120">
-                        <Image x:Name="NowPlayingArtwork" Stretch="UniformToFill" Opacity="0.3"/>
-                        <StackPanel Margin="16">
-                          <TextBlock x:Name="NowPlayingHeading" Text="NO ACTIVE GAME" Foreground="#FF657B" FontSize="11" FontWeight="Bold"/>
-                          <TextBlock x:Name="NowPlayingTitle" Text="Waiting for your next game" FontSize="21" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,5"/>
-                          <TextBlock x:Name="NowPlayingProgress" Text="Steam game detection · Xbox progress from verified snapshots" FontSize="12" TextWrapping="Wrap"/>
-                        </StackPanel>
-                      </Grid>
-                    </Border>
-
-                    <TextBlock x:Name="RelayStatusDetail" FontSize="11" Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" AutomationProperties.LiveSetting="Polite"/>
+                    <TextBlock x:Name="HomeSummaryText" Text="Listening for new achievements from your connected accounts." Foreground="{StaticResource MutedTextBrush}" FontSize="14" Margin="0,0,0,12"/>
+                    <WrapPanel><Button x:Name="HomePrimaryActionButton" Content="Send Discord test" Click="HomePrimaryAction_Click" Style="{StaticResource PrimaryButton}" MinHeight="38" Margin="0,0,10,0"/><Button Content="Open game library" Click="ShowCompanion_Click" MinHeight="38"/></WrapPanel>
+                    <TextBlock x:Name="RelayStatusDetail" FontSize="12" Foreground="{StaticResource MutedTextBrush}" Margin="0,10,0,0" AutomationProperties.LiveSetting="Polite"/>
                   </StackPanel>
                 </Border>
-                <Border Style="{StaticResource RedlinePanel}" Padding="8" Margin="0,0,0,10">
+                <Border Background="#101218" CornerRadius="10" Margin="0,0,0,12" ClipToBounds="True" BorderBrush="#343840" BorderThickness="1">
+                  <Grid MinHeight="270">
+                    <Image x:Name="NowPlayingArtwork" Stretch="UniformToFill" Opacity="0.85"/>
+                    <Border><Border.Background><LinearGradientBrush StartPoint="0,0" EndPoint="1,0.4"><GradientStop Color="#F5090A0E"/><GradientStop Color="#B8090A0E" Offset="0.6"/><GradientStop Color="#40090A0E" Offset="1"/></LinearGradientBrush></Border.Background></Border>
+                    <Path Data="{StaticResource TkbBarsGeometry}" Fill="#22ED123F" Width="180" Height="90" Stretch="Uniform" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="24"/>
+                    <StackPanel Margin="26" VerticalAlignment="Bottom">
+                      <TextBlock x:Name="NowPlayingHeading" Text="NO ACTIVE GAME" Foreground="#FF728B" FontSize="12" FontWeight="Bold"/>
+                      <TextBlock x:Name="NowPlayingTitle" Text="Your next session starts here." FontSize="32" FontWeight="Bold" TextWrapping="Wrap" Margin="0,12,0,10"/>
+                      <TextBlock x:Name="NowPlayingProgress" Text="Launch a game. Relay takes care of the unlocks." FontSize="14" TextWrapping="Wrap"/>
+                      <ProgressBar x:Name="NowPlayingProgressBar" Minimum="0" Maximum="100" Height="5" Margin="0,16,0,0" Visibility="Collapsed" AutomationProperties.Name="Game achievement completion"/>
+                    </StackPanel>
+                  </Grid>
+                </Border>
+                <UniformGrid Columns="3" Margin="0,0,0,12">
+                  <Border Style="{StaticResource RedlineMetric}" Margin="0,0,8,0"><StackPanel><TextBlock Text="UNLOCKS TODAY" Style="{StaticResource RedlineEyebrow}"/><TextBlock x:Name="TodayUnlocksText" Text="0" FontSize="28" FontWeight="SemiBold" Margin="0,5,0,0"/></StackPanel></Border>
+                  <Border Style="{StaticResource RedlineMetric}" Margin="0,0,8,0"><StackPanel><TextBlock Text="RAREST TODAY" Style="{StaticResource RedlineEyebrow}"/><TextBlock x:Name="TodayRarestText" Text="—" FontSize="28" FontWeight="SemiBold" Margin="0,5,0,0"/></StackPanel></Border>
+                  <Border Style="{StaticResource RedlineMetric}"><StackPanel><TextBlock Text="NEEDS ATTENTION" Style="{StaticResource RedlineEyebrow}"/><TextBlock x:Name="DeliveryAttentionText" Text="0" FontSize="28" FontWeight="SemiBold" Margin="0,5,0,0"/></StackPanel></Border>
+                </UniformGrid>
+                <TextBlock Text="Today uses your local date and Relay’s recorded live unlocks—not your full platform history." Foreground="{StaticResource MutedTextBrush}" FontSize="12" Margin="2,0,0,12"/>
+                <Border x:Name="RedlineShowcasePanel" Style="{StaticResource RedlinePanel}" Padding="8" Margin="0,0,0,12" Visibility="Collapsed">
                   <Grid MinHeight="290">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="3*"/><ColumnDefinition Width="2*"/></Grid.ColumnDefinitions>
                     <Border Background="#10171D" CornerRadius="5" ClipToBounds="True" Margin="0,0,16,0">
@@ -221,13 +227,14 @@
                     <TextBlock Text="Show a compact notification when you unlock an achievement." FontSize="12" Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,20"/>
                     <Button Content="Preview overlay" Click="PreviewAchievementOverlay_Click" Margin="0,0,0,10"/>
 
-                    <TextBlock Text="A test sends a sample post to your configured Discord channel." FontSize="11" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,18"/>
+                    <TextBlock Text="Overlay previews stay on this PC. They do not post to Discord." FontSize="12" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,18"/>
                     <Border Style="{StaticResource RedlinePanel}" Padding="10">
                       <StackPanel><TextBlock Text="LOCAL SIGNAL STRIP PREVIEW" FontSize="11" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,8"/><Border BorderBrush="#FF1638" BorderThickness="3,0,0,0" Padding="10,5"><DockPanel><Image Source="Assets/AchievementRelay.png" Width="38" Height="38" Margin="0,0,10,0"/><StackPanel><TextBlock Text="Achievement unlocked" FontSize="11" Foreground="{StaticResource MutedTextBrush}"/><TextBlock Text="{Binding Text, ElementName=RedlineAchievementText}" FontSize="13" FontWeight="SemiBold"/><TextBlock Text="{Binding Text, ElementName=RedlinePlatformText}" FontSize="11"/></StackPanel></DockPanel></Border></StackPanel>
                     </Border>
                     <Button Content="Presentation settings →" Click="ShowPresentation_Click" Margin="0,12,0,0" FontSize="12"/>
                   </StackPanel>
                 </Border>
+                <Border Style="{StaticResource RedlinePanel}" Margin="0,12,0,0"><StackPanel><TextBlock Text="ACCOUNT &amp; SYNC" Style="{StaticResource RedlineEyebrow}"/><TextBlock x:Name="HomeAccountSummary" Margin="0,10,0,12" Foreground="{StaticResource MutedTextBrush}" AutomationProperties.LiveSetting="Polite"/><Button Content="Account and sync" Click="ShowAccount_Click"/></StackPanel></Border>
               </StackPanel>
             </Grid>
           </StackPanel>

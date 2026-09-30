@@ -48,6 +48,19 @@ public sealed partial class CompanionWindow
         _librarySort.SelectedIndex = 1;
         var names = _libraryGames.Items.OfType<GameRow>().Select(x => x.Game.Name).ToArray();
         Require(names.Length == 100 && names.SequenceEqual(names.OrderBy(x => x, StringComparer.OrdinalIgnoreCase)), "Library name sorting failed.");
+        _libraryCompletion.SelectedIndex = 3;
+        Require(_libraryGames.Items.Count == 34 && _libraryGames.Items.OfType<GameRow>().All(x => x.ProgressVisibility == System.Windows.Visibility.Collapsed), "Unknown totals acquired progress bars or disappeared.");
+        _libraryCompletion.SelectedIndex = 2;
+        Require(_libraryGames.Items.Count == 0 && _libraryProgress.Visibility == System.Windows.Visibility.Collapsed, "Completed filter invented completion or kept stale progress.");
+        _libraryCompletion.SelectedIndex = 0;
+        _libraryPlatform.SelectedIndex = 1;
+        Require(_libraryGames.Items.Count == 0, "Platform filtering mixed unrelated provider snapshots.");
+        _libraryPlatform.SelectedIndex = 0;
+        var sessionCount = SessionEntries.Length;
+        _timelineSearch.Text = "no-such-session-achievement";
+        Require(_sessionTimeline.Items.Count == 0 && SessionEntries.Length == sessionCount, "Timeline search changed recap contents.");
+        _timelineSearch.Text = "";
+        Require(_sessionTimeline.Items.Count == sessionCount, "Clearing timeline search lost recorded events.");
 
         var baseline = _savedCompanionControls;
         _scale.Value = 1.25;

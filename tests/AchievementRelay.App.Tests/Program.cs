@@ -11,6 +11,7 @@ using AchievementRelay.Core.Models;
 
 var tests = new (string Name, Action Run)[]
 {
+    ("Collection filters preserve platform identity and unknown progress", LibraryPresentationContract),
     ("Redline dashboard summaries are local-date bounded and read-only", RedlineDashboardSummaryContract),
     ("Recent game survives exit, restart and stale Xbox polling", RecentGameActivityContract),
     ("Account imports preserve delivery isolation and concurrent local edits", AccountStoreTests.Run),
@@ -60,6 +61,22 @@ if (failures.Count > 0)
 else
 {
     Console.WriteLine($"All {tests.Length} app presentation smoke tests passed.");
+}
+
+static void LibraryPresentationContract()
+{
+    var now = DateTimeOffset.UtcNow;
+    LibraryGame Game(string key, string provider, int earned, int? total, int age = 0) =>
+        new(key, "Same game", provider, earned, total, null, now.AddMinutes(-age), []);
+    var games = new[] { Game("steam", "Steam", 2, 10), Game("xbox", "Xbox", 10, 10, 10),
+        Game("unknown", "Steam", 5, null), Game("invalid", "Xbox", 20, 10), Game("zero", "Xbox", 0, 0) };
+    Assert(LibraryPresentation.Filter(games, " same ", "Steam", 0, 0).Select(x => x.Key).Order().SequenceEqual(new[] { "steam", "unknown" }), "Platform identity or trimmed search was lost.");
+    Assert(LibraryPresentation.Filter(games, "", null, 2, 0).Single().Key == "xbox", "Invalid or unknown totals became completions.");
+    Assert(LibraryPresentation.Filter(games, "", null, 1, 0).Single().Key == "steam", "In-progress filter included unverified totals.");
+    Assert(LibraryPresentation.Filter(games, "", null, 3, 0).Length == 3, "Unknown/invalid progress was omitted.");
+    Assert(LibraryPresentation.Filter(games, "", null, 0, 2)[0].Key == "steam", "Closest sort included completed or unknown totals first.");
+    Assert(LibraryPresentation.Percentage(games[0]) == 20 && LibraryPresentation.Percentage(games[3]) == 0, "Verified progress projection is incorrect.");
+    Assert(LibraryPresentation.Filter(games, "absent", null, 0, 0).Length == 0 && games[1].ObservedAt == now.AddMinutes(-10), "Empty filtering or immutable snapshots changed.");
 }
 
 static void SharedClaimContract()

@@ -30,7 +30,7 @@ jobs:
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install .NET 10
         uses: actions/setup-dotnet@v6
@@ -226,7 +226,7 @@ jobs:
 
       - name: Retain signed release candidate
         if: ${{ github.event_name == 'workflow_dispatch' && !inputs.publish_release }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: AchievementRelay-${{ env.RELEASE_TAG }}-signed-candidate
           path: |

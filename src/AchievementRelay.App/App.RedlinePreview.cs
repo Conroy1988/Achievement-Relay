@@ -63,6 +63,20 @@ public partial class App
             collection.SelectSection("Sessions");
             Render(collection, Path.Combine(Path.GetDirectoryName(output)!, "companion-session-populated.png"), 1020, 820);
             collection.Close();
+            var journalBefore = services.CompanionJournal.Snapshot.Length;
+            var studio = new PresentationStudioWindow(services.AchievementPostComposer, new AppSettings(), null,
+                _ => throw new InvalidOperationException("A static studio preview attempted to play an alert."));
+            try {
+                studio.PrepareReviewAsync(1, false, false).GetAwaiter().GetResult();
+                Render(studio, Path.Combine(Path.GetDirectoryName(output)!, "studio-steam.png"), 960, 1000);
+                studio.PrepareReviewAsync(5, false, true).GetAwaiter().GetResult();
+                Render(studio, Path.Combine(Path.GetDirectoryName(output)!, "studio-xbox-compact-window.png"), 640, 620);
+                studio.PrepareReviewAsync(4, true, true).GetAwaiter().GetResult();
+                Render(studio, Path.Combine(Path.GetDirectoryName(output)!, "studio-compact-embed.png"), 960, 1000);
+                if (services.CompanionJournal.Snapshot.Length != journalBefore || File.Exists(services.Paths.EventLedgerFile) || File.Exists(services.Paths.SettingsFile))
+                    throw new InvalidOperationException("Studio preview changed journal, delivery state or saved settings.");
+            }
+            finally { studio.Close(); }
         }
         catch (Exception exception)
         {

@@ -14,7 +14,7 @@ Deliver this as reviewable stages. Preserve provider detection, deduplication, u
 - Clear distinction between a local overlay preview and a Discord test post.
 - Keep accessible control contrast, settings draft protections and compact layouts.
 
-## Stage 2 — collection and activity (this branch)
+## Stage 2 — collection and activity (merged in #26)
 
 - Shared TKB two-bar identity and more readable collection/gallery text.
 - Steam/Xbox, in-progress, completed and unknown-total library filters.
@@ -24,10 +24,19 @@ Deliver this as reviewable stages. Preserve provider detection, deduplication, u
 - Native empty/populated/compact fixtures and projection regression checks.
 - No provider, delivery, account sync, persistent setting or release-version changes.
 
+## Stage 3 — presentation studio (this branch)
+
+- Separate preview-only window, opened from Gallery or Presentation without replacing game artwork.
+- Real Collector Card renderer at desktop/small/full-artwork logical widths, constrained to the window.
+- Actual compact embed text, explicitly labelled as an approximate layout rather than a Discord screenshot.
+- Selected achievement or clearly labelled Steam/Xbox synthetic unlock, rare and completion examples.
+- Real signal-strip static reference and explicit local animated preview using the existing overlay service.
+- Draft presentation snapshot, current master sound settings, existing quiet/reduced-motion protections; no settings or delivery mutations.
+- Native Steam/Xbox/compact fixtures assert that static previews do not play alerts or change journal, settings or delivery state.
+
 ## Remaining approved stages
 
-1. Finish native validation of collection/activity changes before landing.
-2. Visual card/overlay studio, desktop and Discord-size previews, positioning and scaling controls.
+1. Validate and land the presentation studio; existing positioning/scaling controls remain in Presentation.
 3. Event-driven motion and completion celebration with reduced-motion support.
 4. Optional preview-first session recaps and verified completion shelf.
 5. Tray, startup, display-scaling and sync-state polish; clearer delivery explanations without unsafe retry controls.

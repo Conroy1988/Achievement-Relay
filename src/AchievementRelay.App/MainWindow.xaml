@@ -154,7 +154,7 @@
                       <Border Style="{StaticResource StatusPill}" Margin="0,0,0,6"><TextBlock x:Name="RelayStatusText" Text="Checking…" FontSize="12"/></Border>
                     </WrapPanel>
                     <TextBlock x:Name="HomeSummaryText" Text="Listening for new achievements from your connected accounts." Foreground="{StaticResource MutedTextBrush}" FontSize="14" Margin="0,0,0,12"/>
-                    <WrapPanel><Button x:Name="HomePrimaryActionButton" Content="Send Discord test" Click="HomePrimaryAction_Click" Style="{StaticResource PrimaryButton}" MinHeight="38" Margin="0,0,10,0"/><Button Content="Open game library" Click="ShowCompanion_Click" MinHeight="38"/></WrapPanel>
+                    <WrapPanel><Button x:Name="HomePrimaryActionButton" Content="Send Discord test" Click="HomePrimaryAction_Click" Style="{StaticResource PrimaryButton}" MinHeight="38" Margin="0,0,10,0"/><Button Content="Open collection" Click="ShowCompanion_Click" MinHeight="38"/></WrapPanel>
                     <TextBlock x:Name="RelayStatusDetail" FontSize="12" Foreground="{StaticResource MutedTextBrush}" Margin="0,10,0,0" AutomationProperties.LiveSetting="Polite"/>
                   </StackPanel>
                 </Border>
@@ -178,15 +178,16 @@
                 </UniformGrid>
                 <TextBlock Text="Today uses your local date and Relay’s recorded live unlocks—not your full platform history." Foreground="{StaticResource MutedTextBrush}" FontSize="12" Margin="2,0,0,12"/>
                 <Border x:Name="RedlineShowcasePanel" Style="{StaticResource RedlinePanel}" Padding="8" Margin="0,0,0,12" Visibility="Collapsed">
-                  <Grid MinHeight="290">
+                  <Grid x:Name="RedlineShowcaseGrid" MinHeight="220">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="3*"/><ColumnDefinition Width="2*"/></Grid.ColumnDefinitions>
-                    <Border Background="#10171D" CornerRadius="5" ClipToBounds="True" Margin="0,0,16,0">
+                    <Border x:Name="RedlineArtworkPanel" Background="#10171D" CornerRadius="5" ClipToBounds="True" Margin="0,0,16,0">
                       <Grid><Image x:Name="RedlineHeroImage" Source="Assets/RelayCommandDeck.png" Stretch="Uniform"/>
                         <Border VerticalAlignment="Bottom" Padding="16,26,16,12"><Border.Background><LinearGradientBrush StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#00000000"/><GradientStop Color="#EE000000" Offset="1"/></LinearGradientBrush></Border.Background><TextBlock x:Name="RedlineGameText" Text="ACHIEVEMENT RELAY" Foreground="{StaticResource TextBrush}" FontSize="23" FontWeight="Bold"/></Border>
                       </Grid>
                     </Border>
                     <StackPanel Grid.Column="1" Margin="0,10,8,10" VerticalAlignment="Center">
                       <Border Background="#460017" BorderBrush="#BC1830" BorderThickness="1" CornerRadius="4" Padding="8,4" HorizontalAlignment="Left"><TextBlock x:Name="RedlinePreviewLabel" Text="LOCAL PREVIEW" FontSize="11" Foreground="#FFBEC5"/></Border>
+                      <TextBlock Text="{Binding Text, ElementName=RedlineGameText}" Foreground="{StaticResource MutedTextBrush}" FontSize="14" Margin="0,10,0,0"/>
                       <TextBlock x:Name="RedlineAchievementText" Text="Your next achievement." FontSize="25" FontWeight="SemiBold" Margin="0,14,0,6"/>
                       <TextBlock x:Name="RedlineDescriptionText" Text="Your game artwork and unlock details will appear here after a successful delivery." FontSize="14" Foreground="#CCD0D5"/>
                       <TextBlock x:Name="RedlinePlatformText" Text="Xbox + Steam" Margin="0,16,0,8" Foreground="#EAEDEF" FontSize="14"/>

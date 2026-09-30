@@ -127,7 +127,9 @@ public partial class MainWindow
     {
         if (RedlineAchievementsList.SelectedItem is not RedlineAchievement item) return;
         RedlineShowcasePanel.Visibility = Visibility.Visible;
-        RedlineHeroImage.Source = item.Artwork ?? item.Icon;
+        RedlineHeroImage.Source = item.Artwork;
+        RedlineArtworkPanel.Visibility = item.Artwork is null ? Visibility.Collapsed : Visibility.Visible;
+        RedlineShowcaseGrid.ColumnDefinitions[0].Width = item.Artwork is null ? new GridLength(0) : new GridLength(3, GridUnitType.Star);
         RedlinePreviewLabel.Text = "DELIVERED TO DISCORD";
         RedlineGameText.Text = item.Game;
         RedlineAchievementText.Text = item.Name;

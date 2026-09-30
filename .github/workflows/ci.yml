@@ -60,6 +60,7 @@ jobs:
             artifacts/companion-*.png
             artifacts/account.png
             artifacts/home-small.png
+            artifacts/home-populated*.png
           if-no-files-found: error
           retention-days: 1
 

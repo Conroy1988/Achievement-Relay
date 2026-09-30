@@ -446,6 +446,7 @@ public partial class MainWindow : Window
         _companion?.Close();
         _services.ActivityLog.EntryAdded -= OnActivityEntryAdded;
         _services.AchievementDeliveryService.AchievementPosted -= OnRedlineAchievementPosted;
+        _services.CompanionJournal.Changed -= OnRedlineJournalChanged;
         _services.RelayCoordinator.StatusChanged -= OnRelayStatusChanged;
         _services.SteamMonitorCoordinator.StatusChanged -= OnSteamStatusChanged;
         _services.UpdateService.StateChanged -= OnUpdateStateChanged;

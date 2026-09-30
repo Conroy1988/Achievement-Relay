@@ -364,11 +364,11 @@ if (-not [regex]::IsMatch(
     throw 'Every visible app launch, including the updater relaunch, must select and render the Home page instead of an empty command surface.'
 }
 if (-not $appThemeXaml.Contains('<Color x:Key="BackgroundColor">#060709</Color>') -or
-    -not $appThemeXaml.Contains('<Color x:Key="TextColor">#F4F1EB</Color>') -or
+    -not $appThemeXaml.Contains('<Color x:Key="TextColor">#F4F5F7</Color>') -or
     -not $appThemeXaml.Contains('<Color x:Key="AccentColor">#E9002D</Color>') -or
     -not $appThemeXaml.Contains('x:Key="AccentTextBrush"') -or
     -not $appThemeXaml.Contains('x:Key="SuccessBrush"')) {
-    throw 'The command-red theme must preserve its readable ink, bone, crimson, and semantic success hierarchy.'
+    throw 'The TKB Redline theme must preserve its readable ink, white, crimson, and semantic success hierarchy.'
 }
 if (-not $appThemeXaml.Contains('x:Key="ContentTabControl"') -or
     -not $appThemeXaml.Contains('<Setter Property="TextElement.Foreground" Value="{StaticResource TextBrush}" />') -or

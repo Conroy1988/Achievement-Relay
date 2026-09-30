@@ -49,7 +49,9 @@ public partial class App
                 await services.CompanionJournal.RecordAsync(new AchievementEvent { Id = "preview-waiting", Name = "One more step",
                     GameName = "Redline preview game", SourceProvider = "Steam" }, "Retry pending");
             }).GetAwaiter().GetResult();
-            window.RefreshStatus();
+            window.PrepareForExit();
+            window.Close();
+            window = new MainWindow(services, new AppSettings(), previewOnly: true);
             Render(window, Path.Combine(Path.GetDirectoryName(output)!, "home-populated.png"), 1440, 920);
             Render(window, Path.Combine(Path.GetDirectoryName(output)!, "home-populated-compact.png"), 900, 640);
         }

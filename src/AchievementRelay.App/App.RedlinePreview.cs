@@ -62,7 +62,18 @@ public partial class App
             Render(collection, Path.Combine(Path.GetDirectoryName(output)!, "companion-library-compact.png"), 760, 620);
             collection.SelectSection("Sessions");
             Render(collection, Path.Combine(Path.GetDirectoryName(output)!, "companion-session-populated.png"), 1020, 820);
+            collection.SelectSection("Trophies");
+            Render(collection, Path.Combine(Path.GetDirectoryName(output)!, "companion-completion-shelf.png"), 1020, 820);
             collection.Close();
+            var recapModel = SessionRecapPresentation.Create(services.CompanionJournal.Snapshot, TimeZoneInfo.Local);
+            var recapWindow = new SessionRecapWindow(recapModel);
+            try {
+                if (recapWindow.SendIsDefault || recapWindow.PreviewContent != recapModel.Content)
+                    throw new InvalidOperationException("Recap preview changed the message or made Send the default action.");
+                Render(recapWindow, Path.Combine(Path.GetDirectoryName(output)!, "recap-preview.png"), 800, 820);
+                Render(recapWindow, Path.Combine(Path.GetDirectoryName(output)!, "recap-preview-compact.png"), 620, 580);
+            }
+            finally { recapWindow.Close(); }
             var journalBefore = services.CompanionJournal.Snapshot.Length;
             var studio = new PresentationStudioWindow(services.AchievementPostComposer, new AppSettings(), null,
                 _ => throw new InvalidOperationException("A static studio preview attempted to play an alert."));

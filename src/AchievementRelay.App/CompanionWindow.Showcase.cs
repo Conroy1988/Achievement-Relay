@@ -34,8 +34,11 @@ public sealed partial class CompanionWindow
     private readonly System.Windows.Controls.TextBox _timelineSearch = new();
     private readonly TextBlock _timelineSummary = Text("");
     private readonly ListBox _trophies = new() { DisplayMemberPath = "Label", Height = 300 };
+    private readonly ListBox _completedGames = new() { Height = 220 };
+    private readonly TextBlock _completionSummary = Text("");
     private readonly System.Windows.Controls.Image _libraryArt = new() { Height = 165, Stretch = Stretch.UniformToFill };
     private int _libraryRevision = -1;
+    private int _completionRevision = -1;
     private readonly System.Windows.Controls.TextBox _librarySearch = new();
     private readonly ComboBox _librarySort = new() { ItemsSource = new[] { "Recently observed", "Game name", "Closest to completion" }, SelectedIndex = 0 };
     private readonly ComboBox _libraryPlatform = new() { ItemsSource = new[] { "All platforms", "Steam", "Xbox" }, SelectedIndex = 0 };
@@ -72,6 +75,10 @@ public sealed partial class CompanionWindow
         _libraryGames.ItemContainerStyle = (Style)FindResource("GalleryItemStyle");
         _trophies.DisplayMemberPath = ""; _trophies.ItemTemplate = (DataTemplate)FindResource("TrophyRowTemplate");
         _trophies.ItemContainerStyle = (Style)FindResource("GalleryItemStyle");
+        _completedGames.ItemTemplate = (DataTemplate)FindResource("LibraryRowTemplate");
+        _completedGames.ItemContainerStyle = (Style)FindResource("GalleryItemStyle");
+        System.Windows.Automation.AutomationProperties.SetName(_completedGames, "Completed games from verified snapshots");
+        ScrollViewer.SetHorizontalScrollBarVisibility(_completedGames, ScrollBarVisibility.Disabled);
         var sound = Panel(); sound.Children.Add(Text("SOUND STUDIO", 22));
         sound.Children.Add(Text("Save presentation, sound and history applies presentation, sound and history controls together. The master sound switch in Settings also controls previews."));
         sound.Children.Add(ActionButton("Stop preview", () => _soundPreview.Dispose()));
@@ -126,6 +133,9 @@ public sealed partial class CompanionWindow
         };
 
         var trophies = Panel(); trophies.Children.Add(Text("THE TROPHY ROOM", 24));
+        trophies.Children.Add(Text("100% COMPLETION SHELF", 18)); trophies.Children.Add(_completionSummary); trophies.Children.Add(_completedGames);
+        trophies.Children.Add(ActionButton("Inspect selected completed game", InspectCompletedGame));
+        trophies.Children.Add(Text("Verified snapshot totals only—not proof of when you finished. Imported snapshots can appear here but never trigger a celebration or Discord post."));
         trophies.Children.Add(Text("Pinned favourites first, then your rarest known unlocks. Unknown rarity is never treated as rare.")); trophies.Children.Add(_trophies);
         trophies.Children.Add(ActionButton("Refresh trophies", RefreshTrophies));
         trophies.Children.Add(ActionButton("Pin / unpin selected", () => Run(() => TogglePinAsync((_trophies.SelectedItem as TrophyRow)?.Achievement))));
@@ -237,12 +247,34 @@ public sealed partial class CompanionWindow
     }
     private void RefreshTrophies()
     {
+        RefreshCompletionShelf();
         var pins = _settings.Companion.PinnedAchievements ?? [];
         var live = _services.CompanionJournal.Snapshot.Select(x => new TrophyRow(x.Achievement, pins.Contains(x.Achievement.Id), x.Achievement.IsHistorical));
         var historical = _services.CompanionLibrary.Snapshot.SelectMany(x => x.History).Select(x => new TrophyRow(x, pins.Contains(x.Id), true));
         _trophies.ItemsSource = live.Concat(historical).DistinctBy(x => x.Achievement.Id).OrderByDescending(x => x.Pinned)
             .ThenBy(x => x.Achievement.RarityPercentage is >= 0 and <= 100 ? x.Achievement.RarityPercentage : double.MaxValue).Take(300).ToArray();
         _trophies.Height = Math.Clamp(_trophies.Items.Count * 85, 100, 400);
+    }
+    private void RefreshCompletionShelf()
+    {
+        var key = (_completedGames.SelectedItem as GameRow)?.Game.Key;
+        var complete = _services.CompanionLibrary.Snapshot.Where(LibraryPresentation.IsComplete).OrderByDescending(x => x.ObservedAt).ToArray();
+        var hash = new HashCode(); foreach (var game in complete) hash.Add(game);
+        var revision = hash.ToHashCode(); if (_completionRevision == revision) return; _completionRevision = revision;
+        var rows = complete.Take(12).Select(x => new GameRow(x)).ToArray();
+        _completedGames.ItemsSource = rows; _completedGames.SelectedItem = rows.FirstOrDefault(x => x.Game.Key == key) ?? rows.FirstOrDefault();
+        _completedGames.Visibility = rows.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+        _completionSummary.Text = rows.Length == 0 ? "Your completed games will appear here when Relay has a verified 100% snapshot. Unknown totals never count as completion."
+            : $"{complete.Length} completed games · showing {rows.Length} most recently observed";
+    }
+    private void InspectCompletedGame()
+    {
+        if (_completedGames.SelectedItem is not GameRow row) { _notice.Text = "Select a completed game first."; return; }
+        _librarySearch.Text = row.Game.Name; _libraryCompletion.SelectedIndex = 2;
+        _libraryPlatform.SelectedIndex = row.Game.Provider == "Steam" ? 1 : row.Game.Provider == "Xbox" ? 2 : 0;
+        _libraryRevision = -1; RefreshLibrary();
+        _libraryGames.SelectedItem = _libraryGames.Items.OfType<GameRow>().FirstOrDefault(x => x.Game.Key == row.Game.Key);
+        SelectSection("Library");
     }
     private async Task TogglePinAsync(AchievementEvent? achievement)
     {

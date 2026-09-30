@@ -88,8 +88,11 @@ public sealed partial class CompanionWindow
 
         var library = Panel(); library.Children.Add(Text("YOUR GAME LIBRARY", 22));
         library.Children.Add(Text("Verified snapshots observed on this PC—not a complete account library. Unknown totals stay unknown. Last-observed counts can lag behind play."));
-        library.Children.Add(Text("Find a game")); library.Children.Add(_librarySearch);
-        library.Children.Add(Text("Sort games")); library.Children.Add(_librarySort);
+        var searchSort = new Grid(); searchSort.ColumnDefinitions.Add(new ColumnDefinition()); searchSort.ColumnDefinitions.Add(new ColumnDefinition());
+        var searchColumn = new StackPanel { Margin = new Thickness(0, 0, 8, 0) };
+        searchColumn.Children.Add(Text("Find a game")); searchColumn.Children.Add(_librarySearch);
+        var sortColumn = new StackPanel(); sortColumn.Children.Add(Text("Sort games")); sortColumn.Children.Add(_librarySort);
+        Grid.SetColumn(sortColumn, 1); searchSort.Children.Add(searchColumn); searchSort.Children.Add(sortColumn); library.Children.Add(searchSort);
         var filters = new Grid(); filters.ColumnDefinitions.Add(new ColumnDefinition()); filters.ColumnDefinitions.Add(new ColumnDefinition());
         _libraryPlatform.Margin = new Thickness(0, 4, 8, 4); Grid.SetColumn(_libraryCompletion, 1);
         filters.Children.Add(_libraryPlatform); filters.Children.Add(_libraryCompletion); library.Children.Add(filters);
@@ -172,6 +175,7 @@ public sealed partial class CompanionWindow
         if (sessionsTab.Content is ScrollViewer { Content: StackPanel session }) {
             session.Children.Add(Text("UNLOCK TIMELINE", 18)); session.Children.Add(Text("Times show when this PC observed each unlock. Filtering this view does not change the shared recap."));
             session.Children.Add(_timelineSearch); session.Children.Add(_timelineSummary); session.Children.Add(_sessionTimeline);
+            session.Children.Add(Text("100% celebrations use verified provider totals and a live final unlock on Steam or Xbox. Missing totals remain unknown. Completion proof survives delivery retries."));
         }
         RefreshLibrary(); RefreshTrophies(); RefreshShowcaseStatus();
     }
